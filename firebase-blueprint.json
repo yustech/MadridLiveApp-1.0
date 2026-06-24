@@ -1,0 +1,214 @@
+{
+  "entities": {
+    "live_event": {
+      "title": "LiveEvent",
+      "description": "An event in the system",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier of the event"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the event"
+        },
+        "location": {
+          "type": "string",
+          "description": "The location where the event is hosted"
+        },
+        "dateDay": {
+          "type": "string",
+          "description": "The double digit calendar day of the event"
+        },
+        "dateMonth": {
+          "type": "string",
+          "description": "The 3-letter abbreviation of the month of the event"
+        },
+        "doorsOpen": {
+          "type": "string",
+          "description": "Timespan or hour when doors open"
+        },
+        "requiredStaff": {
+          "type": "number",
+          "description": "Estimated minimum crew size"
+        },
+        "activeStaff": {
+          "type": "number",
+          "description": "Calculated number of currently checked in crew"
+        },
+        "totalStaffNeeded": {
+          "type": "number",
+          "description": "Total crew positions target"
+        },
+        "scanRate": {
+          "type": "number",
+          "description": "Badge scan velocity per minute"
+        },
+        "loadInPercent": {
+          "type": "number",
+          "description": "Percentage progress of technical loading in"
+        }
+      },
+      "required": ["id", "title", "location", "dateDay", "dateMonth", "doorsOpen", "requiredStaff", "activeStaff", "totalStaffNeeded", "scanRate", "loadInPercent"]
+    },
+    "staff_member": {
+      "title": "StaffMember",
+      "description": "A crew worker or technician",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique worker ID"
+        },
+        "idCode": {
+          "type": "string",
+          "description": "The displayed ID code like SEC-042"
+        },
+        "name": {
+          "type": "string",
+          "description": "The worker's full name"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Security", "Stagehand", "A/V Tech", "Lighting", "Catering", "Rigging"],
+          "description": "The technical sector category"
+        },
+        "roleLabel": {
+          "type": "string",
+          "description": "The displayed role label text"
+        },
+        "level": {
+          "type": "string",
+          "description": "The skill seniority grade"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["IN", "OUT"],
+          "description": "The current location presence"
+        },
+        "checkedInTime": {
+          "type": "string",
+          "description": "The clock time of today's check-in"
+        },
+        "lastSeen": {
+          "type": "string",
+          "description": "Recent presence or checkout time representation"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Full URL of profile picture"
+        },
+        "totalHours": {
+          "type": "number",
+          "description": "Historical accumulated production hours"
+        },
+        "currentShiftHours": {
+          "type": "number",
+          "description": "Active hour counter"
+        },
+        "currentShiftMins": {
+          "type": "number",
+          "description": "Active minute counter"
+        },
+        "location": {
+          "type": "string",
+          "description": "The current physical zone assignment"
+        }
+      },
+      "required": ["id", "idCode", "name", "role", "roleLabel", "level", "status", "avatar", "totalHours", "currentShiftHours", "currentShiftMins", "location"]
+    },
+    "shift": {
+      "title": "Shift",
+      "description": "An active or historical check-in/out record log entry",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique shift identifier"
+        },
+        "workerId": {
+          "type": "string",
+          "description": "The target worker associated"
+        },
+        "dateString": {
+          "type": "string",
+          "description": "The calendar label of the shift"
+        },
+        "timespan": {
+          "type": "string",
+          "description": "Clock indicators like 14:00 - Present"
+        },
+        "durationLabel": {
+          "type": "string",
+          "description": "The duration description"
+        },
+        "location": {
+          "type": "string",
+          "description": "Zone location where the shift took place"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Completed"],
+          "description": "Shift state"
+        }
+      },
+      "required": ["id", "workerId", "dateString", "timespan", "durationLabel", "location", "status"]
+    },
+    "alert": {
+      "title": "EquipmentAlert",
+      "description": "A safety or technical equipment notice alert",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique alert identifier"
+        },
+        "message": {
+          "type": "string",
+          "description": "The alert description message"
+        },
+        "zone": {
+          "type": "string",
+          "description": "Technical zone targeted"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Time the event happened"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["warning", "error", "info"],
+          "description": "Severity categorization"
+        }
+      },
+      "required": ["id", "message", "zone", "timestamp", "severity"]
+    }
+  },
+  "firestore": {
+    "/events/{eventId}": {
+      "schema": {
+        "$ref": "#/entities/live_event"
+      },
+      "description": "Collections of managed live events and gigs"
+    },
+    "/staff/{workerId}": {
+      "schema": {
+        "$ref": "#/entities/staff_member"
+      },
+      "description": "Collections of crew personnel"
+    },
+    "/shifts/{shiftId}": {
+      "schema": {
+        "$ref": "#/entities/shift"
+      },
+      "description": "Log registers of entries and exits"
+    },
+    "/alerts/{alertId}": {
+      "schema": {
+        "$ref": "#/entities/alert"
+      },
+      "description": "Recent alerts posted by local operators"
+    }
+  }
+}

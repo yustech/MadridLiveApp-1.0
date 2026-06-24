@@ -1,0 +1,445 @@
+import { useState, useEffect } from 'react';
+import { Menu, Calendar, QrCode, Users, Database } from 'lucide-react';
+import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
+
+import DashboardScreen from './components/DashboardScreen';
+import StaffScreen from './components/StaffScreen';
+import ProfileScreen from './components/ProfileScreen';
+import ScannerScreen from './components/ScannerScreen';
+import DatabaseManagerScreen from './components/DatabaseManagerScreen';
+
+import {
+  seedDatabaseIfEmpty,
+  subscribeToEvents,
+  subscribeToStaff,
+  subscribeToShifts,
+  subscribeToAlerts,
+  updateStaff,
+  updateShift,
+  addShift,
+  addStaff
+} from './dbService';
+
+export default function App() {
+  // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile'
+  const [activeScreen, setActiveScreen] = useState<'dashboard' | 'staff' | 'scanner' | 'profile'>('dashboard');
+  
+  // Database Manager view modal
+  const [isDbOpen, setIsDbOpen] = useState(false);
+
+  // State variables synchronized with Live Firestore instead of LocalStorage
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [events, setEvents] = useState<LiveEvent[]>([]);
+  const [alerts, setAlerts] = useState<EquipmentAlert[]>([]);
+  const [selectedWorker, setSelectedWorker] = useState<StaffMember | null>(null);
+
+  // Sync state with Firestore snapshot subscriptions
+  useEffect(() => {
+    let unsubStaff = () => {};
+    let unsubEvents = () => {};
+    let unsubShifts = () => {};
+    let unsubAlerts = () => {};
+
+    const initFirestoreSync = async () => {
+      // 1. Seed database with defaults if empty
+      await seedDatabaseIfEmpty();
+
+      // 2. Real-time dynamic listeners
+      unsubEvents = subscribeToEvents((data) => {
+        setEvents(data);
+      });
+
+      unsubStaff = subscribeToStaff((data) => {
+        setStaff(data);
+        
+        // Resolve selected worker profile sync
+        setSelectedWorker((prev) => {
+          if (!prev) {
+            return data.find(w => w.id === 'usr_842') || data[0] || null;
+          }
+          const fresh = data.find(w => w.id === prev.id);
+          return fresh || prev;
+        });
+      });
+
+      unsubShifts = subscribeToShifts((data) => {
+        setShifts(data);
+      });
+
+      unsubAlerts = subscribeToAlerts((data) => {
+        setAlerts(data);
+      });
+    };
+
+    initFirestoreSync();
+
+    return () => {
+      unsubStaff();
+      unsubEvents();
+      unsubShifts();
+      unsubAlerts();
+    };
+  }, []);
+
+  // System time helper
+  const getCurrentTimeStr = () => {
+    return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getTodayDateStr = () => {
+    const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: '2-digit' };
+    const formatted = new Date().toLocaleDateString('es-ES', options); // e.g. "dom, 28 oct"
+    // Convert generic day name "dom, 28 oct" to "Hoy, 28 oct"
+    const parts = formatted.split(', ');
+    const rest = parts[1] || parts[0];
+    return `Hoy, ${rest}`;
+  };
+
+  // Check worker toggle IN/OUT
+  const handleToggleWorkerStatus = async (workerId: string, customLocation?: string) => {
+    const nowStr = getCurrentTimeStr();
+    const todayDateStr = getTodayDateStr();
+
+    const worker = staff.find(w => w.id === workerId);
+    if (!worker) return;
+
+    const isCurrentlyIn = worker.status === 'IN';
+
+    try {
+      if (isCurrentlyIn) {
+        // Calculate accrued hours
+        const activeHours = worker.currentShiftHours || 0;
+        const activeMins = worker.currentShiftMins || 0;
+        const netAccrued = activeHours + (activeMins / 60);
+        const finalHours = worker.totalHours + netAccrued;
+
+        // Perform transactional state update in Firestore
+        await updateStaff(workerId, {
+          status: 'OUT',
+          checkedInTime: '',
+          lastSeen: `Hoy a las ${nowStr}`,
+          currentShiftHours: 0,
+          currentShiftMins: 0,
+          totalHours: finalHours
+        });
+
+        // Terminate matches Active shifts
+        const activeShift = shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
+        if (activeShift) {
+          const startLabel = activeShift.timespan.split(' - ')[0];
+          await updateShift(activeShift.id, {
+            status: 'Completed',
+            timespan: `${startLabel} - ${nowStr}`,
+            durationLabel: `${(activeHours + activeMins / 60).toFixed(1)}h`
+          });
+        }
+      } else {
+        const chosenLoc = customLocation || worker.location || 'Stage Left';
+        
+        await updateStaff(workerId, {
+          status: 'IN',
+          checkedInTime: nowStr,
+          currentShiftHours: 4, 
+          currentShiftMins: 30, 
+          location: chosenLoc
+        });
+
+        await addShift({
+          workerId: workerId,
+          dateString: todayDateStr,
+          timespan: `${nowStr} - Presente`,
+          durationLabel: 'Activo',
+          location: chosenLoc,
+          status: 'Active'
+        });
+      }
+    } catch (err) {
+      console.error("Failed to alter staff status: ", err);
+    }
+  };
+
+  const handleAddNewCrewMember = async (newCrewData: Omit<StaffMember, 'id'>) => {
+    try {
+      const newId = await addStaff(newCrewData);
+
+      await addShift({
+        workerId: newId,
+        dateString: getTodayDateStr(),
+        timespan: `${newCrewData.checkedInTime || '14:00'} - Presente`,
+        durationLabel: 'Activo',
+        location: newCrewData.location || 'Stage Left',
+        status: 'Active'
+      });
+    } catch (err) {
+      console.error("Failed to register crew member in Firestore: ", err);
+    }
+  };
+
+  // Worker detail shifts lists locator
+  const getSelectedWorkerShifts = () => {
+    if (!selectedWorker) return [];
+    return shifts.filter(sh => sh.workerId === selectedWorker.id);
+  };
+
+  // Main wrapper navigation click sync
+  const handleSelectWorker = (worker: StaffMember) => {
+    setSelectedWorker(worker);
+    setActiveScreen('profile');
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-[#0A051A] text-[#e2e2e8] flex flex-col md:flex-row font-sans relative overflow-x-hidden">
+      
+      {/* Mesh Gradient Background Layers */}
+      <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-[120px] pointer-events-none z-0"></div>
+      <div className="absolute bottom-[-100px] right-[-100px] w-[500px] h-[500px] bg-blue-500/15 rounded-full blur-[120px] pointer-events-none z-0"></div>
+      <div className="absolute top-[20%] right-[10%] w-[300px] h-[300px] bg-pink-500/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
+
+      {/* DESKTOP LEFT SIDEBAR NAVIGATION */}
+      <aside className="hidden md:flex md:w-64 lg:w-72 border-r border-white/10 flex-col bg-[#0c0822]/95 backdrop-blur-xl shrink-0 h-screen sticky top-0 z-30 overflow-y-auto p-6 justify-between text-left">
+        <div className="space-y-8">
+          {/* Logo Brand Header */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_10px_#818cf8]" />
+              <h1 className="text-lg font-display font-black tracking-tighter text-[#dbfcff]">
+                MADRID LIVE
+              </h1>
+            </div>
+            <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest pl-4">
+              Control de Accesos v2.4
+            </p>
+          </div>
+
+          {/* Main Navigation Menu */}
+          <nav className="flex flex-col gap-2">
+            <button
+              onClick={() => setActiveScreen('dashboard')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
+                activeScreen === 'dashboard'
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+                  : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <Calendar className="w-[18px] h-[18px]" />
+              <span>Eventos / Control</span>
+            </button>
+
+            <button
+              onClick={() => setActiveScreen('scanner')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
+                activeScreen === 'scanner'
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+                  : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <QrCode className="w-[18px] h-[18px]" />
+              <span>Lector QR</span>
+            </button>
+
+            <button
+              onClick={() => setActiveScreen('staff')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
+                activeScreen === 'staff' || activeScreen === 'profile'
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+                  : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <Users className="w-[18px] h-[18px]" />
+              <span>Personal Roster</span>
+            </button>
+          </nav>
+        </div>
+
+        {/* Sidebar Footer Elements */}
+        <div className="space-y-6 pt-6 border-t border-white/10">
+          {/* Quick Metrics */}
+          <div className="space-y-2.5 font-mono text-[11px]">
+            <div className="flex justify-between">
+              <span className="text-white/40">Presentes:</span>
+              <span className="text-emerald-400 font-bold">{staff.filter(s => s.status === 'IN').length + 138}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Zonas Activas:</span>
+              <span className="text-indigo-300 font-bold">5 Sec.</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {/* Database Admin trigger */}
+            <button
+              onClick={() => setIsDbOpen(true)}
+              className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-mono text-[11px] font-bold text-white/80 cursor-pointer transition-colors flex items-center justify-center gap-2"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-400" />
+              <span>EXPLORADOR BD</span>
+            </button>
+
+            {/* Profile trigger */}
+            <button
+              onClick={() => {
+                const javier = staff.find(w => w.id === 'usr_842') || staff[0];
+                setSelectedWorker(javier);
+                setActiveScreen('profile');
+              }}
+              className="w-full p-2.5 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-xl text-left flex items-center gap-2.5 cursor-pointer transition-all"
+            >
+              <img
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4"
+                className="w-7 h-7 rounded-lg object-cover border border-white/20 shrink-0"
+                alt=""
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-white truncate">Javier R.</p>
+                <p className="text-[9px] font-mono text-indigo-300">Supervisor</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* RIGHT SIDE MASTER CONTAINER */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen relative z-10">
+        
+        {/* GLOBAL TOP APP BAR */}
+        <header className="sticky top-0 z-40 bg-white/5 backdrop-blur-lg border-b border-white/10 px-6 h-16 w-full flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <button className="md:hidden text-[#dbfcff] opacity-80 hover:opacity-100 transition-opacity p-2 hover:bg-white/10 rounded-full cursor-pointer">
+              <Menu className="w-5 h-5" />
+            </button>
+            <h1 className="text-xl font-display font-black tracking-tighter text-[#dbfcff] md:hidden">
+              MADRID LIVE
+            </h1>
+            <div className="hidden md:flex items-center gap-2">
+              <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest bg-white/5 border border-white/5 rounded px-2.5 py-1">
+                UTC GLOBAL TERMINAL
+              </span>
+            </div>
+          </div>
+
+          {/* Header Right Actions */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsDbOpen(true)}
+              className="md:hidden p-2 hover:bg-white/10 rounded-full cursor-pointer text-[#dbfcff] opacity-85 hover:opacity-100 transition-all flex items-center justify-center"
+              title="Acceso a Base de Datos (CRUD)"
+            >
+              <Database className="w-5 h-5" />
+            </button>
+
+            {/* Right Clickable Crew Headshot (Click toggles Javier Rodriguez's Profile) */}
+            <button 
+              onClick={() => {
+                const javier = staff.find(w => w.id === 'usr_842') || staff[0];
+                setSelectedWorker(javier);
+                setActiveScreen('profile');
+              }}
+              className="w-10 h-10 rounded-full overflow-hidden bg-white/5 border border-white/25 cursor-pointer hover:border-[#818cf8] transition-colors"
+              title="Ver perfil de Javier Rodríguez"
+            >
+              <img 
+                alt="Avatar de perfil" 
+                className="w-full h-full object-cover" 
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4" 
+              />
+            </button>
+          </div>
+        </header>
+
+        {/* RENDERED ACTIVE VIEW CANVASES WITH FLUID VIEWPORTS */}
+        <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-32 md:pb-12 overflow-y-auto">
+          {activeScreen === 'dashboard' && (
+            <DashboardScreen
+              events={events}
+              alerts={alerts}
+              staff={staff}
+              onLaunchScanner={() => setActiveScreen('scanner')}
+              onSelectEvent={(event) => {
+                alert(`Información del Evento: ${event.title}\nPersonal Requerido: ${event.totalStaffNeeded}\nUbicación: ${event.location}\nApertura de Puertas: ${event.doorsOpen}`);
+              }}
+            />
+          )}
+
+          {activeScreen === 'staff' && (
+            <StaffScreen
+              staff={staff}
+              onSelectWorker={handleSelectWorker}
+              onAddWorker={handleAddNewCrewMember}
+            />
+          )}
+
+          {activeScreen === 'scanner' && (
+            <ScannerScreen
+              staff={staff}
+              onScanWorkerToggle={handleToggleWorkerStatus}
+              onNavigateToWorker={handleSelectWorker}
+            />
+          )}
+
+          {activeScreen === 'profile' && selectedWorker && (
+            <ProfileScreen
+              worker={selectedWorker}
+              workerShifts={getSelectedWorkerShifts()}
+              onToggleStatus={handleToggleWorkerStatus}
+              onBack={() => setActiveScreen('staff')}
+            />
+          )}
+        </main>
+      </div>
+
+      {/* RENDER DIRECT CORE FIRESTORE DATABASE MANAGER MODAL */}
+      {isDbOpen && (
+        <DatabaseManagerScreen
+          events={events}
+          staff={staff}
+          shifts={shifts}
+          alerts={alerts}
+          onClose={() => setIsDbOpen(false)}
+        />
+      )}
+
+      {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}
+      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
+        {/* Events active screen trigger */}
+        <button
+          onClick={() => setActiveScreen('dashboard')}
+          className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeScreen === 'dashboard'
+              ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
+              : 'text-white/50 border border-transparent hover:text-white scale-95'
+          }`}
+        >
+          <Calendar className="w-[20px] h-[20px]" />
+          <span className="text-[10px] font-mono mt-1">Eventos</span>
+        </button>
+
+        {/* Scanner active screen trigger */}
+        <button
+          onClick={() => setActiveScreen('scanner')}
+          className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeScreen === 'scanner'
+              ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
+              : 'text-white/50 border border-transparent hover:text-white scale-95'
+          }`}
+        >
+          <QrCode className="w-[20px] h-[20px]" />
+          <span className="text-[10px] font-mono mt-1">Escáner</span>
+        </button>
+
+        {/* Staff / crew active screen trigger */}
+        <button
+          onClick={() => setActiveScreen('staff')}
+          className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeScreen === 'staff' || activeScreen === 'profile'
+              ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
+              : 'text-white/50 border border-transparent hover:text-white scale-95'
+          }`}
+        >
+          <Users className="w-[20px] h-[20px]" />
+          <span className="text-[10px] font-mono mt-1">Personal</span>
+        </button>
+      </nav>
+    </div>
+  );
+}

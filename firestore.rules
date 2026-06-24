@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net default catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper to validate basic IDs
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- EVENTS COLLECTION ---
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update: if isValidId(eventId) && isValidEvent(request.resource.data);
+      allow delete: if true;
+    }
+
+    function isValidEvent(data) {
+      return data.keys().hasAll(['id', 'title', 'location', 'dateDay', 'dateMonth', 'doorsOpen', 'requiredStaff', 'activeStaff', 'totalStaffNeeded', 'scanRate', 'loadInPercent'])
+        && data.id is string && data.id.size() <= 100
+        && data.title is string && data.title.size() <= 200
+        && data.location is string && data.location.size() <= 300
+        && data.dateDay is string && data.dateDay.size() <= 5
+        && data.dateMonth is string && data.dateMonth.size() <= 10
+        && data.doorsOpen is string && data.doorsOpen.size() <= 20
+        && data.requiredStaff is number
+        && data.activeStaff is number
+        && data.totalStaffNeeded is number
+        && data.scanRate is number
+        && data.loadInPercent is number;
+    }
+
+    // --- STAFF COLLECTION ---
+    match /staff/{workerId} {
+      allow read: if true;
+      allow create, update: if isValidId(workerId) && isValidStaff(request.resource.data);
+      allow delete: if true;
+    }
+
+    function isValidStaff(data) {
+      return data.keys().hasAll(['id', 'idCode', 'name', 'role', 'roleLabel', 'level', 'status', 'avatar', 'totalHours', 'currentShiftHours', 'currentShiftMins', 'location'])
+        && data.id is string && data.id.size() <= 100
+        && data.idCode is string && data.idCode.size() <= 50
+        && data.name is string && data.name.size() <= 200
+        && data.role is string && data.role in ['Security', 'Stagehand', 'A/V Tech', 'Lighting', 'Catering', 'Rigging']
+        && data.roleLabel is string && data.roleLabel.size() <= 100
+        && data.level is string && data.level.size() <= 50
+        && data.status is string && data.status in ['IN', 'OUT']
+        && data.avatar is string && data.avatar.size() <= 1000
+        && data.totalHours is number
+        && data.currentShiftHours is number
+        && data.currentShiftMins is number
+        && data.location is string && data.location.size() <= 200
+        && (!data.keys().hasAll(['checkedInTime']) || (data.checkedInTime is string && data.checkedInTime.size() <= 100))
+        && (!data.keys().hasAll(['lastSeen']) || (data.lastSeen is string && data.lastSeen.size() <= 100));
+    }
+
+    // --- SHIFTS COLLECTION ---
+    match /shifts/{shiftId} {
+      allow read: if true;
+      allow create, update: if isValidId(shiftId) && isValidShift(request.resource.data);
+      allow delete: if true;
+    }
+
+    function isValidShift(data) {
+      return data.keys().hasAll(['id', 'workerId', 'dateString', 'timespan', 'durationLabel', 'location', 'status'])
+        && data.id is string && data.id.size() <= 100
+        && data.workerId is string && data.workerId.size() <= 100
+        && data.dateString is string && data.dateString.size() <= 100
+        && data.timespan is string && data.timespan.size() <= 100
+        && data.durationLabel is string && data.durationLabel.size() <= 50
+        && data.location is string && data.location.size() <= 200
+        && data.status is string && data.status in ['Active', 'Completed'];
+    }
+
+    // --- ALERTS COLLECTION ---
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow create, update: if isValidId(alertId) && isValidAlert(request.resource.data);
+      allow delete: if true;
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll(['id', 'message', 'zone', 'timestamp', 'severity'])
+        && data.id is string && data.id.size() <= 100
+        && data.message is string && data.message.size() <= 500
+        && data.zone is string && data.zone.size() <= 100
+        && data.timestamp is string && data.timestamp.size() <= 50
+        && data.severity is string && data.severity in ['warning', 'error', 'info'];
+    }
+  }
+}

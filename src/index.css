@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Hanken Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand-bg: #0A051A;
+  --color-brand-surface: rgba(255, 255, 255, 0.05);
+  --color-brand-container: rgba(255, 255, 255, 0.08);
+  --color-brand-active: rgba(255, 255, 255, 0.15);
+  --color-brand-border: rgba(255, 255, 255, 0.10);
+  --color-brand-border-high: rgba(255, 255, 255, 0.20);
+  --color-brand-blue: #818cf8; /* indigo-400 equivalent for softer frosted vibe */
+  --color-brand-green: #34d399; /* emerald-400 */
+  --color-brand-crimson: #f43f5e; /* rose-500 */
+  
+  --shadow-hud-glow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  --shadow-success-glow: 0 8px 24px 0 rgba(52, 211, 153, 0.25);
+}
+
+@layer utilities {
+  .hud-gradient {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  }
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px) saturate(120%);
+    -webkit-backdrop-filter: blur(16px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+body {
+  background-color: #0A051A;
+  color: #E2E2E8;
+  font-family: var(--font-sans);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+@keyframes scanning {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.scan-indicator-line {
+  animation: scanning 2s infinite linear;
+}
