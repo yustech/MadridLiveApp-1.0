@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Menu, Calendar, QrCode, Users, Database } from 'lucide-react';
+import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
 
 import DashboardScreen from './components/DashboardScreen';
 import StaffScreen from './components/StaffScreen';
 import ProfileScreen from './components/ProfileScreen';
 import ScannerScreen from './components/ScannerScreen';
+import ShiftsScreen from './components/ShiftsScreen';
+import KPIScreen from './components/KPIScreen';
 import DatabaseManagerScreen from './components/DatabaseManagerScreen';
 
 import {
@@ -21,8 +23,8 @@ import {
 } from './dbService';
 
 export default function App() {
-  // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile'
-  const [activeScreen, setActiveScreen] = useState<'dashboard' | 'staff' | 'scanner' | 'profile'>('dashboard');
+  // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'
+  const [activeScreen, setActiveScreen] = useState<'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'>('dashboard');
   
   // Database Manager view modal
   const [isDbOpen, setIsDbOpen] = useState(false);
@@ -33,6 +35,14 @@ export default function App() {
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [alerts, setAlerts] = useState<EquipmentAlert[]>([]);
   const [selectedWorker, setSelectedWorker] = useState<StaffMember | null>(null);
+  const [activeEventId, setActiveEventId] = useState<string>('');
+
+  // Sync activeEventId with loaded events
+  useEffect(() => {
+    if (events.length > 0 && !activeEventId) {
+      setActiveEventId(events[0].id);
+    }
+  }, [events, activeEventId]);
 
   // Sync state with Firestore snapshot subscriptions
   useEffect(() => {
@@ -105,6 +115,8 @@ export default function App() {
     if (!worker) return;
 
     const isCurrentlyIn = worker.status === 'IN';
+    const activeEvent = events.find(e => e.id === activeEventId) || events[0];
+    const eventSuffix = activeEvent ? ` (${activeEvent.title})` : '';
 
     try {
       if (isCurrentlyIn) {
@@ -135,7 +147,8 @@ export default function App() {
           });
         }
       } else {
-        const chosenLoc = customLocation || worker.location || 'Stage Left';
+        const baseLoc = customLocation || worker.location || 'Stage Left';
+        const chosenLoc = `${baseLoc}${eventSuffix}`;
         
         await updateStaff(workerId, {
           status: 'IN',
@@ -149,7 +162,7 @@ export default function App() {
           workerId: workerId,
           dateString: todayDateStr,
           timespan: `${nowStr} - Presente`,
-          durationLabel: 'Activo',
+          durationLabel: 'Active',
           location: chosenLoc,
           status: 'Active'
         });
@@ -248,6 +261,30 @@ export default function App() {
             >
               <Users className="w-[18px] h-[18px]" />
               <span>Personal Roster</span>
+            </button>
+
+            <button
+              onClick={() => setActiveScreen('shifts')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
+                activeScreen === 'shifts'
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+                  : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <History className="w-[18px] h-[18px]" />
+              <span>Historial Registros</span>
+            </button>
+
+            <button
+              onClick={() => setActiveScreen('kpis')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
+                activeScreen === 'kpis'
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+                  : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <TrendingUp className="w-[18px] h-[18px]" />
+              <span>KPIs y Estadísticas</span>
             </button>
           </nav>
         </div>
@@ -354,10 +391,9 @@ export default function App() {
               events={events}
               alerts={alerts}
               staff={staff}
+              activeEventId={activeEventId}
+              setActiveEventId={setActiveEventId}
               onLaunchScanner={() => setActiveScreen('scanner')}
-              onSelectEvent={(event) => {
-                alert(`Información del Evento: ${event.title}\nPersonal Requerido: ${event.totalStaffNeeded}\nUbicación: ${event.location}\nApertura de Puertas: ${event.doorsOpen}`);
-              }}
             />
           )}
 
@@ -372,6 +408,9 @@ export default function App() {
           {activeScreen === 'scanner' && (
             <ScannerScreen
               staff={staff}
+              events={events}
+              activeEventId={activeEventId}
+              setActiveEventId={setActiveEventId}
               onScanWorkerToggle={handleToggleWorkerStatus}
               onNavigateToWorker={handleSelectWorker}
             />
@@ -383,6 +422,23 @@ export default function App() {
               workerShifts={getSelectedWorkerShifts()}
               onToggleStatus={handleToggleWorkerStatus}
               onBack={() => setActiveScreen('staff')}
+            />
+          )}
+
+          {activeScreen === 'shifts' && (
+            <ShiftsScreen
+              shifts={shifts}
+              staff={staff}
+              events={events}
+              onToggleStatus={handleToggleWorkerStatus}
+            />
+          )}
+
+          {activeScreen === 'kpis' && (
+            <KPIScreen
+              shifts={shifts}
+              staff={staff}
+              events={events}
             />
           )}
         </main>
@@ -400,44 +456,70 @@ export default function App() {
       )}
 
       {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}
-      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
+      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
         {/* Events active screen trigger */}
         <button
           onClick={() => setActiveScreen('dashboard')}
-          className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+          className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
             activeScreen === 'dashboard'
               ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
               : 'text-white/50 border border-transparent hover:text-white scale-95'
           }`}
         >
-          <Calendar className="w-[20px] h-[20px]" />
-          <span className="text-[10px] font-mono mt-1">Eventos</span>
+          <Calendar className="w-4.5 h-4.5" />
+          <span className="text-[9px] font-mono mt-0.5">Eventos</span>
         </button>
 
         {/* Scanner active screen trigger */}
         <button
           onClick={() => setActiveScreen('scanner')}
-          className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+          className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
             activeScreen === 'scanner'
               ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
               : 'text-white/50 border border-transparent hover:text-white scale-95'
           }`}
         >
-          <QrCode className="w-[20px] h-[20px]" />
-          <span className="text-[10px] font-mono mt-1">Escáner</span>
+          <QrCode className="w-4.5 h-4.5" />
+          <span className="text-[9px] font-mono mt-0.5">Escáner</span>
         </button>
 
         {/* Staff / crew active screen trigger */}
         <button
           onClick={() => setActiveScreen('staff')}
-          className={`flex flex-col items-center justify-center px-4 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+          className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
             activeScreen === 'staff' || activeScreen === 'profile'
               ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
               : 'text-white/50 border border-transparent hover:text-white scale-95'
           }`}
         >
-          <Users className="w-[20px] h-[20px]" />
-          <span className="text-[10px] font-mono mt-1">Personal</span>
+          <Users className="w-4.5 h-4.5" />
+          <span className="text-[9px] font-mono mt-0.5">Personal</span>
+        </button>
+
+        {/* Shifts active screen trigger */}
+        <button
+          onClick={() => setActiveScreen('shifts')}
+          className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeScreen === 'shifts'
+              ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
+              : 'text-white/50 border border-transparent hover:text-white scale-95'
+          }`}
+        >
+          <History className="w-4.5 h-4.5" />
+          <span className="text-[9px] font-mono mt-0.5">Registros</span>
+        </button>
+
+        {/* KPIs active screen trigger */}
+        <button
+          onClick={() => setActiveScreen('kpis')}
+          className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeScreen === 'kpis'
+              ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
+              : 'text-white/50 border border-transparent hover:text-white scale-95'
+          }`}
+        >
+          <TrendingUp className="w-4.5 h-4.5" />
+          <span className="text-[9px] font-mono mt-0.5">KPIs</span>
         </button>
       </nav>
     </div>

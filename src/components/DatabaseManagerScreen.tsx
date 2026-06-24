@@ -41,12 +41,9 @@ const tabLabelMap: Record<CollectionTab, string> = {
 };
 
 const sectorTranslationMap: Record<string, string> = {
-  'Security': 'Seguridad',
-  'Stagehand': 'Auxiliar de Escenario',
-  'A/V Tech': 'Técnico de A/V',
-  'Lighting': 'Iluminación',
-  'Catering': 'Catering',
-  'Rigging': 'Rigging / Estructuras'
+  'Auxiliar': 'Auxiliar',
+  'Auxiliar Plus': 'Auxiliar Plus',
+  'Coordinación': 'Coordinación'
 };
 
 export default function DatabaseManagerScreen({
@@ -75,7 +72,7 @@ export default function DatabaseManagerScreen({
   });
 
   const [staffData, setStaffData] = useState<Omit<StaffMember, 'id'>>({
-    idCode: '', name: '', role: 'Stagehand', roleLabel: '', level: 'L1', 
+    idCode: '', name: '', role: 'Auxiliar', roleLabel: '', 
     status: 'OUT', avatar: '', totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
   });
 
@@ -135,7 +132,7 @@ export default function DatabaseManagerScreen({
       requiredStaff: 50, activeStaff: 0, totalStaffNeeded: 50, scanRate: 0, loadInPercent: 0
     });
     setStaffData({
-      idCode: 'STG-' + Math.floor(100 + Math.random() * 900), name: '', role: 'Stagehand', roleLabel: 'PERSONAL DE ESCENARIO', level: 'L1', 
+      idCode: 'AUX-' + Math.floor(100 + Math.random() * 900), name: '', role: 'Auxiliar', roleLabel: 'AUXILIAR', 
       status: 'OUT', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
       totalHours: 12, currentShiftHours: 0, currentShiftMins: 0, location: 'Escenario Principal'
     });
@@ -163,7 +160,7 @@ export default function DatabaseManagerScreen({
     } else if (activeTab === 'staff') {
       const s = record as StaffMember;
       setStaffData({
-        idCode: s.idCode, name: s.name, role: s.role, roleLabel: s.roleLabel, level: s.level, 
+        idCode: s.idCode, name: s.name, role: s.role, roleLabel: s.roleLabel, 
         status: s.status, avatar: s.avatar, totalHours: s.totalHours, currentShiftHours: s.currentShiftHours, currentShiftMins: s.currentShiftMins, location: s.location
       });
     } else if (activeTab === 'shifts') {
@@ -365,7 +362,7 @@ export default function DatabaseManagerScreen({
                         <div className="text-left">
                           <h4 className="text-sm font-bold text-white">{item.name}</h4>
                           <p className="text-xs text-indigo-300 font-mono mt-0.5">
-                            {item.level} • {sectorTranslationMap[item.role] || item.role} ({item.location})
+                            {sectorTranslationMap[item.role] || item.role} ({item.location})
                           </p>
                           <p className="text-[10px] text-white/50 font-mono mt-1">
                             Horas Totales: {item.totalHours.toFixed(1)}h | Estado: {item.status === 'IN' ? 'DENTRO' : 'FUERA'} | Entrada: {item.checkedInTime || '—'}
@@ -501,22 +498,18 @@ export default function DatabaseManagerScreen({
                     <label className="text-[10px] text-white/50 block mb-1">Nombre Completo</label>
                     <input type="text" required value={staffData.name} onChange={e => setStaffData({ ...staffData, name: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     <div>
                       <label className="text-[10px] text-white/50 block mb-1">Código ID</label>
-                      <input type="text" required value={staffData.idCode} onChange={e => setStaffData({ ...staffData, idCode: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. SEC-042" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Nivel / Rango</label>
-                      <input type="text" required value={staffData.level} onChange={e => setStaffData({ ...staffData, level: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. L2" />
+                      <input type="text" required value={staffData.idCode} onChange={e => setStaffData({ ...staffData, idCode: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. AUX-042" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-[10px] text-white/50 block mb-1">Área / Sector</label>
                       <select required value={staffData.role} onChange={e => setStaffData({ ...staffData, role: e.target.value as any })} className="w-full bg-[#1c1836] border border-white/10 rounded-xl p-2.5 text-white">
-                        {['Security', 'Stagehand', 'A/V Tech', 'Lighting', 'Catering', 'Rigging'].map(r => (
-                          <option key={r} value={r}>{sectorTranslationMap[r]} ({r})</option>
+                        {['Auxiliar', 'Auxiliar Plus', 'Coordinación'].map(r => (
+                          <option key={r} value={r}>{sectorTranslationMap[r] || r}</option>
                         ))}
                       </select>
                     </div>

@@ -103,7 +103,7 @@ export default function ProfileScreen({
                   {worker.name}
                 </h2>
                 <p className="text-xs font-mono text-white/50 mt-1.5 uppercase tracking-widest font-semibold">
-                  {worker.roleLabel || worker.role} • {worker.level}
+                  {worker.roleLabel || worker.role}
                 </p>
               </div>
 
@@ -204,7 +204,7 @@ export default function ProfileScreen({
               
               <a
                 href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                  `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${worker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${worker.roleLabel || worker.role} (${worker.level})\n🔑 *CÓDIGO DE CREDENCIAL*: ${worker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(worker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
+                  `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${worker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${worker.roleLabel || worker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${worker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(worker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"

@@ -16,19 +16,23 @@ interface DashboardScreenProps {
   events: LiveEvent[];
   alerts: EquipmentAlert[];
   staff: StaffMember[];
+  activeEventId: string;
+  setActiveEventId: (id: string) => void;
   onLaunchScanner: () => void;
-  onSelectEvent: (event: LiveEvent) => void;
 }
 
 export default function DashboardScreen({
   events,
   alerts,
   staff,
-  onLaunchScanner,
-  onSelectEvent
+  activeEventId,
+  setActiveEventId,
+  onLaunchScanner
 }: DashboardScreenProps) {
-  // Let's filter live vs upcoming events
-  const liveEvent = events.find(e => e.id === 'ev_01') || events[0] || null;
+  const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
+
+  // Let's filter live vs upcoming events based on activeEventId
+  const liveEvent = events.find(e => e.id === activeEventId) || events[0] || null;
   const upcomingEvents = liveEvent ? events.filter(e => e.id !== liveEvent.id) : events;
 
   // Dynamically calculate active staff count from local state
@@ -57,7 +61,10 @@ export default function DashboardScreen({
       {/* Bento Grid Layout */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Active Event Focus Card */}
-        <div className="md:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[280px] shadow-hud-glow">
+        <div 
+          onClick={() => liveEvent && setSelectedDetailEvent(liveEvent)}
+          className="md:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 hover:border-indigo-400/30 transition-all duration-300 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[280px] shadow-hud-glow cursor-pointer group"
+        >
           {/* Top Identifier Badge */}
           <div className="absolute top-4 right-4 bg-white/10 border border-white/10 px-2.5 py-1 rounded-full text-xs font-mono text-white/70">
             ID: WZK-2409
@@ -66,10 +73,10 @@ export default function DashboardScreen({
           <div>
             <div className="inline-flex items-center space-x-2 bg-indigo-500/10 text-indigo-300 px-3 py-1 rounded-full text-xs font-mono mb-4 border border-indigo-400/20">
               <Activity className="w-3.5 h-3.5" />
-              <span>PRODUCCIÓN EN VIVO</span>
+              <span>PRODUCCIÓN EN VIVO (CLICK VER)</span>
             </div>
 
-            <h2 className="text-2xl font-display font-bold text-white mb-2">
+            <h2 className="text-2xl font-display font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
               {liveEvent?.title || "Sin Evento Activo"}
             </h2>
             <p className="text-sm text-white/60 flex items-center mb-6">
@@ -157,7 +164,7 @@ export default function DashboardScreen({
           {upcomingEvents.map(event => (
             <div
               key={event.id}
-              onClick={() => onSelectEvent(event)}
+              onClick={() => setSelectedDetailEvent(event)}
               className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-5 flex items-center justify-between hover:bg-white/10 transition-all duration-200 cursor-pointer group"
             >
               <div className="flex items-center space-x-4">
@@ -191,6 +198,94 @@ export default function DashboardScreen({
           ))}
         </div>
       </div>
+
+      {/* Event Details Modal */}
+      {selectedDetailEvent && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 w-full max-w-md relative overflow-hidden space-y-6 shadow-hud-glow">
+            {/* Gradient Line Accent */}
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-teal-400 via-indigo-500 to-purple-500" />
+            
+            {/* Header info */}
+            <div className="text-left">
+              <span className="text-[10px] font-mono text-indigo-300 uppercase tracking-widest font-black">
+                Detalles del Despliegue
+              </span>
+              <h3 className="text-xl font-display font-black text-white mt-1">
+                {selectedDetailEvent.title}
+              </h3>
+              <p className="text-xs text-white/60 mt-1 flex items-center">
+                <MapPin className="w-3.5 h-3.5 mr-1.5 text-indigo-400" />
+                {selectedDetailEvent.location}
+              </p>
+            </div>
+
+            {/* Core Stats Bento Block */}
+            <div className="grid grid-cols-2 gap-3 font-mono text-xs text-left">
+              <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
+                <p className="text-white/40 uppercase text-[9px] mb-1">Apertura de Puertas</p>
+                <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-indigo-300" />
+                  {selectedDetailEvent.doorsOpen} hs
+                </p>
+              </div>
+              <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
+                <p className="text-white/40 uppercase text-[9px] mb-1">Personal Requerido</p>
+                <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-purple-300" />
+                  {selectedDetailEvent.requiredStaff} Especialistas
+                </p>
+              </div>
+              <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
+                <p className="text-white/40 uppercase text-[9px] mb-1">Avance del Montaje</p>
+                <p className="text-sm font-bold text-emerald-300 flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  {selectedDetailEvent.loadInPercent}% completado
+                </p>
+              </div>
+              <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
+                <p className="text-white/40 uppercase text-[9px] mb-1">Escaneos Actuales</p>
+                <p className="text-sm font-bold text-pink-300 flex items-center gap-1.5">
+                  <QrCode className="w-4 h-4 text-pink-400" />
+                  {selectedDetailEvent.scanRate} scans/min
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setActiveEventId(selectedDetailEvent.id);
+                  onLaunchScanner();
+                  setSelectedDetailEvent(null);
+                }}
+                className="w-full h-11 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-indigo-500/20 hover:shadow-hud-glow"
+              >
+                <QrCode className="w-4 h-4" />
+                <span>Hacer registro QR en este evento</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveEventId(selectedDetailEvent.id);
+                  setSelectedDetailEvent(null);
+                }}
+                className="w-full h-11 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Establecer como Evento Principal</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedDetailEvent(null)}
+                className="text-xs font-mono text-white/50 hover:text-white underline py-1 text-center cursor-pointer"
+              >
+                Cerrar Ventana
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

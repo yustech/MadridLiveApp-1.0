@@ -2,9 +2,8 @@ export interface StaffMember {
   id: string; // e.g. 'usr_842'
   idCode: string; // e.g. 'SEC-042', 'MAD-L-842'
   name: string;
-  role: 'Security' | 'Stagehand' | 'A/V Tech' | 'Lighting' | 'Catering' | 'Rigging';
-  roleLabel: string; // e.g. "SECURITY", "STAGEHAND", "A/V TECH", "LIGHTING TECHNICIAN"
-  level: string; // e.g. "L2", "Lead", "Junior"
+  role: 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación';
+  roleLabel: string; // e.g. "AUXILIAR", "AUXILIAR PLUS", "COORDINACIÓN"
   status: 'IN' | 'OUT';
   checkedInTime?: string; // e.g. '14:30'
   lastSeen?: string; // e.g. 'Yesterday', '3 days ago'

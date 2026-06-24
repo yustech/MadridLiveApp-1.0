@@ -71,16 +71,12 @@
         },
         "role": {
           "type": "string",
-          "enum": ["Security", "Stagehand", "A/V Tech", "Lighting", "Catering", "Rigging"],
+          "enum": ["Auxiliar", "Auxiliar Plus", "Coordinación"],
           "description": "The technical sector category"
         },
         "roleLabel": {
           "type": "string",
           "description": "The displayed role label text"
-        },
-        "level": {
-          "type": "string",
-          "description": "The skill seniority grade"
         },
         "status": {
           "type": "string",
@@ -116,7 +112,7 @@
           "description": "The current physical zone assignment"
         }
       },
-      "required": ["id", "idCode", "name", "role", "roleLabel", "level", "status", "avatar", "totalHours", "currentShiftHours", "currentShiftMins", "location"]
+      "required": ["id", "idCode", "name", "role", "roleLabel", "status", "avatar", "totalHours", "currentShiftHours", "currentShiftMins", "location"]
     },
     "shift": {
       "title": "Shift",

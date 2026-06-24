@@ -14,28 +14,32 @@ import {
   Users,
   Tv
 } from 'lucide-react';
-import { StaffMember } from '../types';
+import { StaffMember, LiveEvent } from '../types';
 
 interface ScannerScreenProps {
   staff: StaffMember[];
+  events: LiveEvent[];
+  activeEventId: string;
+  setActiveEventId: (id: string) => void;
   onScanWorkerToggle: (workerId: string, customLocation?: string) => void;
   onNavigateToWorker: (worker: StaffMember) => void;
 }
 
 const roleIconMap: Record<string, string> = {
-  Security: '🛡️ Seguridad',
-  Stagehand: '🏗️ Montaje',
-  'A/V Tech': '🔊 Técnico A/V',
-  Lighting: '💡 Iluminación',
-  Catering: '🍳 Restauración',
-  Rigging: '⛓️ Estructuras'
+  Auxiliar: '👥 Auxiliar',
+  'Auxiliar Plus': '⭐ Auxiliar Plus',
+  Coordinación: '👑 Coordinación'
 };
 
 export default function ScannerScreen({
   staff,
+  events,
+  activeEventId,
+  setActiveEventId,
   onScanWorkerToggle,
   onNavigateToWorker
 }: ScannerScreenProps) {
+  const activeEvent = events.find(e => e.id === activeEventId) || events[0] || null;
   const [flashlightOn, setFlashlightOn] = useState(false);
   const [cameraMode, setCameraMode] = useState<'back' | 'front'>('back');
   
@@ -231,7 +235,39 @@ export default function ScannerScreen({
   const activeSelectedWorker = staff.find(w => w.id === selectedWorkerId) || staff[0];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="qr-access-system">
+    <div className="space-y-6">
+      {/* Selector de Evento Activo Banner */}
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-5 text-left flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-mono text-indigo-300 uppercase tracking-widest font-bold">
+            Punto de Registro QR Activo
+          </span>
+          <h3 className="text-lg font-display font-black text-white mt-0.5">
+            {activeEvent?.title || "Sin Evento Seleccionado"}
+          </h3>
+          <p className="text-xs text-white/50">
+            {activeEvent?.location || "—"} • Apertura de Puertas: {activeEvent?.doorsOpen || "—"} hs
+          </p>
+        </div>
+        <div className="shrink-0 flex flex-col items-start md:items-end">
+          <label className="block text-[10px] font-mono text-white/40 uppercase mb-1">
+            CAMBIAR EVENTO DE CONTROL
+          </label>
+          <select
+            value={activeEventId}
+            onChange={(e) => setActiveEventId(e.target.value)}
+            className="bg-[#120f26] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-indigo-400 w-full md:w-64 cursor-pointer"
+          >
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id} className="bg-[#0A051A] text-white">
+                {ev.title} ({ev.dateDay} {ev.dateMonth})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="qr-access-system">
       
       {/* LEFT COLUMN: THE QR SCANNER TERMINAL */}
       <div className="lg:col-span-7 flex flex-col space-y-4">
@@ -492,9 +528,6 @@ export default function ScannerScreen({
                   {roleIconMap[activeSelectedWorker.role] || activeSelectedWorker.role}
                 </p>
                 <div className="flex gap-1.5 mt-2 flex-wrap">
-                  <span className="text-[9px] font-mono text-white/40 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 uppercase">
-                    RANGO: {activeSelectedWorker.level}
-                  </span>
                   <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase font-bold ${
                     activeSelectedWorker.status === 'IN' 
                       ? 'bg-emerald-500/10 border-emerald-400/20 text-emerald-300' 
@@ -528,7 +561,7 @@ export default function ScannerScreen({
 
               <a
                 href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                  `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${activeSelectedWorker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${activeSelectedWorker.role} (${activeSelectedWorker.level})\n🔑 *CÓDIGO DE CREDENCIAL*: ${activeSelectedWorker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(activeSelectedWorker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
+                  `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${activeSelectedWorker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${activeSelectedWorker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${activeSelectedWorker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(activeSelectedWorker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -624,6 +657,7 @@ export default function ScannerScreen({
         </div>
       )}
 
+    </div>
     </div>
   );
 }

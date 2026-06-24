@@ -22,12 +22,9 @@ interface StaffScreenProps {
 
 const roleLabelMap: Record<string, string> = {
   All: 'Todos los Roles',
-  Security: 'Seguridad',
-  Stagehand: 'Montaje',
-  'A/V Tech': 'Técnico de A/V',
-  Lighting: 'Iluminación',
-  Catering: 'Restauración',
-  Rigging: 'Estructuras'
+  Auxiliar: 'Auxiliar',
+  'Auxiliar Plus': 'Auxiliar Plus',
+  Coordinación: 'Coordinación'
 };
 
 export default function StaffScreen({
@@ -36,21 +33,19 @@ export default function StaffScreen({
   onAddWorker
 }: StaffScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'All' | 'Security' | 'Stagehand' | 'A/V Tech' | 'Lighting' | 'Catering' | 'Rigging'>('All');
+  const [activeTab, setActiveTab] = useState<'All' | 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedQrWorker, setSelectedQrWorker] = useState<StaffMember | null>(null);
   
   // New Worker Form state
   const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState<'Security' | 'Stagehand' | 'A/V Tech' | 'Lighting' | 'Catering' | 'Rigging'>('Stagehand');
-  const [newLevel, setNewLevel] = useState('L1');
+  const [newRole, setNewRole] = useState<'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('Auxiliar');
   const [newLocation, setNewLocation] = useState('Escenario Principal');
 
   // Bulk upload states
   const [addMode, setAddMode] = useState<'single' | 'bulk'>('single');
   const [bulkText, setBulkText] = useState('');
-  const [bulkRole, setBulkRole] = useState<'Security' | 'Stagehand' | 'A/V Tech' | 'Lighting' | 'Catering' | 'Rigging'>('Stagehand');
-  const [bulkLevel, setBulkLevel] = useState('L1');
+  const [bulkRole, setBulkRole] = useState<'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('Auxiliar');
   const [bulkLocation, setBulkLocation] = useState('Escenario Principal');
   const [bulkCheckIn, setBulkCheckIn] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -80,8 +75,7 @@ export default function StaffScreen({
 
       // Extract details, fallback to defaults
       const role = (parts[1] || bulkRole) as any;
-      const level = parts[2] || bulkLevel;
-      const location = parts[3] || bulkLocation;
+      const location = parts[2] || bulkLocation;
 
       const idCode = `${role.substring(0,3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -89,8 +83,7 @@ export default function StaffScreen({
         name,
         idCode,
         role,
-        roleLabel: `${role.toUpperCase()} PERSONNEL`,
-        level,
+        roleLabel: role.toUpperCase(),
         status: bulkCheckIn ? 'IN' : 'OUT',
         checkedInTime: bulkCheckIn ? new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
         avatar: avatars[Math.floor(Math.random() * avatars.length)],
@@ -160,8 +153,7 @@ export default function StaffScreen({
       name: newName,
       idCode: `${newRole.substring(0,3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
       role: newRole,
-      roleLabel: `${newRole.toUpperCase()} PERSONNEL`,
-      level: newLevel,
+      roleLabel: newRole.toUpperCase(),
       status: 'IN', // default new worker is logged in instantly
       checkedInTime: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
       avatar: selectAvatar,
@@ -173,8 +165,7 @@ export default function StaffScreen({
 
     // Reset Form
     setNewName('');
-    setNewRole('Stagehand');
-    setNewLevel('L1');
+    setNewRole('Auxiliar');
     setNewLocation('Escenario Principal');
     setIsAddModalOpen(false);
   };
@@ -215,7 +206,7 @@ export default function StaffScreen({
 
       {/* Role Filters Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">
-        {(['All', 'Security', 'Stagehand', 'A/V Tech', 'Lighting', 'Catering', 'Rigging'] as const).map(tab => (
+        {(['All', 'Auxiliar', 'Auxiliar Plus', 'Coordinación'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -397,40 +388,24 @@ export default function StaffScreen({
                       className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-indigo-400"
                       disabled={isImporting}
                     >
-                      <option value="Security" className="bg-[#0A051A] text-white">Seguridad</option>
-                      <option value="Stagehand" className="bg-[#0A051A] text-white">Montaje</option>
-                      <option value="A/V Tech" className="bg-[#0A051A] text-white">Técnico de A/V</option>
-                      <option value="Lighting" className="bg-[#0A051A] text-white">Iluminación</option>
-                      <option value="Catering" className="bg-[#0A051A] text-white">Restauración</option>
-                      <option value="Rigging" className="bg-[#0A051A] text-white">Estructuras</option>
+                      <option value="Auxiliar" className="bg-[#0A051A] text-white">Auxiliar</option>
+                      <option value="Auxiliar Plus" className="bg-[#0A051A] text-white">Auxiliar Plus</option>
+                      <option value="Coordinación" className="bg-[#0A051A] text-white">Coordinación</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-white/50 mb-1">Nivel por Defecto</label>
+                    <label className="block text-[11px] text-white/50 mb-1">Ubicación por Defecto</label>
                     <input
                       type="text"
                       required
-                      value={bulkLevel}
-                      onChange={(e) => setBulkLevel(e.target.value)}
-                      placeholder="ej. L1"
+                      value={bulkLocation}
+                      onChange={(e) => setBulkLocation(e.target.value)}
+                      placeholder="ej. Escenario Principal"
                       className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-indigo-400"
                       disabled={isImporting}
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-white/50 mb-1">Ubicación por Defecto</label>
-                  <input
-                    type="text"
-                    required
-                    value={bulkLocation}
-                    onChange={(e) => setBulkLocation(e.target.value)}
-                    placeholder="ej. Escenario Principal"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-indigo-400"
-                    disabled={isImporting}
-                  />
                 </div>
 
                 <div className="flex items-center gap-2 py-1">
@@ -484,25 +459,10 @@ export default function StaffScreen({
                     onChange={(e) => setNewRole(e.target.value as any)}
                     className="w-full bg-[#120f26] border border-white/10 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-indigo-400"
                   >
-                    <option value="Security">Seguridad</option>
-                    <option value="Stagehand">Montaje</option>
-                    <option value="A/V Tech">Técnico de A/V</option>
-                    <option value="Lighting">Iluminación</option>
-                    <option value="Catering">Restauración</option>
-                    <option value="Rigging">Estructuras</option>
+                    <option value="Auxiliar">Auxiliar</option>
+                    <option value="Auxiliar Plus">Auxiliar Plus</option>
+                    <option value="Coordinación">Coordinación</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-white/50 mb-1">Nivel / Experiencia</label>
-                  <input
-                    type="text"
-                    required
-                    value={newLevel}
-                    onChange={(e) => setNewLevel(e.target.value)}
-                    placeholder="ej. L2, Senior, Supervisor"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-                  />
                 </div>
 
                 <div>
@@ -574,7 +534,7 @@ export default function StaffScreen({
 
             <a
               href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${selectedQrWorker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${selectedQrWorker.roleLabel || selectedQrWorker.role} (${selectedQrWorker.level})\n🔑 *CÓDIGO DE CREDENCIAL*: ${selectedQrWorker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(selectedQrWorker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
+                `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${selectedQrWorker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${selectedQrWorker.roleLabel || selectedQrWorker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${selectedQrWorker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(selectedQrWorker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
               )}`}
               target="_blank"
               rel="noopener noreferrer"
