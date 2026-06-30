@@ -12,6 +12,11 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Helper to validate numeric values (int or float)
+    function isNum(val) {
+      return val is int || val is float;
+    }
+
     // --- EVENTS COLLECTION ---
     match /events/{eventId} {
       allow read: if true;
@@ -27,11 +32,11 @@ service cloud.firestore {
         && data.dateDay is string && data.dateDay.size() <= 5
         && data.dateMonth is string && data.dateMonth.size() <= 10
         && data.doorsOpen is string && data.doorsOpen.size() <= 20
-        && data.requiredStaff is number
-        && data.activeStaff is number
-        && data.totalStaffNeeded is number
-        && data.scanRate is number
-        && data.loadInPercent is number;
+        && isNum(data.requiredStaff)
+        && isNum(data.activeStaff)
+        && isNum(data.totalStaffNeeded)
+        && isNum(data.scanRate)
+        && isNum(data.loadInPercent);
     }
 
     // --- STAFF COLLECTION ---
@@ -50,9 +55,9 @@ service cloud.firestore {
         && data.roleLabel is string && data.roleLabel.size() <= 100
         && data.status is string && data.status in ['IN', 'OUT']
         && data.avatar is string && data.avatar.size() <= 1000
-        && data.totalHours is number
-        && data.currentShiftHours is number
-        && data.currentShiftMins is number
+        && isNum(data.totalHours)
+        && isNum(data.currentShiftHours)
+        && isNum(data.currentShiftMins)
         && data.location is string && data.location.size() <= 200
         && (!data.keys().hasAll(['checkedInTime']) || (data.checkedInTime is string && data.checkedInTime.size() <= 100))
         && (!data.keys().hasAll(['lastSeen']) || (data.lastSeen is string && data.lastSeen.size() <= 100));
