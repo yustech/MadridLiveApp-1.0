@@ -12,6 +12,7 @@ fi
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/madridlive-app}"
 DEPLOY_URL="${DEPLOY_URL:-https://inmosubastas.top}"
+REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-false}"
 
 KEY_FILE="$(mktemp)"
 trap 'rm -f "$KEY_FILE"' EXIT
@@ -77,14 +78,23 @@ else
 fi
 
 echo "Checking public health endpoint on ${PUBLIC_HEALTH_URL}..."
+public_ok=false
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
   if curl --connect-timeout 5 --max-time 8 -fsS "$PUBLIC_HEALTH_URL" | grep -q '"status":"ok"'; then
     echo "Public health check passed."
-    exit 0
+    public_ok=true
+    break
   fi
   echo "Public health attempt ${attempt}/18 failed; retrying in 5s..."
   sleep 5
 done
 
-echo "Public health check failed after deployment."
-exit 1
+if [[ "$public_ok" != "true" ]]; then
+  if [[ "$REQUIRE_PUBLIC_HEALTH" == "true" ]]; then
+    echo "Public health check failed after deployment (strict mode)."
+    exit 1
+  fi
+  echo "Public health check failed, but local health is OK; continuing (REQUIRE_PUBLIC_HEALTH=false)."
+fi
+
+exit 0

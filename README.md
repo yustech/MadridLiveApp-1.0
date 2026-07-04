@@ -41,3 +41,5 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 - This helps protect the database connectivity test endpoint in production.
 
 - If you also protect the endpoint from the frontend admin UI, set `VITE_ADMIN_API_TOKEN` so the panel sends `x-admin-token` automatically.
+
+- Deploy script supports `REQUIRE_PUBLIC_HEALTH=true` if you want failures when the public URL health endpoint is not reachable.
