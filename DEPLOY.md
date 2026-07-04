@@ -184,6 +184,10 @@ Usa estos comandos como referencia operativa durante un incidente o antes de un 
    - Ve a Actions -> `Rollback` -> Run workflow.
    - Si dejas `release_name` vacío, vuelve a la snapshot anterior.
    - Si lo rellenas, usa el nombre exacto de la carpeta `release-...`.
+7. Health audit semanal desde GitHub Actions:
+   - Workflow: `Health Audit` (cron semanal lunes 07:00 UTC).
+   - También puedes lanzarlo manualmente desde Actions cuando quieras.
+   - Si falla health/version, envía email de alerta a `cyuste@gmail.com`.
 
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente!
 
