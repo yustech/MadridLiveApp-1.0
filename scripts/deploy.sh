@@ -51,9 +51,13 @@ fi
 
 echo "Restarting systemd service..."
 if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart madridlive-app.service && sudo -n systemctl is-active --quiet madridlive-app.service"; then
-  echo "Remote restart command failed. Running verbose diagnostics..."
-  ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart madridlive-app.service && sudo -n systemctl is-active --quiet madridlive-app.service" || true
-  exit 255
+  echo "Non-interactive sudo restart is not available. Falling back to process signal restart..."
+  # Fallback path for hosts where sudoers was not configured for CI user.
+  if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true"; then
+    echo "Fallback restart command failed. Running verbose diagnostics..."
+    ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true" || true
+    exit 255
+  fi
 fi
 
 echo "Running health check on ${DEPLOY_URL}/api/health..."
