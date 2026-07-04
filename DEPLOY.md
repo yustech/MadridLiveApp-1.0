@@ -134,8 +134,9 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_SSH_KEY`
    - `DEPLOY_PORT` opcional, por defecto `22`
    - `DEPLOY_PATH` opcional, por defecto `/opt/madridlive-app`
+   - `DEPLOY_URL` opcional, por defecto `https://inmosubastas.top`
 2. El workflow compila el proyecto con `npm run build`.
 3. Copia `dist/` al servidor y reinicia `madridlive-app.service`.
-4. Verifica el despliegue abriendo `https://inmosubastas.top`.
+4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
 
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente! 🌟
