@@ -65,9 +65,20 @@ if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "for i in 1 2 3 4 5 6 7 8 
   exit 1
 fi
 
-echo "Checking public health endpoint on ${DEPLOY_URL}/api/health..."
+# DEPLOY_URL can be either a base URL (https://host) or an API path base (https://host/api)
+# or the full health URL (https://host/api/health).
+PUBLIC_HEALTH_URL="${DEPLOY_URL%/}"
+if [[ "$PUBLIC_HEALTH_URL" == *"/api/health" ]]; then
+  :
+elif [[ "$PUBLIC_HEALTH_URL" == *"/api" ]]; then
+  PUBLIC_HEALTH_URL="$PUBLIC_HEALTH_URL/health"
+else
+  PUBLIC_HEALTH_URL="$PUBLIC_HEALTH_URL/api/health"
+fi
+
+echo "Checking public health endpoint on ${PUBLIC_HEALTH_URL}..."
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
-  if curl --connect-timeout 5 --max-time 8 -fsS "$DEPLOY_URL/api/health" | grep -q '"status":"ok"'; then
+  if curl --connect-timeout 5 --max-time 8 -fsS "$PUBLIC_HEALTH_URL" | grep -q '"status":"ok"'; then
     echo "Public health check passed."
     exit 0
   fi
