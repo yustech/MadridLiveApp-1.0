@@ -188,6 +188,10 @@ Usa estos comandos como referencia operativa durante un incidente o antes de un 
    - Workflow: `Health Audit` (09:00 hora Madrid, con ajuste automático verano/invierno).
    - También puedes lanzarlo manualmente desde Actions cuando quieras.
    - Si falla health/version, envía email de alerta a `cyuste@gmail.com`.
+8. Simulacro operativo desde GitHub Actions:
+   - Workflow: `Ops Drill` (manual).
+   - Por defecto solo ejecuta comprobaciones y resumen.
+   - Si activas `run_rollback=true`, prueba también la recuperación con rollback.
 
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente!
 

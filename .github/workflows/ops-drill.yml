@@ -1,0 +1,138 @@
+name: Ops Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_rollback:
+        description: "Run rollback test during drill (can change active build)."
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      release_name:
+        description: "Optional release name for rollback (only used when run_rollback=true)."
+        required: false
+        type: string
+
+concurrency:
+  group: production-ops-drill
+  cancel-in-progress: true
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+      RUN_ROLLBACK: ${{ inputs.run_rollback }}
+      ROLLBACK_RELEASE: ${{ inputs.release_name }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Pre-check health and version
+        id: precheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${BASE_URL%/}"
+          if [[ "$base" == *"/api" ]]; then
+            health_url="$base/health"
+            version_url="$base/version"
+          else
+            health_url="$base/api/health"
+            version_url="$base/api/version"
+          fi
+
+          pre_health=$(curl --connect-timeout 5 --max-time 10 -fsS "$health_url")
+          pre_version=$(curl --connect-timeout 5 --max-time 10 -fsS "$version_url")
+
+          echo "$pre_health" | grep -q '"status":"ok"'
+          echo "$pre_version" | grep -q '"status":"ok"'
+
+          pre_sha=$(echo "$pre_version" | sed -n "s/.*\"commitSha\":\"\([^\"]*\)\".*/\1/p")
+          [[ -z "$pre_sha" ]] && pre_sha="unknown"
+
+          {
+            echo "health_url=$health_url"
+            echo "version_url=$version_url"
+            echo "pre_sha=$pre_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run rollback test (optional)
+        if: ${{ env.RUN_ROLLBACK == 'true' }}
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME }}
+          REQUIRE_PUBLIC_HEALTH: "true"
+        run: npm run rollback
+
+      - name: Post-check health and version
+        id: postcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_url="${{ steps.precheck.outputs.health_url }}"
+          version_url="${{ steps.precheck.outputs.version_url }}"
+
+          post_health=$(curl --connect-timeout 5 --max-time 10 -fsS "$health_url")
+          post_version=$(curl --connect-timeout 5 --max-time 10 -fsS "$version_url")
+
+          echo "$post_health" | grep -q '"status":"ok"'
+          echo "$post_version" | grep -q '"status":"ok"'
+
+          post_sha=$(echo "$post_version" | sed -n "s/.*\"commitSha\":\"\([^\"]*\)\".*/\1/p")
+          [[ -z "$post_sha" ]] && post_sha="unknown"
+
+          echo "post_sha=$post_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Build drill summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo "## Ops Drill Summary"
+            echo ""
+            echo "- Base URL: ${BASE_URL}"
+            echo "- Rollback tested: ${RUN_ROLLBACK}"
+            echo "- Requested release: ${ROLLBACK_RELEASE:-<previous/latest>}"
+            echo "- Pre-check commitSha: ${{ steps.precheck.outputs.pre_sha || 'n/a' }}"
+            echo "- Post-check commitSha: ${{ steps.postcheck.outputs.post_sha || 'n/a' }}"
+            echo "- Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify drill failure by email
+        if: ${{ failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: "Ops Drill FAILED - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Operations drill failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Rollback tested: ${{ env.RUN_ROLLBACK }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
