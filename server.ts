@@ -1,3 +1,4 @@
+import fs from "fs";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
@@ -41,6 +42,28 @@ function isValidHost(host: string) {
 
 function isValidDatabaseName(name: string) {
   return /^[a-zA-Z0-9_-]+$/.test(name);
+}
+
+
+function readBuildInfo() {
+  const fallback = {
+    commitSha: process.env.GIT_COMMIT_SHA || "unknown",
+    generatedAt: null,
+    source: "runtime-fallback",
+  };
+
+  try {
+    const buildInfoPath = path.join(process.cwd(), "dist", "build-info.json");
+    const raw = fs.readFileSync(buildInfoPath, "utf8");
+    const parsed = JSON.parse(raw);
+    return {
+      ...fallback,
+      ...parsed,
+      source: parsed.source || "build-info.json",
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 
@@ -166,6 +189,15 @@ async function startServer() {
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.get("/api/version", (req, res) => {
+    const buildInfo = readBuildInfo();
+    res.json({
+      status: "ok",
+      app: "Madrid Live Access",
+      ...buildInfo,
+    });
   });
 
   // Vite middleware for development

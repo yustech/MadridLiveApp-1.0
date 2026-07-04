@@ -36,6 +36,19 @@ SSH_OPTS=(
   -p "$DEPLOY_PORT"
 )
 
+echo "Generating build metadata..."
+BUILD_INFO_SHA="${GITHUB_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
+BUILD_INFO_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+BUILD_INFO_RUN="${GITHUB_RUN_ID:-local}"
+cat > dist/build-info.json <<EOF
+{
+  "commitSha": "${BUILD_INFO_SHA}",
+  "generatedAt": "${BUILD_INFO_TS}",
+  "source": "deploy-script",
+  "runId": "${BUILD_INFO_RUN}"
+}
+EOF
+
 echo "Testing SSH connectivity to ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PORT}..."
 if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH_OK" >/dev/null; then
   echo "SSH preflight failed. Running verbose diagnostics..."
