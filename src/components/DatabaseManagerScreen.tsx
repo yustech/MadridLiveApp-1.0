@@ -293,7 +293,7 @@ export default function DatabaseManagerScreen({
               <Database className="w-5 h-5 text-indigo-300" />
             </div>
             <div>
-              <h2 className="text-lg font-display font-bold text-white leading-none">EXPLORADOR DE FIRESTORE</h2>
+              <h2 className="text-lg font-display font-bold text-white leading-none">MADRID LIVE CONTROL</h2>
               <p className="text-[10px] font-mono text-indigo-400 mt-1 uppercase tracking-widest leading-none">
                 Acceso Directo a la Base de Datos en la Nube
               </p>

@@ -1,20 +1,34 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Madrid Live Access
 
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/1af5cad3-30d8-48dc-b3ab-921d11a4ccc6
+Aplicación de control de accesos, personal y escaneo QR para producciones en vivo.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js 20+
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the app:
    `npm run dev`
+3. Build for production:
+   `npm run build`
+
+## AI Studio compatibility
+
+- `src/firebase.ts` reads `VITE_FIREBASE_*` environment variables first.
+- `firebase-applet-config.json` stays as a fallback so the app keeps running if AI Studio regenerates the JSON.
+- If AI Studio exports a new version, merge the generated UI files and keep the Firebase env override contract intact.
+
+## Production deployment
+
+1. Build the app with `npm run build`.
+2. Serve the generated `dist/` folder behind your host or CDN.
+3. If you need to switch Firebase projects, set these environment variables instead of editing source code:
+   - `VITE_FIREBASE_API_KEY`
+   - `VITE_FIREBASE_AUTH_DOMAIN`
+   - `VITE_FIREBASE_PROJECT_ID`
+   - `VITE_FIREBASE_STORAGE_BUCKET`
+   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+   - `VITE_FIREBASE_APP_ID`
+   - `VITE_FIREBASE_MEASUREMENT_ID`
+   - `VITE_FIREBASE_DATABASE_ID`

@@ -63,7 +63,8 @@ En el menú izquierdo de la consola de Firebase:
 ### Paso 3: Vincular las Credenciales de Producción al Código
 1.  Abre el archivo `firebase-applet-config.json` en la raíz de la aplicación de tu cliente.
 2.  Reemplaza los valores con los datos que copiaste de tu nuevo proyecto de producción de Firebase en el **Paso 1**.
-3.  Si prefieres usar variables de entorno de producción, puedes configurar las variables `VITE_` en tu hosting y cambiar la inicialización en `src/firebase.ts`, pero reemplazar los valores en `firebase-applet-config.json` es la forma estándar e integrada para este proyecto.
+3.  Si prefieres usar variables de entorno de producción, configura los `VITE_FIREBASE_*` en tu hosting. La app los prioriza desde `src/firebase.ts`, así que las regeneraciones futuras de AI Studio no romperán el despliegue.
+4.  Mantén `firebase-applet-config.json` como fallback por compatibilidad con futuras exportaciones.
 
 ### Paso 4: Configurar Reglas de Seguridad de Firestore
 Para evitar que un tercero malintencionado intente escribir o borrar datos de la base de datos de los trabajadores, debes subir las reglas de seguridad.
