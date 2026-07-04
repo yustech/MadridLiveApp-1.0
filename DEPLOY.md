@@ -146,6 +146,9 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
 4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
 5. Si los secretos SMTP están configurados, GitHub Actions envía email a `cyuste@gmail.com` cuando el deploy termina (éxito o fallo).
 6. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
+7. Cada despliegue guarda snapshots en `/releases` y conserva las últimas `` versiones.
+8. Para volver a la versión anterior, ejecuta `npm run rollback` con las mismas variables `DEPLOY_*` en tu terminal de despliegue.
+9. Si quieres volver a una snapshot concreta, añade `ROLLBACK_RELEASE=release-YYYYMMDDTHHMMSSZ-... npm run rollback`.
 
 7. En el servidor, permite reinicio sin password para el usuario de despliegue:
 

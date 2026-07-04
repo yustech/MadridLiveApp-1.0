@@ -35,6 +35,7 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 4. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md). You can also run `npm run deploy` once the `DEPLOY_*` environment variables are set. The deploy now finishes with a health check against `DEPLOY_URL` (default `https://inmosubastas.top`).
 5. Optional: configure SMTP secrets in GitHub to receive email notifications at `cyuste@gmail.com` on deploy success or failure.
 6. Optional: configure `DEPLOY_ALERT_WEBHOOK` in GitHub Secrets to receive a webhook message when a deploy fails.
+7. Automatic release snapshots are stored on the server after each successful deploy. Use `npm run rollback` to restore the previous snapshot quickly.
 
 
 ## Admin API protection

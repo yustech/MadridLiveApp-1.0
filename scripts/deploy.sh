@@ -13,6 +13,16 @@ DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/madridlive-app}"
 DEPLOY_URL="${DEPLOY_URL:-https://inmosubastas.top}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-false}"
+KEEP_RELEASES="${KEEP_RELEASES:-8}"
+DEPLOY_SERVICE_NAME="${DEPLOY_SERVICE_NAME:-madridlive-app.service}"
+
+if ! [[ "$KEEP_RELEASES" =~ ^[0-9]+$ ]] || [[ "$KEEP_RELEASES" -lt 1 ]]; then
+  echo "KEEP_RELEASES must be a positive integer."
+  exit 1
+fi
+
+RELEASES_DIR="${DEPLOY_PATH}/releases"
+PKILL_PATTERN="${DEPLOY_PATH}/dist/[s]erver.cjs"
 
 KEY_FILE="$(mktemp)"
 trap 'rm -f "$KEY_FILE"' EXIT
@@ -40,14 +50,14 @@ echo "Generating build metadata..."
 BUILD_INFO_SHA="${GITHUB_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 BUILD_INFO_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BUILD_INFO_RUN="${GITHUB_RUN_ID:-local}"
-cat > dist/build-info.json <<EOF
+cat > dist/build-info.json <<META
 {
   "commitSha": "${BUILD_INFO_SHA}",
   "generatedAt": "${BUILD_INFO_TS}",
   "source": "deploy-script",
   "runId": "${BUILD_INFO_RUN}"
 }
-EOF
+META
 
 echo "Testing SSH connectivity to ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PORT}..."
 if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH_OK" >/dev/null; then
@@ -55,6 +65,10 @@ if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH_OK" >/dev/null; 
   ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH_OK" || true
   exit 255
 fi
+
+echo "Saving predeploy snapshot (if dist exists)..."
+ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+  "set -e; mkdir -p '$RELEASES_DIR'; if [[ -d '$DEPLOY_PATH/dist' ]]; then ts=\$(date -u +%Y%m%dT%H%M%SZ); snap='$RELEASES_DIR/release-'\"\$ts\"'-predeploy'; mkdir -p \"\$snap\"; cp -a '$DEPLOY_PATH/dist' \"\$snap/dist\"; echo \"Saved predeploy snapshot: \$snap\"; fi"
 
 echo "Uploading dist to ${DEPLOY_HOST}:${DEPLOY_PATH}..."
 if ! scp "${SCP_OPTS[@]}" -r dist "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"; then
@@ -64,11 +78,11 @@ if ! scp "${SCP_OPTS[@]}" -r dist "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"; then
 fi
 
 echo "Restarting systemd service..."
-if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart madridlive-app.service && sudo -n systemctl is-active --quiet madridlive-app.service"; then
+if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart '$DEPLOY_SERVICE_NAME' && sudo -n systemctl is-active --quiet '$DEPLOY_SERVICE_NAME'"; then
   echo "Non-interactive sudo restart is not available. Falling back to process signal restart..."
-  if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true"; then
+  if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '$PKILL_PATTERN' || true"; then
     echo "Fallback restart command failed. Running verbose diagnostics..."
-    ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true" || true
+    ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '$PKILL_PATTERN' || true" || true
     exit 255
   fi
 fi
@@ -79,8 +93,6 @@ if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "for i in 1 2 3 4 5 6 7 8 
   exit 1
 fi
 
-# DEPLOY_URL can be either a base URL (https://host) or an API path base (https://host/api)
-# or the full health URL (https://host/api/health).
 PUBLIC_HEALTH_URL="${DEPLOY_URL%/}"
 if [[ "$PUBLIC_HEALTH_URL" == *"/api/health" ]]; then
   :
@@ -110,4 +122,9 @@ if [[ "$public_ok" != "true" ]]; then
   echo "Public health check failed, but local health is OK; continuing (REQUIRE_PUBLIC_HEALTH=false)."
 fi
 
+echo "Saving deployed release snapshot and pruning old releases..."
+ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+  "set -e; mkdir -p '$RELEASES_DIR'; ts=\$(date -u +%Y%m%dT%H%M%SZ); snap='$RELEASES_DIR/release-'\"\$ts\"'-${BUILD_INFO_SHA}'; mkdir -p \"\$snap\"; cp -a '$DEPLOY_PATH/dist' \"\$snap/dist\"; echo \"Saved deployed snapshot: \$snap\"; mapfile -t all_releases < <(ls -1dt '$RELEASES_DIR'/release-* 2>/dev/null || true); if (( \${#all_releases[@]} > $KEEP_RELEASES )); then for old in \"\${all_releases[@]:$KEEP_RELEASES}\"; do rm -rf \"\$old\"; echo \"Pruned old release: \$old\"; done; fi"
+
+echo "Deploy completed successfully."
 exit 0
