@@ -12,7 +12,9 @@
     "deploy": "bash scripts/deploy.sh",
     "rollback": "bash scripts/rollback.sh",
     "migrate:firestore:mysql": "tsx scripts/migrate-firestore-to-mysql.ts",
-    "reset:mysql:initial": "tsx scripts/reset-mysql-to-initial.ts"
+    "reset:mysql:initial": "tsx scripts/reset-mysql-to-initial.ts",
+    "deploy:frontend:public": "bash scripts/deploy-frontend-public.sh",
+    "deploy:full": "DEPLOY_PUBLIC_FRONTEND=true bash scripts/deploy.sh"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
