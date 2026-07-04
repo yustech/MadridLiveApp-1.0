@@ -51,11 +51,13 @@ fi
 
 # The service runs under opsadmin with Restart=always, so signaling the process
 # triggers a clean systemd-managed restart without requiring sudo.
-# NOTE: The pattern is anchored with ^node so that pkill -f does not accidentally
-# match the bash process of this very SSH session (whose argv contains the pattern
-# string), which would kill the SSH session and return exit code 255.
 echo "Restarting app process (systemd will respawn)..."
-ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '^node.*dist/server\.cjs' || true"
+# Use [s]erver.cjs so pkill does not match and kill its own shell command line.
+if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true"; then
+  echo "Remote restart command failed. Running verbose diagnostics..."
+  ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true" || true
+  exit 255
+fi
 
 # Give systemd a moment to respawn the process before the health check starts.
 sleep 3
