@@ -32,4 +32,4 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
    - `VITE_FIREBASE_APP_ID`
    - `VITE_FIREBASE_MEASUREMENT_ID`
    - `VITE_FIREBASE_DATABASE_ID`
-4. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md).
+4. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md). You can also run `npm run deploy` once the `DEPLOY_*` environment variables are set.
