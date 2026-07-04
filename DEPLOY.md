@@ -128,6 +128,7 @@ Puedes exportar este proyecto completo en cualquier momento utilizando las opcio
 
 ### Paso 6: Despliegue Automático desde GitHub Actions
 Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow `.github/workflows/deploy.yml`.
+
 1. Crea estos secretos en GitHub -> Settings -> Secrets and variables -> Actions:
    - `DEPLOY_HOST`
    - `DEPLOY_USER`
@@ -135,6 +136,8 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_PORT` opcional, por defecto `22`
    - `DEPLOY_PATH` opcional, por defecto `/opt/madridlive-app`
    - `DEPLOY_URL` opcional, por defecto `https://inmosubastas.top`
+   - `DEPLOY_SERVICE_NAME` opcional, por defecto `madridlive-app.service`
+   - `KEEP_RELEASES` opcional, por defecto `8`
    - `SMTP_HOST` obligatorio para email (ej: `smtp.gmail.com`)
    - `SMTP_PORT` obligatorio para email (normalmente `587`)
    - `SMTP_USERNAME` obligatorio para email
@@ -146,16 +149,36 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
 4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
 5. Si los secretos SMTP están configurados, GitHub Actions envía email a `cyuste@gmail.com` cuando el deploy termina (éxito o fallo).
 6. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
-7. Cada despliegue guarda snapshots en `/releases` y conserva las últimas `` versiones.
+7. Cada despliegue guarda snapshots en `${DEPLOY_PATH}/releases` y conserva las últimas `${KEEP_RELEASES}` versiones.
 8. Para volver a la versión anterior, ejecuta `npm run rollback` con las mismas variables `DEPLOY_*` en tu terminal de despliegue.
 9. Si quieres volver a una snapshot concreta, añade `ROLLBACK_RELEASE=release-YYYYMMDDTHHMMSSZ-... npm run rollback`.
+10. En el servidor, permite reinicio sin password para el usuario de despliegue:
+    - `opsadmin ALL=NOPASSWD: /bin/systemctl restart madridlive-app.service, /bin/systemctl is-active madridlive-app.service`
+    - Guarda la regla en `/etc/sudoers.d/madridlive-deploy` con permisos `440`.
 
-7. En el servidor, permite reinicio sin password para el usuario de despliegue:
+## 🧭 Runbook Rápido (Operación)
+Usa estos comandos como referencia operativa durante un incidente o antes de un evento.
 
+1. Deploy normal:
+   ```bash
+   npm run deploy
+   ```
+2. Verificar salud y versión pública:
+   ```bash
+   curl -fsS https://inmosubastas.top/api/health
+   curl -fsS https://inmosubastas.top/api/version
+   ```
+3. Rollback inmediato a la versión anterior:
+   ```bash
+   npm run rollback
+   ```
+4. Rollback a una release específica:
+   ```bash
+   ROLLBACK_RELEASE=release-YYYYMMDDTHHMMSSZ-... npm run rollback
+   ```
+5. Ver logs del servicio:
+   ```bash
+   sudo journalctl -u madridlive-app.service --since '30 min ago' --no-pager | tail -n 200
+   ```
 
-
-
-   - `opsadmin ALL=NOPASSWD: /bin/systemctl restart madridlive-app.service, /bin/systemctl is-active madridlive-app.service`
-   - Guarda la regla en `/etc/sudoers.d/madridlive-deploy` con permisos `440`.
-
-¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente! 🌟
+¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente!
