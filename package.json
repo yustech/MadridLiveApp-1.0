@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "deploy": "bash scripts/deploy.sh",
     "rollback": "bash scripts/rollback.sh",
-    "migrate:firestore:mysql": "tsx scripts/migrate-firestore-to-mysql.ts"
+    "migrate:firestore:mysql": "tsx scripts/migrate-firestore-to-mysql.ts",
+    "reset:mysql:initial": "tsx scripts/reset-mysql-to-initial.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

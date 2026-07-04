@@ -1,9 +1,12 @@
 import fs from "fs";
+import dotenv from "dotenv";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import mysql from "mysql2/promise";
 import { registerMysqlApi } from "./mysqlApi";
+
+dotenv.config();
 
 const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
