@@ -33,6 +33,7 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
    - `VITE_FIREBASE_MEASUREMENT_ID`
    - `VITE_FIREBASE_DATABASE_ID`
 4. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md). You can also run `npm run deploy` once the `DEPLOY_*` environment variables are set. The deploy now finishes with a health check against `DEPLOY_URL` (default `https://inmosubastas.top`).
+5. Optional: configure `DEPLOY_ALERT_WEBHOOK` in GitHub Secrets to receive a message when a deploy fails.
 
 
 ## Admin API protection

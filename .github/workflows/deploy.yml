@@ -37,3 +37,19 @@ jobs:
           DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
           REQUIRE_PUBLIC_HEALTH: "true"
         run: npm run deploy
+
+      - name: Notify deploy failure webhook
+        if: ${{ failure() && secrets.DEPLOY_ALERT_WEBHOOK != '' }}
+        env:
+          DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          payload=$(cat <<EOF
+          {
+            "text": "Deploy FAILED for ${{ github.repository }} on ${{ github.ref_name }}. Run: ${RUN_URL}"
+          }
+          EOF
+          )
+          curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$payload"

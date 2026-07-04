@@ -135,11 +135,15 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_PORT` opcional, por defecto `22`
    - `DEPLOY_PATH` opcional, por defecto `/opt/madridlive-app`
    - `DEPLOY_URL` opcional, por defecto `https://inmosubastas.top`
+   - `DEPLOY_ALERT_WEBHOOK` opcional, URL de webhook (Slack/Discord/Teams compatible con payload JSON {"text":"..."})
 2. El workflow compila el proyecto con `npm run build`.
 3. Copia `dist/` al servidor y reinicia `madridlive-app.service`.
 4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
+5. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
 
-5. En el servidor, permite reinicio sin password para el usuario de despliegue:
+6. En el servidor, permite reinicio sin password para el usuario de despliegue:
+
+
    - `opsadmin ALL=NOPASSWD: /bin/systemctl restart madridlive-app.service, /bin/systemctl is-active madridlive-app.service`
    - Guarda la regla en `/etc/sudoers.d/madridlive-deploy` con permisos `440`.
 
