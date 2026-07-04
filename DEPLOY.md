@@ -185,7 +185,7 @@ Usa estos comandos como referencia operativa durante un incidente o antes de un 
    - Si dejas `release_name` vacío, vuelve a la snapshot anterior.
    - Si lo rellenas, usa el nombre exacto de la carpeta `release-...`.
 7. Health audit semanal desde GitHub Actions:
-   - Workflow: `Health Audit` (cron semanal lunes 07:00 UTC).
+   - Workflow: `Health Audit` (09:00 hora Madrid, con ajuste automático verano/invierno).
    - También puedes lanzarlo manualmente desde Actions cuando quieras.
    - Si falla health/version, envía email de alerta a `cyuste@gmail.com`.
 

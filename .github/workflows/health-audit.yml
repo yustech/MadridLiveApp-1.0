@@ -2,7 +2,11 @@ name: Health Audit
 
 on:
   schedule:
+    # 09:00 Europe/Madrid year-round (DST-safe):
+    # - 07:00 UTC when Madrid is UTC+2 (summer)
+    # - 08:00 UTC when Madrid is UTC+1 (winter)
     - cron: "0 7 * * 1"
+    - cron: "0 8 * * 1"
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +25,27 @@ jobs:
       SMTP_FROM: ${{ secrets.SMTP_FROM }}
 
     steps:
+      - name: Gate schedule to 09:00 Europe/Madrid
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
+            echo "run_audit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          madrid_time=$(TZ=Europe/Madrid date '+%H:%M')
+          if [[ "$madrid_time" == "09:00" ]]; then
+            echo "run_audit=true" >> "$GITHUB_OUTPUT"
+            echo "Running scheduled audit at Madrid local time: $madrid_time"
+          else
+            echo "run_audit=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping this UTC slot; Madrid local time is $madrid_time"
+          fi
+
       - name: Check health endpoint
+        if: ${{ steps.gate.outputs.run_audit == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -40,6 +64,7 @@ jobs:
           echo "$response" | grep -q '"status":"ok"'
 
       - name: Check version endpoint
+        if: ${{ steps.gate.outputs.run_audit == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -58,7 +83,7 @@ jobs:
           echo "$response" | grep -q '"status":"ok"'
 
       - name: Notify health audit failure by email
-        if: ${{ failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        if: ${{ steps.gate.outputs.run_audit == 'true' && failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
         uses: dawidd6/action-send-mail@v18
         with:
           server_address: ${{ env.SMTP_HOST }}
