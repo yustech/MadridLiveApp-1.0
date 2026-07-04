@@ -42,7 +42,8 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 
 - If you also protect the endpoint from the frontend admin UI, set `VITE_ADMIN_API_TOKEN` so the panel sends `x-admin-token` automatically.
 
-- Deploy script supports `REQUIRE_PUBLIC_HEALTH=true` if you want failures when the public URL health endpoint is not reachable.
+- GitHub Actions deploy now enforces public health checks (`REQUIRE_PUBLIC_HEALTH=true`) and fails if the public endpoint is not reachable.
+- For manual runs, you can still set `REQUIRE_PUBLIC_HEALTH=false` to continue when only local health passes.
 
 
 ## Version traceability

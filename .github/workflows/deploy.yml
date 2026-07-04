@@ -35,5 +35,5 @@ jobs:
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
-          REQUIRE_PUBLIC_HEALTH: ${{ secrets.REQUIRE_PUBLIC_HEALTH }}
+          REQUIRE_PUBLIC_HEALTH: "true"
         run: npm run deploy
