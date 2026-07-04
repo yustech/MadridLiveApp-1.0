@@ -90,13 +90,18 @@ export default function DatabaseManagerScreen({
     advice?: string;
   } | null>(null);
 
+  const adminApiToken = import.meta.env.VITE_ADMIN_API_TOKEN;
+
   const testMariaDBConnection = async () => {
     setIsTestingConnection(true);
     setConnectionTestResult(null);
     try {
       const response = await fetch('/api/test-mariadb', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminApiToken ? { 'x-admin-token': adminApiToken } : {}),
+        },
         body: JSON.stringify(mariadbConfig)
       });
       const data = await response.json();

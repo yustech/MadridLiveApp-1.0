@@ -139,4 +139,8 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
 3. Copia `dist/` al servidor y reinicia `madridlive-app.service`.
 4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
 
+5. En el servidor, permite reinicio sin password para el usuario de despliegue:
+   - `opsadmin ALL=NOPASSWD: /bin/systemctl restart madridlive-app.service, /bin/systemctl is-active madridlive-app.service`
+   - Guarda la regla en `/etc/sudoers.d/madridlive-deploy` con permisos `440`.
+
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente! 🌟

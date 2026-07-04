@@ -49,13 +49,10 @@ if ! scp "${SCP_OPTS[@]}" -r dist "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"; then
   exit 255
 fi
 
-# The service runs under opsadmin with Restart=always, so signaling the process
-# triggers a clean systemd-managed restart without requiring sudo.
-echo "Restarting app process (systemd will respawn)..."
-# Use [s]erver.cjs so pkill does not match and kill its own shell command line.
-if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true"; then
+echo "Restarting systemd service..."
+if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart madridlive-app.service && sudo -n systemctl is-active --quiet madridlive-app.service"; then
   echo "Remote restart command failed. Running verbose diagnostics..."
-  ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true" || true
+  ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart madridlive-app.service && sudo -n systemctl is-active --quiet madridlive-app.service" || true
   exit 255
 fi
 
