@@ -58,6 +58,12 @@ jobs:
           STRICT_NO_FIREBASE: "true"
         run: npm run deploy
 
+      - name: Smoke test production
+        env:
+          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+          EXPECTED_STAFF_COUNT: "6"
+        run: npm run smoke:prod
+
       - name: SMTP config diagnostics
         if: ${{ always() }}
         run: |
