@@ -27,6 +27,8 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 5. Optional: configure `DEPLOY_ALERT_WEBHOOK` in GitHub Secrets to receive a webhook message when a deploy fails.
 6. Automatic release snapshots are stored on the server after each successful deploy. Use `npm run rollback` to restore the previous snapshot quickly.
 7. To validate a live deploy locally, run `npm run smoke:prod`.
+8. For monitoring and rollback drill guidance, see [docs/PRODUCTION_OBSERVABILITY.md](docs/PRODUCTION_OBSERVABILITY.md).
+8. For monitoring and rollback drill guidance, see [docs/PRODUCTION_OBSERVABILITY.md](docs/PRODUCTION_OBSERVABILITY.md).
 
 
 ## Admin API protection
