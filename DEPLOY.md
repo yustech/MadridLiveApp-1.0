@@ -6,12 +6,12 @@ Esta guía detalla, paso a paso, los requisitos y el procedimiento completo para
 ---
 
 ## 📋 Arquitectura de la Aplicación
-La aplicación utiliza una arquitectura **Serverless / JAMstack**, lo que significa que es extremadamente eficiente, rápida de cargar, barata de mantener y escala automáticamente sin necesidad de gestionar servidores tradicionales.
+La aplicación está desplegada hoy con un frontend estático y un backend Node/Express que expone la API de producción. El objetivo operativo actual es mantener el frontend y la API sincronizados con MySQL, con snapshots y rollback disponibles.
 
-*   **Frontend:** React (Vite + TypeScript + Tailwind CSS). Se compila en archivos estáticos (HTML, JS, CSS) que pueden servirse desde cualquier red de distribución de contenidos (CDN).
-*   **Base de Datos y Tiempo Real:** Google Cloud Firestore (Base de datos NoSQL serverless en la nube, con suscripciones en tiempo real).
-*   **Autenticación:** Firebase Authentication (Manejo de logins y accesos autorizados).
-*   **Generación de QR:** Se consumen mediante llamadas directas rápidas a un servicio CDN público (`api.qrserver.com`), eliminando la necesidad de lógica de backend costosa.
+*   **Frontend:** React (Vite + TypeScript + Tailwind CSS). Se compila en archivos estáticos (HTML, JS, CSS) y se publica en `public_html`.
+*   **API / Backend:** Node.js + Express (`server.ts`) con endpoints de salud, versión y CRUD para personal/eventos/turnos/alertas.
+*   **Base de Datos:** MySQL/MariaDB como persistencia activa en producción.
+*   **Autenticación / servicios previos:** Firebase y Firestore siguen en el repositorio histórico, pero ya no son el plano activo de producción.
 *   **Lector QR:** `html5-qrcode` integrado directamente en la cámara del navegador móvil del supervisor.
 
 ---
@@ -138,6 +138,8 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_URL` opcional, por defecto `https://inmosubastas.top`
    - `DEPLOY_SERVICE_NAME` opcional, por defecto `madridlive-app.service`
    - `KEEP_RELEASES` opcional, por defecto `8`
+   - `PUBLIC_HTML_PATH` opcional, por defecto `/home/netiadmin/web/inmosubastas.top/public_html`
+   - `PUBLIC_FRONTEND_BACKUP_BASE` opcional, por defecto `/home/opsadmin/MadridLiveApp-1.0/deploy_backups_local`
    - `SMTP_HOST` obligatorio para email (ej: `smtp.gmail.com`)
    - `SMTP_PORT` obligatorio para email (normalmente `587`)
    - `SMTP_USERNAME` obligatorio para email
@@ -146,13 +148,15 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_ALERT_WEBHOOK` opcional, URL de webhook (Slack/Discord/Teams compatible con payload JSON {"text":"..."})
 2. El workflow compila el proyecto con `npm run build`.
 3. Copia `dist/` al servidor y reinicia `madridlive-app.service`.
-4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
-5. Si los secretos SMTP están configurados, GitHub Actions envía email a `cyuste@gmail.com` cuando el deploy termina (éxito o fallo).
-6. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
-7. Cada despliegue guarda snapshots en `${DEPLOY_PATH}/releases` y conserva las últimas `${KEEP_RELEASES}` versiones.
-8. Para volver a la versión anterior, ejecuta `npm run rollback` con las mismas variables `DEPLOY_*` en tu terminal de despliegue.
-9. Si quieres volver a una snapshot concreta, añade `ROLLBACK_RELEASE=release-YYYYMMDDTHHMMSSZ-... npm run rollback`.
-10. En el servidor, permite reinicio sin password para el usuario de despliegue:
+4. Si eliges `publish_public_frontend = true` en el manual trigger, además publica `dist/` en `PUBLIC_HTML_PATH`, hace backup local y valida que el bundle público use `/api/mysql`.
+5. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
+6. Si los secretos SMTP están configurados, GitHub Actions envía email a `cyuste@gmail.com` cuando el deploy termina (éxito o fallo).
+7. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
+8. Cada despliegue guarda snapshots en `${DEPLOY_PATH}/releases` y conserva las últimas `${KEEP_RELEASES}` versiones.
+9. Para volver a la versión anterior, ejecuta `npm run rollback` con las mismas variables `DEPLOY_*` en tu terminal de despliegue.
+10. Si quieres volver a una snapshot concreta, añade `ROLLBACK_RELEASE=release-YYYYMMDDTHHMMSSZ-... npm run rollback`.
+11. Si quieres desplegar backend y frontend público desde terminal con una sola orden, usa `npm run deploy:full`.
+12. En el servidor, permite reinicio sin password para el usuario de despliegue:
     - `opsadmin ALL=NOPASSWD: /bin/systemctl restart madridlive-app.service, /bin/systemctl is-active madridlive-app.service`
     - Guarda la regla en `/etc/sudoers.d/madridlive-deploy` con permisos `440`.
 
@@ -168,27 +172,32 @@ Usa estos comandos como referencia operativa durante un incidente o antes de un 
    curl -fsS https://inmosubastas.top/api/health
    curl -fsS https://inmosubastas.top/api/version
    ```
-3. Rollback inmediato a la versión anterior:
+3. Verificar el frontend público y el bundle servido:
+   ```bash
+   curl -fsS https://inmosubastas.top | grep -o 'index-[A-Za-z0-9_-]*\.js' | head -n 1
+   curl -fsS https://inmosubastas.top/api/mysql/staff
+   ```
+4. Rollback inmediato a la versión anterior:
    ```bash
    npm run rollback
    ```
-4. Rollback a una release específica:
+5. Rollback a una release específica:
    ```bash
    ROLLBACK_RELEASE=release-YYYYMMDDTHHMMSSZ-... npm run rollback
    ```
-5. Ver logs del servicio:
+6. Ver logs del servicio:
    ```bash
    sudo journalctl -u madridlive-app.service --since '30 min ago' --no-pager | tail -n 200
    ```
-6. Rollback desde GitHub Actions (sin terminal):
+7. Rollback desde GitHub Actions (sin terminal):
    - Ve a Actions -> `Rollback` -> Run workflow.
    - Si dejas `release_name` vacío, vuelve a la snapshot anterior.
    - Si lo rellenas, usa el nombre exacto de la carpeta `release-...`.
-7. Health audit semanal desde GitHub Actions:
+8. Health audit semanal desde GitHub Actions:
    - Workflow: `Health Audit` (09:00 hora Madrid, con ajuste automático verano/invierno).
    - También puedes lanzarlo manualmente desde Actions cuando quieras.
    - Si falla health/version, envía email de alerta a `cyuste@gmail.com`.
-8. Simulacro operativo desde GitHub Actions:
+9. Simulacro operativo desde GitHub Actions:
    - Workflow: `Ops Drill` (manual).
    - Por defecto solo ejecuta comprobaciones y resumen.
    - Si activas `run_rollback=true`, prueba también la recuperación con rollback.
