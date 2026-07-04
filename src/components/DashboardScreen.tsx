@@ -121,6 +121,8 @@ export default function DashboardScreen({
           {/* Action Card: Launch Virtual Scanner */}
           <button
             onClick={onLaunchScanner}
+            aria-label="Iniciar escaner"
+            title="Iniciar escaner"
             className="w-full flex-1 bg-white/5 backdrop-blur-lg border border-white/10 hover:border-indigo-400/40 rounded-3xl p-6 flex flex-col justify-center items-center text-center group cursor-pointer transition-all duration-300 relative overflow-hidden shadow-sm hover:shadow-hud-glow"
           >
             <div className="w-14 h-14 rounded-full bg-indigo-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 border border-indigo-400/25">

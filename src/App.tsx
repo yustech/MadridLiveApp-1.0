@@ -619,7 +619,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* RENDER DIRECT CORE FIRESTORE DATABASE MANAGER MODAL */}
+      {/* RENDER DIRECT CORE MYSQL DATABASE MANAGER MODAL */}
       {isDbOpen && (
         <DatabaseManagerScreen
           events={events}
