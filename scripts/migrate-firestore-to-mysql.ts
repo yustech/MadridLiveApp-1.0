@@ -1,9 +1,23 @@
+import fs from "fs";
+import path from "path";
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
-import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import {
+  initializeApp as initializeAdminApp,
+  applicationDefault,
+  cert,
+  getApps as getAdminApps,
+} from "firebase-admin/app";
+import { getFirestore as getAdminFirestore } from "firebase-admin/firestore";
+import { initializeApp as initializeClientApp } from "firebase/app";
+import { getFirestore as getClientFirestore, collection, getDocs } from "firebase/firestore";
 
 dotenv.config();
+
+type FirestoreReader = {
+  mode: "admin" | "client";
+  fetchCollection: (name: string) => Promise<Array<Record<string, unknown>>>;
+};
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -11,24 +25,79 @@ function requireEnv(name: string) {
   return value;
 }
 
-function getFirebaseApp() {
-  if (getApps().length > 0) return getApps()[0];
+function loadClientFirebaseConfig() {
+  const configPath = process.env.FIREBASE_CONFIG_PATH || path.join(process.cwd(), "firebase-applet-config.json");
+  const raw = fs.readFileSync(configPath, "utf8");
+  const baseConfig = JSON.parse(raw);
 
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  return {
+    apiKey: process.env.VITE_FIREBASE_API_KEY || baseConfig.apiKey,
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || baseConfig.authDomain,
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || baseConfig.projectId,
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || baseConfig.storageBucket,
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || baseConfig.messagingSenderId,
+    appId: process.env.VITE_FIREBASE_APP_ID || baseConfig.appId,
+    measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || baseConfig.measurementId,
+    firestoreDatabaseId:
+      process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || baseConfig.firestoreDatabaseId,
+  };
+}
 
-  if (serviceAccountJson) {
-    const serviceAccount = JSON.parse(serviceAccountJson);
-    return initializeApp({
-      credential: cert(serviceAccount),
-      projectId: projectId || serviceAccount.project_id,
-    });
+function buildAdminReader(): FirestoreReader {
+  let adminApp = getAdminApps()[0];
+  if (!adminApp) {
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+
+    if (serviceAccountJson) {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      adminApp = initializeAdminApp({
+        credential: cert(serviceAccount),
+        projectId: projectId || serviceAccount.project_id,
+      });
+    } else {
+      adminApp = initializeAdminApp({
+        credential: applicationDefault(),
+        projectId,
+      });
+    }
   }
 
-  return initializeApp({
-    credential: applicationDefault(),
-    projectId,
-  });
+  const dbId = process.env.FIREBASE_DATABASE_ID || "(default)";
+  const fsDb = getAdminFirestore(adminApp, dbId);
+
+  return {
+    mode: "admin",
+    async fetchCollection(name: string) {
+      const snap = await fsDb.collection(name).get();
+      return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    },
+  };
+}
+
+function buildClientReader(): FirestoreReader {
+  const cfg = loadClientFirebaseConfig();
+  const app = initializeClientApp(cfg);
+  const fsDb = getClientFirestore(app, cfg.firestoreDatabaseId);
+
+  return {
+    mode: "client",
+    async fetchCollection(name: string) {
+      const snap = await getDocs(collection(fsDb, name));
+      return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    },
+  };
+}
+
+async function loadCollections(reader: FirestoreReader) {
+  const [staff, events, shifts, alerts] = await Promise.all([
+    reader.fetchCollection("staff"),
+    reader.fetchCollection("events"),
+    reader.fetchCollection("shifts"),
+    reader.fetchCollection("alerts"),
+  ]);
+
+  return { staff, events, shifts, alerts };
 }
 
 async function ensureMysqlSchema(db: any) {
@@ -94,11 +163,6 @@ async function ensureMysqlSchema(db: any) {
   `);
 }
 
-async function fetchCollection(fs: FirebaseFirestore.Firestore, name: string) {
-  const snap = await fs.collection(name).get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-}
-
 function asNumber(value: unknown, fallback = 0) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
@@ -115,20 +179,30 @@ async function main() {
     queueLimit: 0,
   });
 
-  const firebaseApp = getFirebaseApp();
-  const dbId = process.env.FIREBASE_DATABASE_ID || "(default)";
-  const fs = getFirestore(firebaseApp, dbId);
-
-  console.log(`[migrate] Starting Firestore -> MySQL migration (databaseId=${dbId})`);
+  console.log("[migrate] Starting Firestore -> MySQL migration");
   await ensureMysqlSchema(db);
 
-  const [staff, events, shifts, alerts] = await Promise.all([
-    fetchCollection(fs, "staff"),
-    fetchCollection(fs, "events"),
-    fetchCollection(fs, "shifts"),
-    fetchCollection(fs, "alerts"),
-  ]);
+  let data: {
+    staff: Array<Record<string, unknown>>;
+    events: Array<Record<string, unknown>>;
+    shifts: Array<Record<string, unknown>>;
+    alerts: Array<Record<string, unknown>>;
+  };
 
+  try {
+    const adminReader = buildAdminReader();
+    data = await loadCollections(adminReader);
+    console.log("[migrate] Firestore source mode: admin");
+  } catch (adminError: any) {
+    console.warn(`[migrate] Admin reader failed: ${adminError?.message || adminError}`);
+    console.warn("[migrate] Retrying with client SDK + firebase-applet-config.json...");
+
+    const clientReader = buildClientReader();
+    data = await loadCollections(clientReader);
+    console.log("[migrate] Firestore source mode: client");
+  }
+
+  const { staff, events, shifts, alerts } = data;
   console.log(`[migrate] Loaded Firestore docs: staff=${staff.length}, events=${events.length}, shifts=${shifts.length}, alerts=${alerts.length}`);
 
   const conn = await db.getConnection();
@@ -171,6 +245,43 @@ async function main() {
       );
     }
 
+
+      // Ensure FK integrity for historical shifts whose workers no longer exist in current staff snapshot
+      const knownWorkerIds = new Set(staff.map((s) => String((s as any).id)));
+      const missingWorkerIds = Array.from(
+        new Set(
+          shifts
+            .map((sh) => String((sh as any).workerId || ""))
+            .filter((id) => id && !knownWorkerIds.has(id))
+        )
+      );
+
+      for (const missingId of missingWorkerIds) {
+        await conn.execute(
+          `INSERT INTO staff (id, id_code, name, role, role_label, status, checked_in_time, last_seen, avatar, total_hours, current_shift_hours, current_shift_mins, location)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE id = id`,
+          [
+            missingId,
+            `MIG-${missingId}`.slice(0, 20),
+            `Migrated Worker ${missingId}`.slice(0, 100),
+            "Auxiliar",
+            "AUXILIAR",
+            "OUT",
+            null,
+            null,
+            "",
+            0,
+            0,
+            0,
+            "Unknown",
+          ]
+        );
+      }
+
+      if (missingWorkerIds.length > 0) {
+        console.log(`[migrate] Inserted placeholder staff rows for ${missingWorkerIds.length} historical worker IDs.`);
+      }
     for (const sh of shifts) {
       await conn.execute(
         `INSERT INTO shifts (id, worker_id, date_string, timespan, duration_label, location, status)
