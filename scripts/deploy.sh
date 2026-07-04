@@ -15,23 +15,36 @@ DEPLOY_URL="${DEPLOY_URL:-https://inmosubastas.top}"
 
 KEY_FILE="$(mktemp)"
 trap 'rm -f "$KEY_FILE"' EXIT
-printf '%s\n' "$DEPLOY_SSH_KEY" > "$KEY_FILE"
+printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$KEY_FILE"
 chmod 600 "$KEY_FILE"
 
-SSH_OPTS=(
+SCP_OPTS=(
+  -O
   -o StrictHostKeyChecking=accept-new
   -o BatchMode=yes
   -i "$KEY_FILE"
   -P "$DEPLOY_PORT"
 )
 
-# Use -O because this server does not expose the SFTP subsystem for SCP by default.
-scp -O "${SSH_OPTS[@]}" -r dist "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
+SSH_OPTS=(
+  -o StrictHostKeyChecking=accept-new
+  -o BatchMode=yes
+  -i "$KEY_FILE"
+  -p "$DEPLOY_PORT"
+)
+
+echo "Testing SSH connectivity to ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PORT}..."
+ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH_OK" >/dev/null
+
+echo "Uploading dist to ${DEPLOY_HOST}:${DEPLOY_PATH}..."
+scp "${SCP_OPTS[@]}" -r dist "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
 
 # The service runs under opsadmin with Restart=always, so signaling the process
 # triggers a clean systemd-managed restart without requiring sudo.
-ssh "${SSH_OPTS[@]/-P/-p}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/server.cjs' || true"
+echo "Restarting app process (systemd will respawn)..."
+ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/server.cjs' || true"
 
+echo "Running health check on ${DEPLOY_URL}/api/health..."
 for attempt in 1 2 3 4 5 6; do
   if curl -fsS "$DEPLOY_URL/api/health" | grep -q '"status":"ok"'; then
     echo "Health check passed."
