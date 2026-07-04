@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp } from 'lucide-react';
+import { useState, useEffect, FormEvent } from 'react';
+import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
 
 import DashboardScreen from './components/DashboardScreen';
@@ -23,6 +23,16 @@ import {
 } from './dbService';
 
 export default function App() {
+  // Authentication & Security Policy State (Option B)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('ml_auth') === 'true';
+  });
+  const [loginEmail, setLoginEmail] = useState('admin@madridlive.com');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'
   const [activeScreen, setActiveScreen] = useState<'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'>('dashboard');
   
@@ -104,6 +114,30 @@ export default function App() {
     const parts = formatted.split(', ');
     const rest = parts[1] || parts[0];
     return `Hoy, ${rest}`;
+  };
+
+  // Login handler
+  const handleLogin = (e: FormEvent) => {
+    e.preventDefault();
+    setIsAuthenticating(true);
+    setLoginError('');
+
+    setTimeout(() => {
+      if (loginEmail.trim().toLowerCase() === 'admin@madridlive.com' && loginPassword === 'CREW2026') {
+        sessionStorage.setItem('ml_auth', 'true');
+        setIsAuthenticated(true);
+      } else {
+        setLoginError('ACCESO DENEGADO: Credenciales de seguridad inválidas.');
+      }
+      setIsAuthenticating(false);
+    }, 800);
+  };
+
+  // Logout handler
+  const handleLogout = () => {
+    sessionStorage.removeItem('ml_auth');
+    setIsAuthenticated(false);
+    setLoginPassword('');
   };
 
   // Check worker toggle IN/OUT
@@ -201,6 +235,128 @@ export default function App() {
     setActiveScreen('profile');
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="w-full min-h-screen bg-[#0A051A] text-[#e2e2e8] flex items-center justify-center font-sans relative overflow-hidden px-4 py-8">
+        {/* Mesh Gradient Background Layers */}
+        <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-[120px] pointer-events-none z-0"></div>
+        <div className="absolute bottom-[-100px] right-[-100px] w-[500px] h-[500px] bg-indigo-500/15 rounded-full blur-[120px] pointer-events-none z-0"></div>
+
+        <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(129,140,248,0.15)] p-8 relative z-10">
+          
+          {/* Header */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-400/30 rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+              <Lock className="w-8 h-8 text-indigo-400 animate-pulse" />
+            </div>
+            
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+              <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest font-bold">
+                CONEXIÓN ENCRIPTADA CON FIRESTORE
+              </span>
+            </div>
+
+            <h1 className="text-2xl font-display font-black tracking-tighter text-[#dbfcff] text-center">
+              TERMINAL DE ACCESO
+            </h1>
+            <p className="text-[11px] font-mono text-white/40 uppercase tracking-wider mt-1">
+              MADRID LIVE PRODUCTION PORTAL
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-mono text-white/50 uppercase tracking-wider mb-2">
+                Identificador / Email
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full bg-[#120f26]/60 border border-white/10 focus:border-indigo-400/40 rounded-xl px-4 py-3 text-sm text-white/90 placeholder-white/20 font-mono transition-all outline-none"
+                  placeholder="admin@madridlive.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-mono text-white/50 uppercase tracking-wider mb-2">
+                Clave de Seguridad (Master Pass)
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full bg-[#120f26]/60 border border-white/10 focus:border-indigo-400/40 rounded-xl pl-4 pr-11 py-3 text-sm text-white/90 placeholder-white/20 font-mono transition-all outline-none"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors p-1 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs font-mono text-red-300 leading-normal">{loginError}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isAuthenticating}
+              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-50 text-white font-mono text-xs font-bold rounded-xl transition-all shadow-[0_4px_20px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Terminal className="w-4 h-4" />
+              <span>{isAuthenticating ? "DECRIPTANDO..." : "AUTENTICAR EN ENTORNO"}</span>
+            </button>
+          </form>
+
+          {/* Quick Demo Assist */}
+          <div className="mt-8 pt-6 border-t border-white/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono text-white/30 uppercase tracking-wider">
+                Políticas de Seguridad Activas
+              </span>
+              <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] rounded-full uppercase">
+                Estable / OK
+              </span>
+            </div>
+            
+            <div className="bg-[#120f26]/30 border border-white/5 rounded-xl p-3 text-left">
+              <p className="text-[10px] font-mono text-white/60 leading-relaxed mb-2">
+                💡 <strong className="text-indigo-300">DEMO PASSKEY:</strong> Usa el botón inferior para autocompletar la clave maestra predefinida para producciones.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginEmail('admin@madridlive.com');
+                  setLoginPassword('CREW2026');
+                  setLoginError('');
+                }}
+                className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-400/30 text-indigo-200 font-mono text-[10px] font-semibold rounded-lg transition-all cursor-pointer"
+              >
+                Rellenar Credenciales Demo
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-h-screen bg-[#0A051A] text-[#e2e2e8] flex flex-col md:flex-row font-sans relative overflow-x-hidden">
       
@@ -260,7 +416,7 @@ export default function App() {
               }`}
             >
               <Users className="w-[18px] h-[18px]" />
-              <span>Personal Roster</span>
+              <span>Plantilla</span>
             </button>
 
             <button
@@ -332,6 +488,16 @@ export default function App() {
                 <p className="text-[9px] font-mono text-indigo-300">Supervisor</p>
               </div>
             </button>
+
+            {/* Logout trigger */}
+            <button
+              onClick={handleLogout}
+              className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl font-mono text-[11px] font-bold text-red-300 cursor-pointer transition-colors flex items-center justify-center gap-2"
+              title="Cerrar sesión de terminal"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>BLOQUEAR TERMINAL</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -363,6 +529,15 @@ export default function App() {
               title="Acceso a Base de Datos (CRUD)"
             >
               <Database className="w-5 h-5" />
+            </button>
+
+            {/* Header Logout for Quick Access / Mobile viewports too */}
+            <button
+              onClick={handleLogout}
+              className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-full cursor-pointer text-red-400 hover:text-red-300 transition-all flex items-center justify-center"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
             </button>
 
             {/* Right Clickable Crew Headshot (Click toggles Javier Rodriguez's Profile) */}

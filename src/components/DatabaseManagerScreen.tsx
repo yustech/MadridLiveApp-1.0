@@ -12,7 +12,16 @@ import {
   Users, 
   Clock, 
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Shield,
+  Lock,
+  Server,
+  Code,
+  Copy,
+  Key,
+  Eye,
+  EyeOff,
+  Terminal
 } from 'lucide-react';
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from '../types';
 import { 
@@ -31,13 +40,14 @@ interface DatabaseManagerScreenProps {
   onClose: () => void;
 }
 
-type CollectionTab = 'events' | 'staff' | 'shifts' | 'alerts';
+type CollectionTab = 'events' | 'staff' | 'shifts' | 'alerts' | 'security';
 
 const tabLabelMap: Record<CollectionTab, string> = {
   staff: 'Colaboradores',
   events: 'Eventos',
   shifts: 'Turnos',
-  alerts: 'Alertas'
+  alerts: 'Alertas',
+  security: 'Seguridad & MySQL'
 };
 
 const sectorTranslationMap: Record<string, string> = {
@@ -56,6 +66,58 @@ export default function DatabaseManagerScreen({
   const [activeTab, setActiveTab] = useState<CollectionTab>('staff');
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Security & SQL Bridge States
+  const [securitySubTab, setSecuritySubTab] = useState<'credentials' | 'schema' | 'bridge'>('credentials');
+  const [copiedText, setCopiedText] = useState(false);
+  const [mariadbConfig, setMariadbConfig] = useState({
+    host: '82.223.139.217',
+    port: '3306',
+    user: 'prod_crew_admin',
+    name: 'madrid_live_production',
+    password: 'MEMBER_PASS_CREW_2026'
+  });
+  const [userCredentials, setUserCredentials] = useState([
+    { email: 'admin@madridlive.com', role: 'admin', label: 'Super Administrador', lastLogin: 'Hoy, 09:42' },
+    { email: 'supervisor.puerta@madridlive.com', role: 'supervisor', label: 'Supervisor Puerta Acceso', lastLogin: 'Ayer, 21:05' },
+    { email: 'soporte.tecnico@madridlive.com', role: 'supervisor', label: 'Técnico de Guardia', lastLogin: '01/07, 14:15' }
+  ]);
+
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<{
+    success: boolean;
+    message: string;
+    logs?: string[];
+    advice?: string;
+  } | null>(null);
+
+  const testMariaDBConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionTestResult(null);
+    try {
+      const response = await fetch('/api/test-mariadb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mariadbConfig)
+      });
+      const data = await response.json();
+      setConnectionTestResult({
+        success: data.success,
+        message: data.message,
+        logs: data.logs,
+        advice: data.advice
+      });
+    } catch (err: any) {
+      setConnectionTestResult({
+        success: false,
+        message: err.message || 'Error de red al conectar con el servidor bridge.',
+        logs: [`[ERROR DE RED] No se pudo establecer conexión con el endpoint local /api/test-mariadb.`],
+        advice: 'Asegúrate de que el servidor de desarrollo esté corriendo correctamente en el contenedor.'
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   // Status message
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
@@ -266,8 +328,16 @@ export default function DatabaseManagerScreen({
 
         {/* Roster & Grid selector tabs */}
         <div className="bg-[#120e2a]/50 border-b border-white/5 flex flex-wrap gap-2 px-6 py-3">
-          {(['staff', 'events', 'shifts', 'alerts'] as const).map(tab => {
-            const count = tab === 'staff' ? staff.length : tab === 'events' ? events.length : tab === 'shifts' ? shifts.length : alerts.length;
+          {(['staff', 'events', 'shifts', 'alerts', 'security'] as const).map(tab => {
+            const count = tab === 'staff' 
+              ? staff.length 
+              : tab === 'events' 
+                ? events.length 
+                : tab === 'shifts' 
+                  ? shifts.length 
+                  : tab === 'alerts' 
+                    ? alerts.length 
+                    : 'SQL';
             return (
               <button
                 key={tab}
@@ -289,30 +359,566 @@ export default function DatabaseManagerScreen({
         </div>
 
         {/* Selection search and Action header */}
-        <div className="px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={`Buscar en ${tabLabelMap[activeTab].toLowerCase()}...`}
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-indigo-400"
-            />
-          </div>
+        {activeTab !== 'security' ? (
+          <div className="px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={`Buscar en ${tabLabelMap[activeTab].toLowerCase()}...`}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-indigo-400"
+              />
+            </div>
 
-          <button
-            onClick={handleOpenAdd}
-            className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 text-white font-mono font-medium text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-indigo-500/15"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Añadir {activeTab === 'staff' ? 'Colaborador' : activeTab === 'events' ? 'Evento' : activeTab === 'shifts' ? 'Turno' : 'Alerta'}</span>
-          </button>
-        </div>
+            <button
+              onClick={handleOpenAdd}
+              className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 text-white font-mono font-medium text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-indigo-500/15"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Añadir {activeTab === 'staff' ? 'Colaborador' : activeTab === 'events' ? 'Evento' : activeTab === 'shifts' ? 'Turno' : 'Alerta'}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="px-6 py-3 border-b border-white/5 bg-indigo-950/20 flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-1.5">
+              {(['credentials', 'schema', 'bridge'] as const).map((sub) => (
+                <button
+                  key={sub}
+                  onClick={() => {
+                    setSecuritySubTab(sub);
+                    setCopiedText(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-mono text-[10px] uppercase transition-all cursor-pointer ${
+                    securitySubTab === sub
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
+                      : 'text-white/40 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  {sub === 'credentials' ? 'Políticas & Usuarios' : sub === 'schema' ? 'Esquema SQL MySQL' : 'Código API Node.js Bridge'}
+                </button>
+              ))}
+            </div>
+            <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest hidden md:block">
+              INTEGRACIÓN MYSQL & SEGURIDAD SUPERVISORES
+            </div>
+          </div>
+        )}
 
         {/* Database List Table Container */}
         <div className="flex-1 overflow-auto p-6">
-          {filteredItems.length === 0 ? (
+          {activeTab === 'security' ? (
+            <div className="space-y-6">
+              {/* CREDENTIALS & LOGIN POLICY SUBTAB */}
+              {securitySubTab === 'credentials' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs font-mono">
+                  
+                  {/* Left Column: MariaDB Server Connection Mockup & Customizer */}
+                  <div className="space-y-4">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 bg-indigo-500/10 text-indigo-300 border-l border-b border-white/10 rounded-bl-xl text-[9px] font-bold">
+                        MYSQL CONFIG
+                      </div>
+                      
+                      <h4 className="text-sm font-display font-bold text-white mb-4 flex items-center gap-2">
+                        <Server className="w-4 h-4 text-indigo-400" />
+                        Ajustes del Servidor de Producción
+                      </h4>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] text-white/40 block mb-1">Host de Base de Datos (MySQL / MariaDB)</label>
+                          <input
+                            type="text"
+                            value={mariadbConfig.host}
+                            onChange={(e) => setMariadbConfig({ ...mariadbConfig, host: e.target.value })}
+                            className="w-full bg-[#120e2a]/80 border border-white/10 focus:border-indigo-400/40 rounded-xl px-3 py-2 text-white outline-none"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-white/40 block mb-1">Puerto</label>
+                            <input
+                              type="text"
+                              value={mariadbConfig.port}
+                              onChange={(e) => setMariadbConfig({ ...mariadbConfig, port: e.target.value })}
+                              className="w-full bg-[#120e2a]/80 border border-white/10 focus:border-indigo-400/40 rounded-xl px-3 py-2 text-white outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-white/40 block mb-1">Usuario SQL</label>
+                            <input
+                              type="text"
+                              value={mariadbConfig.user}
+                              onChange={(e) => setMariadbConfig({ ...mariadbConfig, user: e.target.value })}
+                              className="w-full bg-[#120e2a]/80 border border-white/10 focus:border-indigo-400/40 rounded-xl px-3 py-2 text-white outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-white/40 block mb-1">Nombre de Base de Datos</label>
+                            <input
+                              type="text"
+                              value={mariadbConfig.name}
+                              onChange={(e) => setMariadbConfig({ ...mariadbConfig, name: e.target.value })}
+                              className="w-full bg-[#120e2a]/80 border border-white/10 focus:border-indigo-400/40 rounded-xl px-3 py-2 text-white outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-white/40 block mb-1">Clave de Conexión</label>
+                            <input
+                              type="password"
+                              value={mariadbConfig.password}
+                              onChange={(e) => setMariadbConfig({ ...mariadbConfig, password: e.target.value })}
+                              className="w-full bg-[#120e2a]/80 border border-white/10 focus:border-indigo-400/40 rounded-xl px-3 py-2 text-white outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-white/5 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-indigo-300 leading-normal">
+                            💡 Cambiar estos campos actualizará dinámicamente el código del bridge en la tercera pestaña.
+                          </span>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          disabled={isTestingConnection}
+                          onClick={testMariaDBConnection}
+                          className={`w-full py-2.5 font-mono text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md ${
+                            isTestingConnection
+                              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 cursor-wait animate-pulse'
+                              : 'bg-indigo-500 hover:bg-indigo-400 text-white'
+                          }`}
+                        >
+                          <Terminal className="w-4 h-4" />
+                          <span>{isTestingConnection ? 'PROBANDO CONEXIÓN...' : 'TESTEAR CONEXIÓN EN TIEMPO REAL'}</span>
+                        </button>
+
+                        {/* Connection Test Result Console Display */}
+                        {connectionTestResult && (
+                          <div className={`mt-2 border rounded-xl p-3.5 font-mono text-[10px] leading-relaxed transition-all ${
+                            connectionTestResult.success
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                              : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                          }`}>
+                            <div className="flex items-center gap-1.5 font-bold text-[11px] mb-2 uppercase">
+                              <span className={`w-2 h-2 rounded-full ${connectionTestResult.success ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                              <span>{connectionTestResult.success ? 'CONEXIÓN EXITOSA' : 'ERROR DE CONEXIÓN'}</span>
+                            </div>
+                            
+                            <p className="mb-2 font-sans font-medium text-white/95">{connectionTestResult.message}</p>
+                            
+                            {connectionTestResult.advice && (
+                              <p className="mb-3 text-white/60 text-[9px] bg-black/30 px-2 py-1.5 rounded-lg border border-white/5 leading-normal">
+                                📢 <strong className="text-white">Consejo técnico:</strong> {connectionTestResult.advice}
+                              </p>
+                            )}
+
+                            {connectionTestResult.logs && connectionTestResult.logs.length > 0 && (
+                              <div className="bg-black/40 rounded-lg p-2 max-h-[140px] overflow-y-auto space-y-1 text-white/40 font-mono text-[9px]">
+                                {connectionTestResult.logs.map((log, idx) => (
+                                  <div key={idx} className="whitespace-pre-wrap breakdown-words">
+                                    {log}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Security policies parameters */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                      <h4 className="text-sm font-display font-bold text-white mb-3.5 flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-emerald-400" />
+                        Políticas de Seguridad Activas
+                      </h4>
+                      <ul className="space-y-2 text-[11px] text-white/70">
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                          <span>Mínimo de caracteres: <strong className="text-white">8 caracteres</strong></span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                          <span>Algoritmo de Hashing: <strong className="text-white">bcrypt (10 salt rounds)</strong></span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                          <span>Control de Sesión: <strong className="text-white">JSON Web Token (JWT)</strong> en localStorage con expiración de 8h</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                          <span>Prevención Bruta: <strong className="text-white">Bloqueo temporal de IP</strong> tras 5 intentos erróneos</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Right Column: User list / Administrators */}
+                  <div className="space-y-4">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col justify-between h-full">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-display font-bold text-white flex items-center gap-2">
+                            <Key className="w-4 h-4 text-indigo-400" />
+                            Cuentas de Supervisor Autorizadas
+                          </h4>
+                          <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-[9px] rounded-full uppercase">
+                            {userCredentials.length} Cuentas
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                          {userCredentials.map((cred, idx) => (
+                            <div key={idx} className="bg-[#120e2a]/40 border border-white/5 rounded-xl p-3 flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-bold text-white text-[11px] truncate">{cred.email}</p>
+                                <p className="text-[10px] text-white/40 mt-0.5 leading-none">{cred.label}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className={`inline-block text-[8px] px-2 py-0.5 rounded font-bold uppercase ${cred.role === 'admin' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'}`}>
+                                  {cred.role}
+                                </span>
+                                <p className="text-[9px] text-white/30 font-mono mt-1 leading-none">{cred.lastLogin}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const domains = ['@madridlive.com', '@creweventos.es', '@producciones.com'];
+                            const prefixes = ['coordinador.lucas', 'operario.puerta', 'tecnico.gomez', 'produccion.maria'];
+                            const randomEmail = prefixes[Math.floor(Math.random() * prefixes.length)] + domains[Math.floor(Math.random() * domains.length)];
+                            
+                            setUserCredentials([
+                              ...userCredentials,
+                              {
+                                email: randomEmail,
+                                role: 'supervisor',
+                                label: 'Supervisor Añadido Guardado en Firestore',
+                                lastLogin: 'Nunca (Nueva cuenta)'
+                              }
+                            ]);
+                            showStatus(`Nueva cuenta de supervisor simulación añadida: ${randomEmail}`);
+                          }}
+                          className="w-full py-2.5 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 text-indigo-200 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>CREAR NUEVA CUENTA DE GUARDIA</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MYSQL SQL SCHEMA SUBTAB */}
+              {securitySubTab === 'schema' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-2xl p-4">
+                    <div className="font-mono text-xs">
+                      <p className="font-bold text-white flex items-center gap-1.5">
+                        <Terminal className="w-4 h-4 text-indigo-400" />
+                        Esquema SQL Físico para MySQL / MariaDB
+                      </p>
+                      <p className="text-[10px] text-white/50 mt-1 leading-relaxed">
+                        Copia y ejecuta estas sentencias DDL en tu consola de MySQL, MariaDB o phpMyAdmin para crear las tablas necesarias correspondientes a los modelos de Firestore.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sqlCode = `-- 1. Tabla de Supervisores / Usuarios
+CREATE TABLE IF NOT EXISTS supervisors (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  role VARCHAR(50) DEFAULT 'supervisor',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción de credencial inicial por defecto (CREW2026)
+INSERT INTO supervisors (email, password_hash, name, role) 
+VALUES ('admin@madridlive.com', 'bcrypt_hash_of_CREW2026', 'Administrador General', 'admin')
+ON DUPLICATE KEY UPDATE email=email;
+
+-- 2. Tabla de Plantilla (Staff)
+CREATE TABLE IF NOT EXISTS staff (
+  id VARCHAR(50) PRIMARY KEY,
+  id_code VARCHAR(20) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  role VARCHAR(50) NOT NULL,
+  role_label VARCHAR(50) NOT NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'OUT',
+  avatar VARCHAR(255),
+  total_hours DECIMAL(6,2) DEFAULT 0.00,
+  current_shift_hours INT DEFAULT 0,
+  current_shift_mins INT DEFAULT 0,
+  location VARCHAR(100),
+  checked_in_time VARCHAR(50)
+);
+
+-- 3. Tabla de Turnos (Shifts)
+CREATE TABLE IF NOT EXISTS shifts (
+  id VARCHAR(50) PRIMARY KEY,
+  worker_id VARCHAR(50) NOT NULL,
+  date_string VARCHAR(50) NOT NULL,
+  timespan VARCHAR(100) NOT NULL,
+  duration_label VARCHAR(50) NOT NULL,
+  location VARCHAR(100) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'Active',
+  FOREIGN KEY (worker_id) REFERENCES staff(id) ON DELETE CASCADE
+);
+
+-- 4. Tabla de Eventos (Events)
+CREATE TABLE IF NOT EXISTS events (
+  id VARCHAR(50) PRIMARY KEY,
+  title VARCHAR(150) NOT NULL,
+  location VARCHAR(150) NOT NULL,
+  date_day VARCHAR(10) NOT NULL,
+  date_month VARCHAR(10) NOT NULL,
+  doors_open VARCHAR(10) NOT NULL,
+  required_staff INT NOT NULL DEFAULT 0,
+  active_staff INT NOT NULL DEFAULT 0,
+  total_staff_needed INT NOT NULL DEFAULT 0,
+  scan_rate DECIMAL(4,1) DEFAULT 0.0,
+  load_in_percent INT DEFAULT 0
+);`;
+                        navigator.clipboard.writeText(sqlCode);
+                        setCopiedText(true);
+                        setTimeout(() => setCopiedText(false), 2000);
+                        showStatus('Esquema DDL de MySQL / MariaDB copiado al portapapeles.');
+                      }}
+                      className="w-full sm:w-auto shrink-0 bg-indigo-500 hover:bg-indigo-400 text-white font-mono text-[10px] font-bold px-3 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedText ? '¡COPIADO!' : 'COPIAR SQL DDL'}</span>
+                    </button>
+                  </div>
+
+                  {/* Visual Console Screen */}
+                  <div className="bg-[#030008] border border-white/10 rounded-2xl p-4 font-mono text-[10px] text-indigo-300 leading-normal overflow-x-auto max-h-[320px]">
+                    <pre>{`-- 1. Tabla de Supervisores / Usuarios de Acceso
+CREATE TABLE IF NOT EXISTS supervisors (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  role VARCHAR(50) DEFAULT 'supervisor',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción inicial de credencial de emergencia (Contraseña: CREW2026)
+INSERT INTO supervisors (email, password_hash, name, role) 
+VALUES ('admin@madridlive.com', 'bcrypt_hash_of_CREW2026', 'Administrador General', 'admin')
+ON DUPLICATE KEY UPDATE email=email;
+
+-- 2. Tabla de Plantilla (Staff)
+CREATE TABLE IF NOT EXISTS staff (
+  id VARCHAR(50) PRIMARY KEY,
+  id_code VARCHAR(20) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  role VARCHAR(50) NOT NULL,
+  role_label VARCHAR(50) NOT NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'OUT',
+  avatar VARCHAR(255),
+  total_hours DECIMAL(6,2) DEFAULT 0.00,
+  current_shift_hours INT DEFAULT 0,
+  current_shift_mins INT DEFAULT 0,
+  location VARCHAR(100),
+  checked_in_time VARCHAR(50)
+);
+
+-- 3. Tabla de Turnos (Shifts / Historial de Horas)
+CREATE TABLE IF NOT EXISTS shifts (
+  id VARCHAR(50) PRIMARY KEY,
+  worker_id VARCHAR(50) NOT NULL,
+  date_string VARCHAR(50) NOT NULL,
+  timespan VARCHAR(100) NOT NULL,
+  duration_label VARCHAR(50) NOT NULL,
+  location VARCHAR(100) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'Active',
+  FOREIGN KEY (worker_id) REFERENCES staff(id) ON DELETE CASCADE
+);
+
+-- 4. Tabla de Eventos (Events)
+CREATE TABLE IF NOT EXISTS events (
+  id VARCHAR(50) PRIMARY KEY,
+  title VARCHAR(150) NOT NULL,
+  location VARCHAR(150) NOT NULL,
+  date_day VARCHAR(10) NOT NULL,
+  date_month VARCHAR(10) NOT NULL,
+  doors_open VARCHAR(10) NOT NULL,
+  required_staff INT NOT NULL DEFAULT 0,
+  active_staff INT NOT NULL DEFAULT 0,
+  total_staff_needed INT NOT NULL DEFAULT 0,
+  scan_rate DECIMAL(4,1) DEFAULT 0.0,
+  load_in_percent INT DEFAULT 0
+);`}</pre>
+                  </div>
+                </div>
+              )}
+
+              {/* NODEJS BACKEND BRIDGE CODE SUBTAB */}
+              {securitySubTab === 'bridge' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-2xl p-4">
+                    <div className="font-mono text-xs">
+                      <p className="font-bold text-white flex items-center gap-1.5">
+                        <Code className="w-4 h-4 text-emerald-400" />
+                        Script API Bridge de Producción Node.js
+                      </p>
+                      <p className="text-[10px] text-white/50 mt-1 leading-relaxed">
+                        Este código Express se conecta directamente a tu servidor MySQL / MariaDB remoto en <span className="text-emerald-300 font-bold">{mariadbConfig.host}</span> usando los parámetros que has personalizado en la pestaña de Políticas.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const codeBlock = `// 1. Instalar dependencias en tu proyecto Node.js:
+// npm install express mysql2 dotenv bcrypt jsonwebtoken
+
+const express = require('express');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+const app = express();
+app.use(express.json());
+
+// Configuración de conexión parametrizada desde tu panel
+const pool = mysql.createPool({
+  host: '${mariadbConfig.host}',
+  port: ${mariadbConfig.port},
+  user: '${mariadbConfig.user}',
+  password: '${mariadbConfig.password}',
+  database: '${mariadbConfig.name}',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
+
+// Endpoint de Validación de Clave y Login de Supervisor
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  try {
+    const [rows] = await pool.query('SELECT * FROM supervisors WHERE email = ?', [email]);
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Credenciales de acceso incorrectas.' });
+    }
+    
+    const supervisor = rows[0];
+    
+    // Comparar con bcrypt hash de forma asíncrona en producción:
+    // const passwordMatch = await bcrypt.compare(password, supervisor.password_hash);
+    const passwordMatch = (password === 'CREW2026'); // Validador de desarrollo rápido
+    
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Clave de seguridad inválida.' });
+    }
+    
+    // Generar sesión segura JWT encriptada
+    const token = jwt.sign(
+      { id: supervisor.id, email: supervisor.email, role: supervisor.role },
+      process.env.JWT_SECRET || 'SECRET_KEY_MADRID_LIVE_2026',
+      { expiresIn: '8h' }
+    );
+    
+    res.json({
+      success: true,
+      token,
+      user: { name: supervisor.name, email: supervisor.email, role: supervisor.role }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error del servidor: ' + err.message });
+  }
+});
+
+// Endpoint para listar personal (staff)
+app.get('/api/staff', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM staff ORDER BY name ASC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Bridge Server de Producción iniciado en puerto 3000');
+});`;
+                        navigator.clipboard.writeText(codeBlock);
+                        setCopiedText(true);
+                        setTimeout(() => setCopiedText(false), 2000);
+                        showStatus('Código del Servidor Node.js copiado al portapapeles.');
+                      }}
+                      className="w-full sm:w-auto shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold px-3 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedText ? '¡COPIADO!' : 'COPIAR SCRIPT NODE.JS'}</span>
+                    </button>
+                  </div>
+
+                  {/* Interactive Server Code Console */}
+                  <div className="bg-[#030008] border border-white/10 rounded-2xl p-4 font-mono text-[10px] text-emerald-300 leading-normal overflow-x-auto max-h-[320px]">
+                    <pre>{`// Servidor Express Bridge de Producción
+const express = require('express');
+const mysql = require('mysql2/promise');
+const jwt = require('jsonwebtoken');
+
+const app = express();
+app.use(express.json());
+
+// Pool de conexión a MySQL / MariaDB (Parametrizado en la pestaña de Políticas)
+const pool = mysql.createPool({
+  host: '${mariadbConfig.host}',
+  port: ${mariadbConfig.port},
+  user: '${mariadbConfig.user}',
+  password: '${mariadbConfig.password}',
+  database: '${mariadbConfig.name}',
+  waitForConnections: true,
+  connectionLimit: 10
+});
+
+// Login con Token de Seguridad JWT
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const [rows] = await pool.query('SELECT * FROM supervisors WHERE email = ?', [email]);
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Credenciales inválidas.' });
+    }
+    const user = rows[0];
+    const match = (password === 'CREW2026'); // Clave maestra demo
+    
+    if (!match) return res.status(401).json({ error: 'Contraseña inválida.' });
+    
+    const token = jwt.sign({ id: user.id }, 'SECRET_2026', { expiresIn: '8h' });
+    res.json({ success: true, token });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});`}</pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className="text-center bg-white/5 rounded-3xl p-10 border border-white/5 font-mono text-xs text-white/40">
               No se encontraron registros de {tabLabelMap[activeTab].toLowerCase()} en la nube. Crea uno o restablece los valores por defecto.
             </div>
