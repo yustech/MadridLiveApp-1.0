@@ -182,3 +182,27 @@ Usa estos comandos como referencia operativa durante un incidente o antes de un 
    ```
 
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente!
+
+## 📡 Monitor Externo (Uptime)
+Configura un monitor HTTP externo para detectar caídas aunque no haya despliegues.
+
+### Opción recomendada: UptimeRobot (gratis)
+1. Crea cuenta en UptimeRobot.
+2. Add New Monitor -> Monitor Type: `HTTP(s)`.
+3. Friendly Name: `MadridLive Production Health`.
+4. URL (or IP): `https://inmosubastas.top/api/health`.
+5. Monitoring Interval: `5 minutes`.
+6. Alert contacts: añade `cyuste@gmail.com`.
+7. Acepta alertas de DOWN y UP (recuperación).
+
+### Umbrales sugeridos
+1. Timeout: 10 segundos.
+2. Reintentos/fallos antes de alertar: 2 o 3.
+3. Mantenimiento: pausa el monitor durante ventanas de intervención planificada.
+
+### Prueba rápida del monitor
+1. Verifica que detecta estado UP con el endpoint de health.
+2. Simula una caída controlada (por ejemplo, parar servicio 1 minuto en ventana de prueba).
+3. Confirma que llega email de DOWN.
+4. Restablece servicio y confirma email de UP.
+
