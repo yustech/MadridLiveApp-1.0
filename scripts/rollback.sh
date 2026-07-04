@@ -39,11 +39,16 @@ if [[ -n "$ROLLBACK_RELEASE" ]]; then
   fi
 else
   mapfile -t RELEASES < <(ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "ls -1dt '$RELEASES_DIR'/release-* 2>/dev/null || true")
-  if [[ "${#RELEASES[@]}" -lt 2 ]]; then
-    echo "Not enough release snapshots to rollback. Need at least 2 snapshots in $RELEASES_DIR."
+  if [[ "${#RELEASES[@]}" -eq 0 ]]; then
+    echo "No release snapshots available in $RELEASES_DIR. Run a deploy first to create snapshots."
     exit 1
   fi
-  TARGET_RELEASE="${RELEASES[1]}"
+  if [[ "${#RELEASES[@]}" -eq 1 ]]; then
+    echo "Only one release snapshot found. Restoring the latest snapshot: ${RELEASES[0]}"
+    TARGET_RELEASE="${RELEASES[0]}"
+  else
+    TARGET_RELEASE="${RELEASES[1]}"
+  fi
 fi
 
 echo "Rolling back to: $TARGET_RELEASE"
