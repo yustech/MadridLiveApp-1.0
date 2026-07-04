@@ -19,12 +19,14 @@ interface KPIScreenProps {
   shifts: Shift[];
   staff: StaffMember[];
   events: LiveEvent[];
+  activeEventId: string;
 }
 
 export default function KPIScreen({
   shifts,
   staff,
-  events
+  events,
+  activeEventId
 }: KPIScreenProps) {
   // Event Filter for KPIs: 'all' or specific Event ID
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
@@ -50,18 +52,36 @@ export default function KPIScreen({
   }, [shifts, events, selectedEventId]);
 
   const filteredStaff = useMemo(() => {
-    if (selectedEventId === 'all') return staff;
-    const selectedEvent = events.find(e => e.id === selectedEventId);
-    if (!selectedEvent) return staff;
+    const activeStaff = staff.filter((s) => s.status === 'IN');
+    if (selectedEventId === 'all') return activeStaff;
 
-    // Filter staff who are active in this event's location/title suffix
-    return staff.filter(s => s.status === 'IN' && s.location.toLowerCase().includes(selectedEvent.title.toLowerCase()));
-  }, [staff, events, selectedEventId]);
+    const selectedEvent = events.find((e) => e.id === selectedEventId);
+    if (!selectedEvent) return activeStaff;
+
+    const linked = activeStaff.filter((s) =>
+      s.location.toLowerCase().includes(selectedEvent.title.toLowerCase())
+    );
+
+    // If the active control event has generic locations without event suffix, keep them visible there.
+    if (linked.length === 0 && selectedEventId === activeEventId) {
+      return activeStaff;
+    }
+
+    return linked;
+  }, [staff, events, selectedEventId, activeEventId]);
 
   // 2. STATS CALCULATIONS
   const stats = useMemo(() => {
     // Total staff registered in system
     const totalStaffRegistered = staff.length;
+
+    const scanRates = filteredEvents
+      .map((e) => parseFloat(String(e.scanRate ?? 0)))
+      .filter((n) => Number.isFinite(n));
+
+    const scanRatePerMin = scanRates.length
+      ? (scanRates.reduce((acc, curr) => acc + curr, 0) / scanRates.length).toFixed(1)
+      : '0.0';
     
     // Checked IN right now
     const activeStaffCount = selectedEventId === 'all' 
@@ -143,6 +163,7 @@ export default function KPIScreen({
       activeZonesCount,
       roleCounts: activeStaffByRole,
       rolePercentages,
+      scanRatePerMin,
       hourlyDistribution
     };
   }, [staff, filteredStaff, filteredEvents, filteredShifts, selectedEventId]);
@@ -535,7 +556,7 @@ export default function KPIScreen({
                   Coordinación
                 </span>
                 <span className="text-purple-200">
-                  {stats.roleCounts['Coordinación']} ({stats.rolePercentages['Coordinación']}%y)
+                  {stats.roleCounts['Coordinación']} ({stats.rolePercentages['Coordinación']}%)
                 </span>
               </div>
               <div className="h-2.5 bg-white/5 border border-white/10 rounded-full overflow-hidden">
@@ -580,8 +601,11 @@ export default function KPIScreen({
           {/* List of events with comparison bar gauges */}
           <div className="space-y-4 pt-2">
             {events.map((ev, index) => {
-              const presentCount = ev.id === 'ev_01' ? staff.filter(s => s.status === 'IN').length : Math.max(2, Math.round(ev.requiredStaff * 0.45));
-              const percent = Math.min(100, Math.round((presentCount / ev.requiredStaff) * 100));
+              const activeStaff = staff.filter((s) => s.status === 'IN');
+              const linkedToEvent = activeStaff.filter((s) => s.location.toLowerCase().includes(ev.title.toLowerCase())).length;
+              const presentCount = linkedToEvent > 0 ? linkedToEvent : ev.id === activeEventId ? activeStaff.length : 0;
+              const required = ev.requiredStaff || ev.totalStaffNeeded || 1;
+              const percent = Math.min(100, Math.round((presentCount / required) * 100));
               
               return (
                 <div 
@@ -595,7 +619,7 @@ export default function KPIScreen({
                       {ev.title}
                     </span>
                     <span className="text-white/40 font-mono">
-                      <strong className="text-white">{presentCount}</strong> / {ev.requiredStaff} personas
+                      <strong className="text-white">{presentCount}</strong> / {ev.requiredStaff || ev.totalStaffNeeded || 0} personas
                     </span>
                   </div>
 

@@ -91,7 +91,7 @@ export default function DashboardScreen({
                 Personal Activo
               </p>
               <p className="text-xl font-display font-medium text-indigo-300">
-                {checkedInStaffCount + 138} <span className="text-xs text-white/20">/ 150</span>
+                {checkedInStaffCount} <span className="text-xs text-white/20">/ {liveEvent?.requiredStaff ?? liveEvent?.totalStaffNeeded ?? 0}</span>
               </p>
             </div>
             <div>

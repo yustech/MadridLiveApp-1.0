@@ -47,6 +47,12 @@ export default function App() {
   const [selectedWorker, setSelectedWorker] = useState<StaffMember | null>(null);
   const [activeEventId, setActiveEventId] = useState<string>('');
 
+  const activeZonesCount = new Set(
+    staff
+      .filter((s) => s.status === 'IN' && s.location)
+      .map((s) => s.location.split('(')[0].trim())
+  ).size;
+
   // Sync activeEventId with loaded events
   useEffect(() => {
     if (events.length > 0 && !activeEventId) {
@@ -451,11 +457,11 @@ export default function App() {
           <div className="space-y-2.5 font-mono text-[11px]">
             <div className="flex justify-between">
               <span className="text-white/40">Presentes:</span>
-              <span className="text-emerald-400 font-bold">{staff.filter(s => s.status === 'IN').length + 138}</span>
+              <span className="text-emerald-400 font-bold">{staff.filter(s => s.status === 'IN').length}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-white/40">Zonas Activas:</span>
-              <span className="text-indigo-300 font-bold">5 Sec.</span>
+              <span className="text-indigo-300 font-bold">{activeZonesCount}</span>
             </div>
           </div>
 
@@ -614,6 +620,7 @@ export default function App() {
               shifts={shifts}
               staff={staff}
               events={events}
+              activeEventId={activeEventId}
             />
           )}
         </main>
