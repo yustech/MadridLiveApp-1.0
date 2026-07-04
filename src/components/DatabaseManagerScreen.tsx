@@ -173,7 +173,7 @@ export default function DatabaseManagerScreen({
 
   // --- DELETE HANDLER ---
   const handleDelete = async (id: string) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar este registro (${id})? Esto se aplicará de forma directa y permanente en Firestore.`)) {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar este registro (${id})? Esto se aplicará de forma directa y permanente en la base de datos MySQL.`)) {
       return;
     }
     try {
@@ -612,7 +612,7 @@ export default function DatabaseManagerScreen({
                               {
                                 email: randomEmail,
                                 role: 'supervisor',
-                                label: 'Supervisor Añadido Guardado en Firestore',
+                                label: 'Supervisor Añadido Guardado',
                                 lastLogin: 'Nunca (Nueva cuenta)'
                               }
                             ]);
@@ -639,7 +639,7 @@ export default function DatabaseManagerScreen({
                         Esquema SQL Físico para MySQL / MariaDB
                       </p>
                       <p className="text-[10px] text-white/50 mt-1 leading-relaxed">
-                        Copia y ejecuta estas sentencias DDL en tu consola de MySQL, MariaDB o phpMyAdmin para crear las tablas necesarias correspondientes a los modelos de Firestore.
+                        Copia y ejecuta estas sentencias DDL en tu consola de MySQL, MariaDB o phpMyAdmin para crear las tablas necesarias correspondientes a los modelos de la aplicación.
                       </p>
                     </div>
                     <button

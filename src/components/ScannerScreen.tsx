@@ -190,7 +190,7 @@ export default function ScannerScreen({
       const prev = targetWorker.status;
       const nextStatus = prev === 'IN' ? 'OUT' : 'IN';
       
-      // Execute global updates in Firestore
+      // Execute global updates through the API
       onScanWorkerToggle(workerId, 'Lector Puerta Principal');
       
       // Play scanner beep chime physically inside the browser!

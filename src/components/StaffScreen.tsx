@@ -102,7 +102,7 @@ export default function StaffScreen({
     }
 
     try {
-      setImportStatus(`Cargando ${parsed.length} colaboradores a Firestore...`);
+      setImportStatus(`Cargando ${parsed.length} colaboradores a la base de datos...`);
       await addStaffBatch(parsed);
       setImportStatus(`¡Éxito! Se han importado ${parsed.length} colaboradores.`);
       setTimeout(() => {

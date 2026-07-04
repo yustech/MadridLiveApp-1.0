@@ -39,7 +39,7 @@ export default function App() {
   // Database Manager view modal
   const [isDbOpen, setIsDbOpen] = useState(false);
 
-  // State variables synchronized with Live Firestore instead of LocalStorage
+  // State variables synchronized with the live MySQL-backed API instead of LocalStorage
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [events, setEvents] = useState<LiveEvent[]>([]);
@@ -54,14 +54,14 @@ export default function App() {
     }
   }, [events, activeEventId]);
 
-  // Sync state with Firestore snapshot subscriptions
+  // Sync state with polling subscriptions
   useEffect(() => {
     let unsubStaff = () => {};
     let unsubEvents = () => {};
     let unsubShifts = () => {};
     let unsubAlerts = () => {};
 
-    const initFirestoreSync = async () => {
+    const initDatabaseSync = async () => {
       // 1. Seed database with defaults if empty
       await seedDatabaseIfEmpty();
 
@@ -92,7 +92,7 @@ export default function App() {
       });
     };
 
-    initFirestoreSync();
+    initDatabaseSync();
 
     return () => {
       unsubStaff();
@@ -160,7 +160,7 @@ export default function App() {
         const netAccrued = activeHours + (activeMins / 60);
         const finalHours = worker.totalHours + netAccrued;
 
-        // Perform transactional state update in Firestore
+        // Perform transactional state update through the API
         await updateStaff(workerId, {
           status: 'OUT',
           checkedInTime: '',
@@ -219,7 +219,7 @@ export default function App() {
         status: 'Active'
       });
     } catch (err) {
-      console.error("Failed to register crew member in Firestore: ", err);
+      console.error("Failed to register crew member in the API: ", err);
     }
   };
 
@@ -253,7 +253,7 @@ export default function App() {
             <div className="flex items-center gap-1.5 mb-1">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
               <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest font-bold">
-                CONEXIÓN ENCRIPTADA CON FIRESTORE
+                CONEXIÓN ENCRIPTADA CON MYSQL
               </span>
             </div>
 
