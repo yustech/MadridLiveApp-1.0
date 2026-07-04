@@ -126,4 +126,16 @@ Puedes exportar este proyecto completo en cualquier momento utilizando las opcio
 *   Ve al menú **Settings (Configuración)** en la esquina superior/barra lateral de la interfaz.
 *   Selecciona la opción **Download as ZIP** (Descargar como archivo comprimido) o **Export to GitHub** (Exportar a tu cuenta de GitHub para realizar una integración continua).
 
+### Paso 6: Despliegue Automático desde GitHub Actions
+Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow `.github/workflows/deploy.yml`.
+1. Crea estos secretos en GitHub -> Settings -> Secrets and variables -> Actions:
+   - `DEPLOY_HOST`
+   - `DEPLOY_USER`
+   - `DEPLOY_SSH_KEY`
+   - `DEPLOY_PORT` opcional, por defecto `22`
+   - `DEPLOY_PATH` opcional, por defecto `/opt/madridlive-app`
+2. El workflow compila el proyecto con `npm run build`.
+3. Copia `dist/` al servidor y reinicia `madridlive-app.service`.
+4. Verifica el despliegue abriendo `https://inmosubastas.top`.
+
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente! 🌟
