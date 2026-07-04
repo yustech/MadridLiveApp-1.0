@@ -33,3 +33,9 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
    - `VITE_FIREBASE_MEASUREMENT_ID`
    - `VITE_FIREBASE_DATABASE_ID`
 4. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md). You can also run `npm run deploy` once the `DEPLOY_*` environment variables are set. The deploy now finishes with a health check against `DEPLOY_URL` (default `https://inmosubastas.top`).
+
+
+## Admin API protection
+
+- If you set `ADMIN_API_TOKEN`, calls to `/api/test-mariadb` must include the `x-admin-token` header with the same value.
+- This helps protect the database connectivity test endpoint in production.

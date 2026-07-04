@@ -61,7 +61,7 @@ fi
 
 echo "Running health check on ${DEPLOY_URL}/api/health..."
 for attempt in 1 2 3 4 5 6; do
-  if curl -fsS "$DEPLOY_URL/api/health" | grep -q '"status":"ok"'; then
+  if curl --connect-timeout 5 --max-time 8 -fsS "$DEPLOY_URL/api/health" | grep -q '"status":"ok"'; then
     echo "Health check passed."
     exit 0
   fi
