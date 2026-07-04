@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import mysql from "mysql2/promise";
+import { registerMysqlApi } from "./mysqlApi";
 
 const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
@@ -73,6 +74,9 @@ async function startServer() {
 
   // Middleware to parse JSON
   app.use(express.json());
+
+  // Phase 1 migration: MySQL business CRUD API (kept in parallel with Firestore frontend)
+  registerMysqlApi(app);
 
   // API Route: Test MariaDB Connection
   app.post("/api/test-mariadb", async (req, res) => {
