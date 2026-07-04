@@ -2,6 +2,15 @@ name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_public_frontend:
+        description: "Publish static frontend to public_html after backend deploy"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 concurrency:
   group: production-deploy
@@ -43,6 +52,10 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
           REQUIRE_PUBLIC_HEALTH: "true"
+          DEPLOY_PUBLIC_FRONTEND: ${{ inputs.publish_public_frontend }}
+          PUBLIC_HTML_PATH: ${{ secrets.PUBLIC_HTML_PATH }}
+          PUBLIC_FRONTEND_BACKUP_BASE: ${{ secrets.PUBLIC_FRONTEND_BACKUP_BASE }}
+          STRICT_NO_FIREBASE: "true"
         run: npm run deploy
 
       - name: SMTP config diagnostics
@@ -76,6 +89,7 @@ jobs:
             Deploy completed successfully.
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
+            publish_public_frontend: ${{ inputs.publish_public_frontend }}
             Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Notify deploy failure by email
@@ -94,6 +108,7 @@ jobs:
             Deploy failed.
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
+            publish_public_frontend: ${{ inputs.publish_public_frontend }}
             Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Notify deploy failure webhook
@@ -101,11 +116,11 @@ jobs:
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          payload=$(cat <<EOF
+          payload=$(cat <<EOF2
           {
             "text": "Deploy FAILED for ${{ github.repository }} on ${{ github.ref_name }}. Run: ${RUN_URL}"
           }
-          EOF
+          EOF2
           )
           curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
             -H 'Content-Type: application/json' \
