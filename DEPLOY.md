@@ -180,6 +180,10 @@ Usa estos comandos como referencia operativa durante un incidente o antes de un 
    ```bash
    sudo journalctl -u madridlive-app.service --since '30 min ago' --no-pager | tail -n 200
    ```
+6. Rollback desde GitHub Actions (sin terminal):
+   - Ve a Actions -> `Rollback` -> Run workflow.
+   - Si dejas `release_name` vacío, vuelve a la snapshot anterior.
+   - Si lo rellenas, usa el nombre exacto de la carpeta `release-...`.
 
 ¡Ya tienes un sistema robusto, escalable a coste prácticamente nulo y sumamente profesional para tu cliente!
 

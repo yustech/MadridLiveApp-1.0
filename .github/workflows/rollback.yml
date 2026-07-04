@@ -1,0 +1,83 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: "Optional release folder name (e.g. release-20260704T120151Z-abaf795). Leave empty to rollback to previous snapshot."
+        required: false
+        type: string
+
+concurrency:
+  group: production-rollback
+  cancel-in-progress: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    env:
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Rollback production
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME }}
+          REQUIRE_PUBLIC_HEALTH: "true"
+          ROLLBACK_RELEASE: ${{ inputs.release_name }}
+        run: npm run rollback
+
+      - name: Notify rollback success by email
+        if: ${{ success() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: "Rollback OK - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Rollback completed successfully.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Release input: ${{ inputs.release_name }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify rollback failure by email
+        if: ${{ failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: "Rollback FAILED - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Rollback failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Release input: ${{ inputs.release_name }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
