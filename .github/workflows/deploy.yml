@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SMTP_HOST: ${{ secrets.SMTP_HOST }}
-      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
       SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SMTP_FROM: ${{ secrets.SMTP_FROM }}
@@ -45,8 +45,23 @@ jobs:
           REQUIRE_PUBLIC_HEALTH: "true"
         run: npm run deploy
 
+      - name: SMTP config diagnostics
+        if: ${{ always() }}
+        run: |
+          missing=()
+          [[ -z "$SMTP_HOST" ]] && missing+=("SMTP_HOST")
+          [[ -z "$SMTP_USERNAME" ]] && missing+=("SMTP_USERNAME")
+          [[ -z "$SMTP_PASSWORD" ]] && missing+=("SMTP_PASSWORD")
+          [[ -z "$SMTP_FROM" ]] && missing+=("SMTP_FROM")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::warning::Email notifications disabled. Missing secrets: ${missing[*]}"
+          else
+            echo "SMTP configuration detected (host=$SMTP_HOST, port=$SMTP_PORT)."
+          fi
+
       - name: Notify deploy success by email
-        if: ${{ success() && env.SMTP_HOST != '' && env.SMTP_PORT != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        if: ${{ success() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
         uses: dawidd6/action-send-mail@v6
         with:
           server_address: ${{ env.SMTP_HOST }}
@@ -64,7 +79,7 @@ jobs:
             Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Notify deploy failure by email
-        if: ${{ failure() && env.SMTP_HOST != '' && env.SMTP_PORT != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        if: ${{ failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
         uses: dawidd6/action-send-mail@v6
         with:
           server_address: ${{ env.SMTP_HOST }}
