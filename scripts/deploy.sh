@@ -52,7 +52,6 @@ fi
 echo "Restarting systemd service..."
 if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart madridlive-app.service && sudo -n systemctl is-active --quiet madridlive-app.service"; then
   echo "Non-interactive sudo restart is not available. Falling back to process signal restart..."
-  # Fallback path for hosts where sudoers was not configured for CI user.
   if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true"; then
     echo "Fallback restart command failed. Running verbose diagnostics..."
     ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '/opt/madridlive-app/dist/[s]erver.cjs' || true" || true
@@ -60,14 +59,21 @@ if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart
   fi
 fi
 
-echo "Running health check on ${DEPLOY_URL}/api/health..."
-for attempt in 1 2 3 4 5 6; do
+echo "Checking local service health on remote host..."
+if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do curl --connect-timeout 2 --max-time 4 -fsS http://127.0.0.1:3000/api/health | grep -q '\"status\":\"ok\"' && exit 0; sleep 2; done; exit 1"; then
+  echo "Remote local health check failed after restart."
+  exit 1
+fi
+
+echo "Checking public health endpoint on ${DEPLOY_URL}/api/health..."
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
   if curl --connect-timeout 5 --max-time 8 -fsS "$DEPLOY_URL/api/health" | grep -q '"status":"ok"'; then
-    echo "Health check passed."
+    echo "Public health check passed."
     exit 0
   fi
+  echo "Public health attempt ${attempt}/18 failed; retrying in 5s..."
   sleep 5
 done
 
-echo "Health check failed after deployment."
+echo "Public health check failed after deployment."
 exit 1
