@@ -129,32 +129,31 @@ if [[ "$DEPLOY_PUBLIC_FRONTEND" == "true" ]]; then
   echo "Publishing frontend static assets to ${PUBLIC_HTML_PATH}..."
   if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
     "set -euo pipefail; \
-    src="$DEPLOY_PATH/dist"; \
-    dst="$PUBLIC_HTML_PATH"; \
-    backup_base="$PUBLIC_FRONTEND_BACKUP_BASE"; \
-    strict_no_firebase="$STRICT_NO_FIREBASE"; \
-    site_url="$DEPLOY_URL"; \
-    [[ -f "$src/index.html" && -d "$src/assets" ]] || { echo "Missing dist/index.html or dist/assets on remote host"; exit 1; }; \
-    [[ -d "$dst" ]] || { echo "Destination web root not found: $dst"; exit 1; }; \
-    ts=$(date -u +%Y%m%dT%H%M%SZ); \
-    backup_dir="$backup_base/inmosubastas.top_frontend_$ts"; \
-    mkdir -p "$backup_dir"; \
-    cp -a "$dst"/. "$backup_dir"/; \
-    rm -rf "$dst/assets"; \
-    mkdir -p "$dst/assets"; \
-    cp -a "$src/index.html" "$dst/index.html"; \
-    cp -a "$src/assets"/. "$dst/assets"/; \
-    bundle=$(curl -fsS "$site_url" | grep -o "index-[A-Za-z0-9_-]*\\.js" | head -n 1 || true); \
-    [[ -n "$bundle" ]] || { echo "Could not detect served JS bundle in $site_url"; exit 1; }; \
-    bundle_url="$site_url/assets/$bundle"; \
-    bundle_content=$(curl -fsS "$bundle_url"); \
-    [[ "$bundle_content" == *"/api/mysql"* ]] || { echo "Validation failed: served bundle does not reference /api/mysql"; echo "Bundle URL: $bundle_url"; exit 1; }; \
-    if [[ "$strict_no_firebase" == "true" && "$bundle_content" == *"firebase"* ]]; then echo "Validation failed: served bundle still contains firebase references"; echo "Bundle URL: $bundle_url"; exit 1; fi; \
-    staff_count=$(curl -fsS "$site_url/api/mysql/staff" | node -e "let s=\"\";process.stdin.on(\"data\",d=>s+=d).on(\"end\",()=>{const a=JSON.parse(s);process.stdout.write(String(a.length));});"); \
-    echo "Frontend publish OK"; \
-    echo "frontend_backup=$backup_dir"; \
-    echo "served_bundle=$bundle"; \
-    echo "public_staff_count=$staff_count""; then
+    src=\"$DEPLOY_PATH/dist\"; \
+    dst=\"$PUBLIC_HTML_PATH\"; \
+    backup_base=\"$PUBLIC_FRONTEND_BACKUP_BASE\"; \
+    strict_no_firebase=\"$STRICT_NO_FIREBASE\"; \
+    site_url=\"$DEPLOY_URL\"; \
+    [[ -f \"\$src/index.html\" && -d \"\$src/assets\" ]] || { echo \"Missing dist/index.html or dist/assets on remote host\"; exit 1; }; \
+    [[ -d \"\$dst\" ]] || { echo \"Destination web root not found: \$dst\"; exit 1; }; \
+    ts=\$(date -u +%Y%m%dT%H%M%SZ); \
+    backup_dir=\"\$backup_base/inmosubastas.top_frontend_\$ts\"; \
+    mkdir -p \"\$backup_dir\"; \
+    cp -a \"\$dst\"/. \"\$backup_dir\"/; \
+    rm -rf \"\$dst/assets\"; \
+    mkdir -p \"\$dst/assets\"; \
+    cp -a \"\$src/index.html\" \"\$dst/index.html\"; \
+    cp -a \"\$src/assets\"/. \"\$dst/assets\"/; \
+    bundle=\$(curl -fsS \"\$site_url\" | grep -o \"index-[A-Za-z0-9_-]*\\.js\" | head -n 1 || true); \
+    [[ -n \"\$bundle\" ]] || { echo \"Could not detect served JS bundle in \$site_url\"; exit 1; }; \
+    bundle_url=\"\$site_url/assets/\$bundle\"; \
+    bundle_content=\$(curl -fsS \"\$bundle_url\"); \
+    [[ \"\$bundle_content\" == *\"/api/mysql\"* ]] || { echo \"Validation failed: served bundle does not reference /api/mysql\"; echo \"Bundle URL: \$bundle_url\"; exit 1; }; \
+    if [[ \"\$strict_no_firebase\" == \"true\" && \"\$bundle_content\" == *\"firebase\"* ]]; then echo \"Validation failed: served bundle still contains firebase references\"; echo \"Bundle URL: \$bundle_url\"; exit 1; fi; \
+    curl -fsS \"\$site_url/api/mysql/staff\" >/dev/null; \
+    echo \"Frontend publish OK\"; \
+    echo \"frontend_backup=\$backup_dir\"; \
+    echo \"served_bundle=\$bundle\""; then
     echo "Frontend static publish failed."
     exit 1
   fi
