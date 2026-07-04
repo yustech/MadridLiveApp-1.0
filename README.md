@@ -15,8 +15,7 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 
 ## Legacy migration compatibility
 
-- `firebase-applet-config.json` and `firestore.rules` are kept as historical migration assets.
-- The live app now uses the MySQL API; these files are only needed if you run the Firestore -> MySQL migration tooling.
+- The live app now uses the MySQL API.
 - If AI Studio exports a new version, merge the generated UI files and keep the MySQL API contract intact.
 
 ## Production deployment

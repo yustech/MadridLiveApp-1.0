@@ -63,8 +63,8 @@ En el menú izquierdo de la consola de Firebase:
 ### Paso 3: Vincular las Credenciales de Producción al Código
 1.  Abre el archivo `firebase-applet-config.json` en la raíz de la aplicación de tu cliente.
 2.  Reemplaza los valores con los datos que copiaste de tu nuevo proyecto de producción de Firebase en el **Paso 1**.
-3.  Si necesitas ejecutar la migración histórica desde Firestore, conserva `firebase-applet-config.json` y las variables `VITE_FIREBASE_*` únicamente para `npm run migrate:firestore:mysql`. El frontend en producción ya no usa Firebase.
-4.  Mantén `firebase-applet-config.json` solo como apoyo para la migración histórica.
+3.  `firebase-applet-config.json` y `firestore.rules` quedan como artefactos históricos del proyecto, pero ya no forman parte del despliegue activo.
+4.  Mantén esos archivos solo como referencia histórica.
 
 ### Paso 4: Configurar Reglas de Seguridad de Firestore
 Para evitar que un tercero malintencionado intente escribir o borrar datos de la base de datos de los trabajadores, debes subir las reglas de seguridad.
