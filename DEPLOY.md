@@ -135,13 +135,21 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_PORT` opcional, por defecto `22`
    - `DEPLOY_PATH` opcional, por defecto `/opt/madridlive-app`
    - `DEPLOY_URL` opcional, por defecto `https://inmosubastas.top`
+   - `SMTP_HOST` obligatorio para email (ej: `smtp.gmail.com`)
+   - `SMTP_PORT` obligatorio para email (normalmente `587`)
+   - `SMTP_USERNAME` obligatorio para email
+   - `SMTP_PASSWORD` obligatorio para email (en Gmail, App Password)
+   - `SMTP_FROM` obligatorio para email (ej: `alertas@tu-dominio.com` o tu Gmail)
    - `DEPLOY_ALERT_WEBHOOK` opcional, URL de webhook (Slack/Discord/Teams compatible con payload JSON {"text":"..."})
 2. El workflow compila el proyecto con `npm run build`.
 3. Copia `dist/` al servidor y reinicia `madridlive-app.service`.
 4. El despliegue termina haciendo una petición a `${DEPLOY_URL}/api/health`; si no responde `{"status":"ok"}`, el workflow falla.
-5. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
+5. Si los secretos SMTP están configurados, GitHub Actions envía email a `cyuste@gmail.com` cuando el deploy termina (éxito o fallo).
+6. Si el secreto `DEPLOY_ALERT_WEBHOOK` está configurado, GitHub Actions envía una alerta automática al webhook cuando el deploy falla.
 
-6. En el servidor, permite reinicio sin password para el usuario de despliegue:
+7. En el servidor, permite reinicio sin password para el usuario de despliegue:
+
+
 
 
    - `opsadmin ALL=NOPASSWD: /bin/systemctl restart madridlive-app.service, /bin/systemctl is-active madridlive-app.service`

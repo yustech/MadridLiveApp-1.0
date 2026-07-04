@@ -38,6 +38,42 @@ jobs:
           REQUIRE_PUBLIC_HEALTH: "true"
         run: npm run deploy
 
+      - name: Notify deploy success by email
+        if: ${{ success() && secrets.SMTP_HOST != '' && secrets.SMTP_PORT != '' && secrets.SMTP_USERNAME != '' && secrets.SMTP_PASSWORD != '' && secrets.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v6
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          secure: false
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Deploy OK - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ secrets.SMTP_FROM }}
+          body: |
+            Deploy completed successfully.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify deploy failure by email
+        if: ${{ failure() && secrets.SMTP_HOST != '' && secrets.SMTP_PORT != '' && secrets.SMTP_USERNAME != '' && secrets.SMTP_PASSWORD != '' && secrets.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v6
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          secure: false
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Deploy FAILED - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ secrets.SMTP_FROM }}
+          body: |
+            Deploy failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Notify deploy failure webhook
         if: ${{ failure() && secrets.DEPLOY_ALERT_WEBHOOK != '' }}
         env:
