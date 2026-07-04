@@ -58,6 +58,6 @@ Workflows:
 1. `E2E Regression`:
    - PR/push a `main` para validar regresión continua.
 2. `E2E Prod Nightly`:
-   - Diario 02:00 UTC, suite readonly contra producción.
+   - Diario 02:30 UTC (04:30 en verano, hora de Madrid), suite readonly contra producción.
 3. `E2E Staging Nightly`:
    - Diario 03:00 UTC, suite completa contra staging.
