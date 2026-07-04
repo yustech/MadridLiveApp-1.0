@@ -9,3 +9,6 @@ coverage/
 
 deploy_backups_local/
 secrets/
+
+playwright-report/
+test-results/
