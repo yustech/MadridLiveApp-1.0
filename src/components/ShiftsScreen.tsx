@@ -16,6 +16,53 @@ import {
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
 
+const MONTH_INDEX: Record<string, number> = {
+  ENE: 0,
+  JAN: 0,
+  FEB: 1,
+  MAR: 2,
+  ABR: 3,
+  APR: 3,
+  MAY: 4,
+  JUN: 5,
+  JUL: 6,
+  AGO: 7,
+  AUG: 7,
+  SEP: 8,
+  OCT: 9,
+  NOV: 10,
+  DIC: 11,
+  DEC: 11,
+};
+
+function parseShiftDateTime(dateString: string, timespan: string): number {
+  const now = new Date();
+  const normalized = dateString.trim().toLowerCase();
+  const dateMatch = dateString.match(/(\d{1,2})\s+([a-záéíóúñ]{3,9})/i);
+  const [startHourRaw, startMinuteRaw] = timespan.split(' - ')[0]?.split(':') || ['0', '0'];
+
+  const parsedDay = dateMatch ? Number(dateMatch[1]) : now.getDate();
+  const parsedMonth = dateMatch ? MONTH_INDEX[dateMatch[2].slice(0, 3).toUpperCase()] : now.getMonth();
+  const fallbackDay = normalized.startsWith('ayer') || normalized.startsWith('yesterday')
+    ? now.getDate() - 1
+    : now.getDate();
+
+  return new Date(
+    now.getFullYear(),
+    parsedMonth ?? now.getMonth(),
+    Number.isFinite(parsedDay) ? parsedDay : fallbackDay,
+    Number(startHourRaw) || 0,
+    Number(startMinuteRaw) || 0,
+    0,
+    0
+  ).getTime();
+}
+
+function extractEventTitle(location: string): string {
+  const match = location.match(/\((.*)\)/);
+  return match ? match[1].trim() : '';
+}
+
 interface ShiftsScreenProps {
   shifts: Shift[];
   staff: StaffMember[];
@@ -46,7 +93,13 @@ export default function ShiftsScreen({
         datesSet.add(s.dateString);
       }
     });
-    return Array.from(datesSet).sort();
+    return Array.from(datesSet).sort((a, b) => {
+      const sampleA = shifts.find(shift => shift.dateString === a);
+      const sampleB = shifts.find(shift => shift.dateString === b);
+      const timeA = sampleA ? parseShiftDateTime(sampleA.dateString, sampleA.timespan) : 0;
+      const timeB = sampleB ? parseShiftDateTime(sampleB.dateString, sampleB.timespan) : 0;
+      return timeB - timeA;
+    });
   }, [shifts]);
 
   // 2. Map shifts to enrich them with full worker details
@@ -66,18 +119,21 @@ export default function ShiftsScreen({
 
   // 3. Filter shifts based on user selection criteria
   const filteredShifts = useMemo(() => {
-    return enrichedShifts.filter(shift => {
+    return enrichedShifts
+      .filter(shift => {
       // Search matching worker name or ID Code
       const matchesSearch = 
         shift.workerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         shift.workerIdCode.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // Event filtering: Check if the event title is part of the shift's location text
+      // Event filtering: match either the embedded event title or the general zone text
       let matchesEvent = true;
       if (selectedEventId !== 'All') {
         const event = events.find(e => e.id === selectedEventId);
         if (event) {
-          matchesEvent = shift.location.toLowerCase().includes(event.title.toLowerCase());
+          const locationText = shift.location.toLowerCase();
+          const eventTitle = event.title.toLowerCase();
+          matchesEvent = locationText.includes(eventTitle) || extractEventTitle(shift.location).toLowerCase() === eventTitle;
         }
       }
 
@@ -91,7 +147,8 @@ export default function ShiftsScreen({
       const matchesRole = selectedRole === 'All' || shift.workerRole === selectedRole;
 
       return matchesSearch && matchesEvent && matchesDate && matchesStatus && matchesRole;
-    });
+      })
+      .sort((a, b) => parseShiftDateTime(b.dateString, b.timespan) - parseShiftDateTime(a.dateString, a.timespan));
   }, [enrichedShifts, searchQuery, selectedEventId, selectedDate, selectedStatus, selectedRole, events]);
 
   // 4. Calculate stats based on filtered results
