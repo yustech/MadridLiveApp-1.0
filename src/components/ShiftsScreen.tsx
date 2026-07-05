@@ -71,6 +71,14 @@ function extractEventTitle(location: string): string {
   return match ? match[1].trim() : '';
 }
 
+function splitShiftLocation(location: string): { zone: string; eventTitle: string } {
+  const match = location.match(/(.*)\s*\((.*)\)/);
+  if (!match) {
+    return { zone: location.trim(), eventTitle: 'Control General' };
+  }
+  return { zone: match[1].trim(), eventTitle: match[2].trim() };
+}
+
 interface ShiftsScreenProps {
   shifts: Shift[];
   staff: StaffMember[];
@@ -705,6 +713,30 @@ export default function ShiftsScreen({
               >
                 Cerrar
               </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-indigo-500/10 border border-indigo-400/20 rounded-2xl p-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-300/80 block">Evento / Zona</span>
+                <p className="text-white mt-1 font-semibold break-words">{splitShiftLocation(selectedShiftDetail.location).eventTitle}</p>
+                <p className="text-xs text-white/60 mt-1 break-words">{splitShiftLocation(selectedShiftDetail.location).zone}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Tramo horario</span>
+                <div className="flex items-center justify-between text-xs font-mono text-white/70 mt-2">
+                  <span>{selectedShiftDetail.timespan.split(' - ')[0] || '—'}</span>
+                  <span>{selectedShiftDetail.timespan.split(' - ')[1] || '—'}</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/10 mt-2 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${selectedShiftDetail.status === 'Active' ? 'bg-emerald-400/90' : 'bg-indigo-400/90'}`}
+                    style={{ width: selectedShiftDetail.status === 'Active' ? '70%' : '100%' }}
+                  />
+                </div>
+                <p className="text-[10px] font-mono uppercase tracking-wider mt-2 ${selectedShiftDetail.status === 'Active' ? 'text-emerald-300' : 'text-indigo-300'}">
+                  {selectedShiftDetail.status === 'Active' ? 'Turno en curso' : 'Turno finalizado'}
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
