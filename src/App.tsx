@@ -19,8 +19,50 @@ import {
   updateStaff,
   updateShift,
   addShift,
-  addStaff
+  addStaff,
+  deleteShift
 } from './dbService';
+
+
+const MONTH_INDEX: Record<string, number> = {
+  ENE: 0,
+  JAN: 0,
+  FEB: 1,
+  MAR: 2,
+  ABR: 3,
+  APR: 3,
+  MAY: 4,
+  JUN: 5,
+  JUL: 6,
+  AGO: 7,
+  AUG: 7,
+  SEP: 8,
+  OCT: 9,
+  NOV: 10,
+  DIC: 11,
+  DEC: 11,
+};
+
+function isFutureEvent(event?: LiveEvent | null): boolean {
+  if (!event) return false;
+
+  const day = Number(event.dateDay);
+  const month = MONTH_INDEX[event.dateMonth.trim().toUpperCase()];
+  const [hourRaw, minuteRaw] = event.doorsOpen.split(':');
+  const now = new Date();
+
+  const eventDate = new Date(
+    now.getFullYear(),
+    month ?? 0,
+    Number.isFinite(day) ? day : 1,
+    Number(hourRaw) || 0,
+    Number(minuteRaw) || 0,
+    0,
+    0
+  );
+
+  return eventDate.getTime() > Date.now();
+}
 
 export default function App() {
   // Authentication & Security Policy State (Option B)
