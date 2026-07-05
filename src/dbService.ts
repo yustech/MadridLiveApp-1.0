@@ -3,6 +3,14 @@ import { INITIAL_EVENTS, INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_ALERTS } from '.
 
 const MYSQL_API_BASE = '/api/mysql';
 const POLL_MS = 3000;
+const DEFAULT_STAFF_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
+
+function normalizeStaffAvatar(worker: StaffMember): StaffMember {
+  return {
+    ...worker,
+    avatar: worker.avatar?.trim() || DEFAULT_STAFF_AVATAR,
+  };
+}
 
 function adminHeaders() {
   const token = import.meta.env.VITE_ADMIN_API_TOKEN;
@@ -97,7 +105,11 @@ export function subscribeToEvents(callback: (events: LiveEvent[]) => void) {
 }
 
 export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
-  return createPollingSubscription<StaffMember>('/staff', callback, (a, b) => a.name.localeCompare(b.name));
+  return createPollingSubscription<StaffMember>(
+    '/staff',
+    (items) => callback(items.map(normalizeStaffAvatar)),
+    (a, b) => a.name.localeCompare(b.name)
+  );
 }
 
 export function subscribeToShifts(callback: (shifts: Shift[]) => void) {
