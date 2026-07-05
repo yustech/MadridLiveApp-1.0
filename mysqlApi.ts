@@ -117,6 +117,90 @@ function buildUpdateClause(payload: Record<string, unknown>, allowedFields: stri
   return { clause, values };
 }
 
+const MONTH_INDEX: Record<string, number> = {
+  ENE: 0,
+  JAN: 0,
+  FEB: 1,
+  MAR: 2,
+  ABR: 3,
+  APR: 3,
+  MAY: 4,
+  JUN: 5,
+  JUL: 6,
+  AGO: 7,
+  AUG: 7,
+  SEP: 8,
+  OCT: 9,
+  NOV: 10,
+  DIC: 11,
+  DEC: 11,
+};
+
+function parseEventDateTime(dateDay?: string, dateMonth?: string, doorsOpen?: string) {
+  const day = Number(String(dateDay || '').trim());
+  const monthToken = String(dateMonth || '').trim().toUpperCase();
+  const month = MONTH_INDEX[monthToken];
+
+  if (!Number.isInteger(day) || day < 1 || day > 31 || month === undefined) {
+    return null;
+  }
+
+  const [hourRaw, minRaw] = String(doorsOpen || '00:00').split(':');
+  const hour = Number(hourRaw);
+  const minute = Number(minRaw);
+  const now = new Date();
+
+  const eventDate = new Date(
+    now.getFullYear(),
+    month,
+    day,
+    Number.isFinite(hour) ? hour : 0,
+    Number.isFinite(minute) ? minute : 0,
+    0,
+    0
+  );
+
+  if (Number.isNaN(eventDate.getTime())) {
+    return null;
+  }
+
+  return eventDate;
+}
+
+async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, location: unknown) {
+  if (status !== 'Active') {
+    return;
+  }
+
+  const locationStr = String(location || '');
+  if (!locationStr.includes('(') || !locationStr.includes(')')) {
+    return;
+  }
+
+  const [rows] = await db.query(
+    `SELECT id, title, date_day AS dateDay, date_month AS dateMonth, doors_open AS doorsOpen
+     FROM events
+     WHERE ? LIKE CONCAT('%(', title, ')%')
+     ORDER BY CHAR_LENGTH(title) DESC
+     LIMIT 1`,
+    [locationStr]
+  );
+
+  const event = rows?.[0];
+  if (!event) {
+    return;
+  }
+
+  const eventDate = parseEventDateTime(event.dateDay, event.dateMonth, event.doorsOpen);
+  if (!eventDate) {
+    return;
+  }
+
+  if (eventDate.getTime() > Date.now()) {
+    throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth}).`);
+  }
+}
+
 export function registerMysqlApi(app: express.Express) {
   app.get(`${MYSQL_PREFIX}/status`, async (_req, res) => {
     if (!isMysqlConfigured()) {
@@ -410,6 +494,9 @@ export function registerMysqlApi(app: express.Express) {
       const body = req.body || {};
       const id = makeId("sh");
       const db = getPool();
+
+      await ensureShiftNotLinkedToFutureEvent(db, body.status, body.location);
+
       await db.execute(
         `
           INSERT INTO shifts (
@@ -420,7 +507,11 @@ export function registerMysqlApi(app: express.Express) {
       );
       return res.status(201).json({ id });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      const message = error?.message || "Shift creation failed.";
+      if (message.startsWith("Cannot activate shifts for future event")) {
+        return res.status(400).json({ message });
+      }
+      return res.status(500).json({ message });
     }
   });
 
@@ -448,10 +539,28 @@ export function registerMysqlApi(app: express.Express) {
 
     try {
       const db = getPool();
+
+      const [currentRows] = await db.query(
+        `SELECT status, location FROM shifts WHERE id = ? LIMIT 1`,
+        [req.params.id]
+      );
+      const current = currentRows?.[0];
+      if (!current) {
+        return res.status(404).json({ message: "Shift not found." });
+      }
+
+      const targetStatus = body.status ?? current.status;
+      const targetLocation = body.location ?? current.location;
+      await ensureShiftNotLinkedToFutureEvent(db, targetStatus, targetLocation);
+
       await db.execute(`UPDATE shifts SET ${clause} WHERE id = ?`, [...values, req.params.id]);
       return res.json({ success: true });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      const message = error?.message || "Shift update failed.";
+      if (message.startsWith("Cannot activate shifts for future event")) {
+        return res.status(400).json({ message });
+      }
+      return res.status(500).json({ message });
     }
   });
 
