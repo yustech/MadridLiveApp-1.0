@@ -444,7 +444,13 @@ export default function ShiftsScreen({
                               className="w-8 h-8 rounded-lg object-cover border border-white/10"
                             />
                             <div>
-                              <p className="text-xs font-bold font-sans text-white">{shift.workerName}</p>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenWorkerProfile(shift.workerId)}
+                                className={`text-xs font-bold font-sans text-white hover:text-indigo-300 transition-colors ${onSelectWorker ? 'cursor-pointer text-left' : ''}`}
+                              >
+                                {shift.workerName}
+                              </button>
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="text-[10px] font-mono text-indigo-300 font-bold">
                                   {shift.workerIdCode}
@@ -572,7 +578,13 @@ export default function ShiftsScreen({
                           className="w-9 h-9 rounded-lg object-cover border border-white/15"
                         />
                         <div>
-                          <h4 className="text-xs font-bold text-white font-sans">{shift.workerName}</h4>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenWorkerProfile(shift.workerId)}
+                            className={`text-xs font-bold text-white font-sans hover:text-indigo-300 transition-colors ${onSelectWorker ? 'cursor-pointer text-left' : ''}`}
+                          >
+                            {shift.workerName}
+                          </button>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[9px] font-mono text-indigo-300 font-bold">
                               {shift.workerIdCode}
