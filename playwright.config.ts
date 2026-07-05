@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const DEV_BASE_URL = 'http://127.0.0.1:5173';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || DEV_BASE_URL;
 const useExternalBaseURL = Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
 export default defineConfig({
@@ -25,8 +26,8 @@ export default defineConfig({
   webServer: useExternalBaseURL
     ? undefined
     : {
-        command: 'npm run dev',
-        url: 'http://127.0.0.1:3000/api/health',
+        command: 'DISABLE_HMR=true npm run dev',
+        url: `${DEV_BASE_URL}/api/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
       },
