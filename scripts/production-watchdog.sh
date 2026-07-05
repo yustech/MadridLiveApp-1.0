@@ -4,7 +4,7 @@ set -euo pipefail
 site_url="${WATCHDOG_SITE_URL:-${DEPLOY_URL:-https://inmosubastas.top}}"
 health_url="${WATCHDOG_HEALTH_URL:-$site_url/api/health}"
 staff_url="${WATCHDOG_STAFF_URL:-$site_url/api/mysql/staff}"
-expected_staff_count="${WATCHDOG_EXPECTED_STAFF_COUNT:-6}"
+expected_staff_count="${WATCHDOG_EXPECTED_STAFF_COUNT:-9}"
 alert_webhook="${WATCHDOG_ALERT_WEBHOOK:-${DEPLOY_ALERT_WEBHOOK:-}}"
 alert_contact="${WATCHDOG_ALERT_CONTACT:-cyuste@gmail.com}"
 service_name="${WATCHDOG_SERVICE_NAME:-madridlive-app.service}"
