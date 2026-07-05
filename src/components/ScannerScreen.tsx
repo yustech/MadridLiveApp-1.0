@@ -21,7 +21,7 @@ interface ScannerScreenProps {
   events: LiveEvent[];
   activeEventId: string;
   setActiveEventId: (id: string) => void;
-  onScanWorkerToggle: (workerId: string, customLocation?: string) => void;
+  onScanWorkerToggle: (workerId: string, customLocation?: string) => Promise<boolean>;
   onNavigateToWorker: (worker: StaffMember) => void;
 }
 
@@ -92,6 +92,7 @@ export default function ScannerScreen({
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [manualError, setManualError] = useState('');
+  const [scanError, setScanError] = useState('');
 
   // Handle successful optical QR scan
   const handleQrScanned = (decodedText: string) => {
@@ -184,21 +185,24 @@ export default function ScannerScreen({
 
     setIsScanActive(true);
     setManualError('');
+    setScanError('');
 
-    // Simulated laser authentication sequence (1.2 seconds)
-    setTimeout(() => {
+    setTimeout(async () => {
       const prev = targetWorker.status;
       const nextStatus = prev === 'IN' ? 'OUT' : 'IN';
-      
-      // Execute global updates through the API
-      onScanWorkerToggle(workerId, 'Lector Puerta Principal');
-      
-      // Play scanner beep chime physically inside the browser!
+
+      const success = await onScanWorkerToggle(workerId, 'Lector Puerta Principal');
+      if (!success) {
+        setScannedResult(null);
+        setScanError('No se puede fichar personal en conciertos con fecha futura.');
+        setIsScanActive(false);
+        return;
+      }
+
       playAccessBeep();
 
-      // Fetch updated profiles
       const updatedWorker = { ...targetWorker, status: nextStatus };
-      
+
       setScannedResult({
         worker: updatedWorker,
         previousStatus: prev,
@@ -380,6 +384,12 @@ export default function ScannerScreen({
               <p className="text-[10px] font-mono text-white/50 leading-relaxed">
                 Coloca la credencial QR del colaborador frente a la cámara o selecciónala en el módulo lateral para realizar el fichaje.
               </p>
+              {scanError && (
+                <p className="mt-3 text-[10px] text-rose-400 flex items-center justify-center gap-1 font-bold">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {scanError}
+                </p>
+              )}
             </div>
           </div>
 

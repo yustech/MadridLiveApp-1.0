@@ -152,7 +152,7 @@ export default function App() {
     const todayDateStr = getTodayDateStr();
 
     const worker = staff.find(w => w.id === workerId);
-    if (!worker) return;
+    if (!worker) return false;
 
     const isCurrentlyIn = worker.status === 'IN';
     const activeEvent = events.find(e => e.id === activeEventId) || events[0];
@@ -160,13 +160,11 @@ export default function App() {
 
     try {
       if (isCurrentlyIn) {
-        // Calculate accrued hours
         const activeHours = worker.currentShiftHours || 0;
         const activeMins = worker.currentShiftMins || 0;
         const netAccrued = activeHours + (activeMins / 60);
         const finalHours = worker.totalHours + netAccrued;
 
-        // Perform transactional state update through the API
         await updateStaff(workerId, {
           status: 'OUT',
           checkedInTime: '',
@@ -176,7 +174,6 @@ export default function App() {
           totalHours: finalHours
         });
 
-        // Terminate matches Active shifts
         const activeShift = shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
         if (activeShift) {
           const startLabel = activeShift.timespan.split(' - ')[0];
@@ -186,29 +183,44 @@ export default function App() {
             durationLabel: `${(activeHours + activeMins / 60).toFixed(1)}h`
           });
         }
-      } else {
-        const baseLoc = customLocation || worker.location || 'Stage Left';
-        const chosenLoc = `${baseLoc}${eventSuffix}`;
-        
+
+        return true;
+      }
+
+      if (isFutureEvent(activeEvent)) {
+        console.warn('Blocked future event activation for worker', workerId, activeEvent?.title);
+        return false;
+      }
+
+      const baseLoc = customLocation || worker.location || 'Stage Left';
+      const chosenLoc = `${baseLoc}${eventSuffix}`;
+
+      const shiftId = await addShift({
+        workerId: workerId,
+        dateString: todayDateStr,
+        timespan: `${nowStr} - Presente`,
+        durationLabel: 'Active',
+        location: chosenLoc,
+        status: 'Active'
+      });
+
+      try {
         await updateStaff(workerId, {
           status: 'IN',
           checkedInTime: nowStr,
-          currentShiftHours: 4, 
-          currentShiftMins: 30, 
+          currentShiftHours: 4,
+          currentShiftMins: 30,
           location: chosenLoc
         });
-
-        await addShift({
-          workerId: workerId,
-          dateString: todayDateStr,
-          timespan: `${nowStr} - Presente`,
-          durationLabel: 'Active',
-          location: chosenLoc,
-          status: 'Active'
-        });
+      } catch (staffErr) {
+        await deleteShift(shiftId);
+        throw staffErr;
       }
+
+      return true;
     } catch (err) {
-      console.error("Failed to alter staff status: ", err);
+      console.error('Failed to alter staff status: ', err);
+      return false;
     }
   };
 
