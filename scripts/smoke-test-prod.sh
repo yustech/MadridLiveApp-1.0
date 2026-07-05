@@ -35,6 +35,13 @@ if [[ "$staff_count" != "$EXPECTED_STAFF_COUNT" ]]; then
   exit 1
 fi
 
+schema_response="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/schema-check")"
+schema_ok="$(printf '%s' "$schema_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(Boolean(x.success)));});")"
+if [[ "$schema_ok" != "true" ]]; then
+  echo "Schema check failed: $schema_response"
+  exit 1
+fi
+
 bundle_name="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL" | grep -o 'index-[A-Za-z0-9_-]*\.js' | head -n 1 || true)"
 if [[ -z "$bundle_name" ]]; then
   echo "Could not detect served bundle"

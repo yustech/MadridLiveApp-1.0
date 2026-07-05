@@ -97,6 +97,12 @@ if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "for i in 1 2 3 4 5 6 7 8 
   exit 1
 fi
 
+echo "Running remote schema migration hook..."
+if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "set -euo pipefail; curl --connect-timeout 3 --max-time 12 -fsS -X POST http://127.0.0.1:3000/api/mysql/schema-migrate >/dev/null; schema=\$(curl --connect-timeout 3 --max-time 8 -fsS http://127.0.0.1:3000/api/mysql/schema-check); echo \"\$schema\" | grep -q '\"success\":true'"; then
+  echo "Remote schema migration hook failed."
+  exit 1
+fi
+
 PUBLIC_HEALTH_URL="${DEPLOY_URL%/}"
 if [[ "$PUBLIC_HEALTH_URL" == *"/api/health" ]]; then
   :
