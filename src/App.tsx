@@ -666,6 +666,7 @@ export default function App() {
               staff={staff}
               events={events}
               onToggleStatus={handleToggleWorkerStatus}
+              onSelectWorker={handleSelectWorker}
             />
           )}
 

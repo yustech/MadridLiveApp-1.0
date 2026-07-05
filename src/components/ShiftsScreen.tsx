@@ -68,13 +68,15 @@ interface ShiftsScreenProps {
   staff: StaffMember[];
   events: LiveEvent[];
   onToggleStatus: (workerId: string) => void;
+  onSelectWorker?: (worker: StaffMember) => void;
 }
 
 export default function ShiftsScreen({
   shifts,
   staff,
   events,
-  onToggleStatus
+  onToggleStatus,
+  onSelectWorker
 }: ShiftsScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('All');
@@ -84,6 +86,15 @@ export default function ShiftsScreen({
 
   // Custom Modal state for shift deletion to avoid ugly native confirm dialogs inside iFrame
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+
+  const handleOpenWorkerProfile = (workerId: string) => {
+    if (!onSelectWorker) return;
+    const worker = staff.find(w => w.id === workerId);
+    if (worker) {
+      onSelectWorker(worker);
+    }
+  };
 
   // 1. Extract unique dates from the shifts list for the date filter dropdown
   const uniqueDates = useMemo(() => {
