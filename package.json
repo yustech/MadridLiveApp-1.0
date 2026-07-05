@@ -20,7 +20,16 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:prod": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://inmosubastas.top} playwright test",
     "test:e2e:readonly": "playwright test --grep \"\\[readonly\\]\"",
-    "test:e2e:staging": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://staging.inmosubastas.top} playwright test"
+    "test:e2e:staging": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://staging.inmosubastas.top} playwright test",
+    "test:e2e:history:canary": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://inmosubastas.top} node scripts/e2e-history-canary.mjs",
+    "normalize:shift-dates:dry": "tsx scripts/normalize-shift-date-strings.ts",
+    "normalize:shift-dates:apply": "tsx scripts/normalize-shift-date-strings.ts --apply",
+    "ops:swap:plan": "bash scripts/setup-swap.sh --plan",
+    "ops:swap:apply": "bash scripts/setup-swap.sh --apply",
+    "ops:containers:plan": "bash scripts/set-container-memory-limits.sh --plan",
+    "ops:containers:apply": "bash scripts/set-container-memory-limits.sh --apply",
+    "ops:systemd:plan": "bash scripts/set-systemd-memory-limits.sh --plan",
+    "ops:systemd:apply": "bash scripts/set-systemd-memory-limits.sh --apply"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

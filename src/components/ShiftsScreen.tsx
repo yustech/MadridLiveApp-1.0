@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { 
   Search, 
   Calendar, 
@@ -11,7 +11,9 @@ import {
   MapPin, 
   X,
   AlertCircle,
-  Clock3
+  Clock3,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
@@ -43,27 +45,67 @@ const MONTH_INDEX: Record<string, number> = {
   DEC: 11,
 };
 
-function parseShiftDateTime(dateString: string, timespan: string): number {
+function parseShiftDateTime(dateString: string, timespan: string, updatedAt?: string): number {
   const now = new Date();
   const normalized = dateString.trim().toLowerCase();
-  const dateMatch = dateString.match(/(\d{1,2})\s+([a-záéíóúñ]{3,9})/i);
   const [startHourRaw, startMinuteRaw] = timespan.split(' - ')[0]?.split(':') || ['0', '0'];
 
-  const parsedDay = dateMatch ? Number(dateMatch[1]) : now.getDate();
-  const parsedMonth = dateMatch ? MONTH_INDEX[dateMatch[2].slice(0, 3).toUpperCase()] : now.getMonth();
-  const fallbackDay = normalized.startsWith('ayer') || normalized.startsWith('yesterday')
-    ? now.getDate() - 1
-    : now.getDate();
+  const build = (year: number, monthZeroBased: number, day: number) =>
+    new Date(
+      year,
+      monthZeroBased,
+      day,
+      Number(startHourRaw) || 0,
+      Number(startMinuteRaw) || 0,
+      0,
+      0
+    ).getTime();
 
-  return new Date(
-    now.getFullYear(),
-    parsedMonth ?? now.getMonth(),
-    Number.isFinite(parsedDay) ? parsedDay : fallbackDay,
+  const isoMatch = normalized.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]) - 1;
+    const day = Number(isoMatch[3]);
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return build(year, month, day);
+    }
+  }
+
+  const slashDateMatch = normalized.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  if (slashDateMatch) {
+    const day = Number(slashDateMatch[1]);
+    const month = Number(slashDateMatch[2]) - 1;
+    const rawYear = Number(slashDateMatch[3]);
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return build(year, month, day);
+    }
+  }
+
+  const dateMatch = dateString.match(/(\d{1,2})\s+([a-záéíóúñ]{3,9})/i);
+  const parsedMonth = dateMatch ? MONTH_INDEX[dateMatch[2].slice(0, 3).toUpperCase()] : undefined;
+  if (dateMatch && parsedMonth !== undefined) {
+    const parsedDay = Number(dateMatch[1]);
+    return build(now.getFullYear(), parsedMonth, Number.isFinite(parsedDay) ? parsedDay : now.getDate());
+  }
+
+  const reference = updatedAt ? new Date(updatedAt) : now;
+  const safeReference = Number.isNaN(reference.getTime()) ? now : reference;
+  const baseDate = new Date(
+    safeReference.getFullYear(),
+    safeReference.getMonth(),
+    safeReference.getDate(),
     Number(startHourRaw) || 0,
     Number(startMinuteRaw) || 0,
     0,
     0
-  ).getTime();
+  );
+
+  if (normalized.startsWith('ayer') || normalized.startsWith('yesterday')) {
+    baseDate.setDate(baseDate.getDate() - 1);
+  }
+
+  return baseDate.getTime();
 }
 
 function extractEventTitle(location: string): string {
@@ -77,6 +119,20 @@ function splitShiftLocation(location: string): { zone: string; eventTitle: strin
     return { zone: location.trim(), eventTitle: 'Control General' };
   }
   return { zone: match[1].trim(), eventTitle: match[2].trim() };
+}
+
+function normalizeShiftDateLabel(dateString: string): string {
+  const normalized = dateString.trim().toLowerCase();
+
+  if (normalized.startsWith('today') || normalized.startsWith('hoy')) {
+    return 'Hoy';
+  }
+
+  if (normalized.startsWith('yesterday') || normalized.startsWith('ayer')) {
+    return 'Ayer';
+  }
+
+  return dateString.trim();
 }
 
 interface ShiftsScreenProps {
@@ -97,8 +153,15 @@ export default function ShiftsScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('All');
   const [selectedDate, setSelectedDate] = useState('All');
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'All' | 'Active' | 'Completed'>('All');
   const [selectedRole, setSelectedRole] = useState<'All' | 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('All');
+  const [selectedTimeScope, setSelectedTimeScope] = useState<'All' | 'Today' | 'Last7d'>('All');
+  const [sortMode, setSortMode] = useState<'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst'>('Newest');
+  const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const lastTelemetrySignatureRef = useRef('');
 
   // Custom Modal state for shift deletion to avoid ugly native confirm dialogs inside iFrame
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -116,22 +179,43 @@ export default function ShiftsScreen({
     }
   };
 
+  const openDatePicker = (inputId: 'custom-date-from' | 'custom-date-to') => {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    if (input?.showPicker) {
+      input.showPicker();
+    } else {
+      input?.focus();
+    }
+  };
+
   // 1. Extract unique dates from the shifts list for the date filter dropdown
   const uniqueDates = useMemo(() => {
     const datesSet = new Set<string>();
     shifts.forEach(s => {
       if (s.dateString) {
-        datesSet.add(s.dateString);
+        datesSet.add(normalizeShiftDateLabel(s.dateString));
       }
     });
     return Array.from(datesSet).sort((a, b) => {
-      const sampleA = shifts.find(shift => shift.dateString === a);
-      const sampleB = shifts.find(shift => shift.dateString === b);
-      const timeA = sampleA ? parseShiftDateTime(sampleA.dateString, sampleA.timespan) : 0;
-      const timeB = sampleB ? parseShiftDateTime(sampleB.dateString, sampleB.timespan) : 0;
+      const sampleA = shifts.find(shift => normalizeShiftDateLabel(shift.dateString) === a);
+      const sampleB = shifts.find(shift => normalizeShiftDateLabel(shift.dateString) === b);
+      const timeA = sampleA ? parseShiftDateTime(sampleA.dateString, sampleA.timespan, sampleA.updatedAt) : 0;
+      const timeB = sampleB ? parseShiftDateTime(sampleB.dateString, sampleB.timespan, sampleB.updatedAt) : 0;
       return timeB - timeA;
     });
   }, [shifts]);
+
+  const customDateFromTs = useMemo(() => {
+    if (!customDateFrom) return null;
+    const ts = new Date(`${customDateFrom}T00:00:00`).getTime();
+    return Number.isNaN(ts) ? null : ts;
+  }, [customDateFrom]);
+
+  const customDateToTs = useMemo(() => {
+    if (!customDateTo) return null;
+    const ts = new Date(`${customDateTo}T23:59:59.999`).getTime();
+    return Number.isNaN(ts) ? null : ts;
+  }, [customDateTo]);
 
   // 2. Map shifts to enrich them with full worker details
   const enrichedShifts = useMemo(() => {
@@ -169,7 +253,12 @@ export default function ShiftsScreen({
       }
 
       // Date filtering
-      const matchesDate = selectedDate === 'All' || shift.dateString === selectedDate;
+      const matchesDate = selectedDate === 'All' || normalizeShiftDateLabel(shift.dateString) === selectedDate;
+
+      const shiftTime = parseShiftDateTime(shift.dateString, shift.timespan, shift.updatedAt);
+      const matchesCustomDateRange =
+        (customDateFromTs === null || shiftTime >= customDateFromTs) &&
+        (customDateToTs === null || shiftTime <= customDateToTs);
 
       // Status filtering
       const matchesStatus = selectedStatus === 'All' || shift.status === selectedStatus;
@@ -177,10 +266,118 @@ export default function ShiftsScreen({
       // Role filtering
       const matchesRole = selectedRole === 'All' || shift.workerRole === selectedRole;
 
-      return matchesSearch && matchesEvent && matchesDate && matchesStatus && matchesRole;
-      })
-      .sort((a, b) => parseShiftDateTime(b.dateString, b.timespan) - parseShiftDateTime(a.dateString, a.timespan));
-  }, [enrichedShifts, searchQuery, selectedEventId, selectedDate, selectedStatus, selectedRole, events]);
+      // Quick time scope filtering
+      const now = Date.now();
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+      const matchesTimeScope =
+        selectedTimeScope === 'All'
+          ? true
+          : selectedTimeScope === 'Today'
+            ? shiftTime >= startOfToday.getTime() && shiftTime <= now
+            : shiftTime >= sevenDaysAgo && shiftTime <= now;
+
+      return matchesSearch && matchesEvent && matchesDate && matchesCustomDateRange && matchesStatus && matchesRole && matchesTimeScope;
+      });
+  }, [enrichedShifts, searchQuery, selectedEventId, selectedDate, selectedStatus, selectedRole, selectedTimeScope, customDateFromTs, customDateToTs, events]);
+
+  const orderedShifts = useMemo(() => {
+    const copied = [...filteredShifts];
+
+    switch (sortMode) {
+      case 'Oldest':
+        return copied.sort((a, b) => {
+          const timeDiff = parseShiftDateTime(a.dateString, a.timespan, a.updatedAt) - parseShiftDateTime(b.dateString, b.timespan, b.updatedAt);
+          return timeDiff !== 0 ? timeDiff : a.id.localeCompare(b.id);
+        });
+      case 'NameAZ':
+        return copied.sort((a, b) => a.workerName.localeCompare(b.workerName, 'es', { sensitivity: 'base' }));
+      case 'NameZA':
+        return copied.sort((a, b) => b.workerName.localeCompare(a.workerName, 'es', { sensitivity: 'base' }));
+      case 'ActiveFirst':
+        return copied.sort((a, b) => {
+          if (a.status === b.status) {
+            const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt);
+            return timeDiff !== 0 ? timeDiff : b.id.localeCompare(a.id);
+          }
+          return a.status === 'Active' ? -1 : 1;
+        });
+      case 'Newest':
+      default:
+        return copied.sort((a, b) => {
+          const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt);
+          return timeDiff !== 0 ? timeDiff : b.id.localeCompare(a.id);
+        });
+    }
+  }, [filteredShifts, sortMode]);
+
+  const totalPages = Math.max(1, Math.ceil(orderedShifts.length / pageSize));
+  const pageStartIndex = (currentPage - 1) * pageSize;
+  const paginatedShifts = orderedShifts.slice(pageStartIndex, pageStartIndex + pageSize);
+  const pageStart = orderedShifts.length === 0 ? 0 : pageStartIndex + 1;
+  const pageEnd = Math.min(pageStartIndex + pageSize, orderedShifts.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedEventId, selectedDate, customDateFrom, customDateTo, selectedStatus, selectedRole, selectedTimeScope, sortMode, pageSize]);
+
+  useEffect(() => {
+    const telemetryPayload = {
+      filters: {
+        selectedDate,
+        customDateFrom,
+        customDateTo,
+        selectedStatus,
+        selectedRole,
+        selectedTimeScope,
+        sortMode,
+        pageSize,
+      },
+      resultCount: orderedShifts.length,
+      page: currentPage,
+    };
+
+    const signature = JSON.stringify(telemetryPayload);
+    if (signature === lastTelemetrySignatureRef.current) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      lastTelemetrySignatureRef.current = signature;
+      const body = JSON.stringify(telemetryPayload);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/telemetry/history-filters', new Blob([body], { type: 'application/json' }));
+      } else {
+        fetch('/api/telemetry/history-filters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          keepalive: true,
+        }).catch(() => undefined);
+      }
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedDate, customDateFrom, customDateTo, selectedStatus, selectedRole, selectedTimeScope, sortMode, pageSize, orderedShifts.length, currentPage]);
+
+  const hasActiveFilters =
+    Boolean(searchQuery) ||
+    selectedEventId !== 'All' ||
+    selectedDate !== 'All' ||
+    Boolean(customDateFrom) ||
+    Boolean(customDateTo) ||
+    selectedStatus !== 'All' ||
+    selectedRole !== 'All' ||
+    selectedTimeScope !== 'All';
+
+  const quickRangeLabel =
+    selectedTimeScope === 'Today'
+      ? 'Hoy'
+      : selectedTimeScope === 'Last7d'
+        ? 'Últimos 7 días'
+        : null;
 
   // 4. Calculate stats based on filtered results
   const stats = useMemo(() => {
@@ -205,7 +402,7 @@ export default function ShiftsScreen({
 
   // 5. CSV Export Handler
   const handleExportCSV = () => {
-    if (filteredShifts.length === 0) return;
+    if (orderedShifts.length === 0) return;
 
     const escapeCsv = (value: string) => '"' + String(value).split(String.fromCharCode(10)).join(' ').replaceAll('"', '""') + '"';
 
@@ -213,12 +410,12 @@ export default function ShiftsScreen({
     const headers = ['ID Registro', 'Código Empleado', 'Nombre', 'Rol', 'Fecha', 'Horario', 'Ubicación / Evento', 'Duración', 'Estado'];
     
     // Rows
-    const rows = filteredShifts.map(sh => [
+    const rows = orderedShifts.map(sh => [
       sh.id,
       sh.workerIdCode,
       sh.workerName,
       sh.workerRoleLabel,
-      sh.dateString,
+      normalizeShiftDateLabel(sh.dateString),
       sh.timespan,
       sh.location,
       sh.durationLabel,
@@ -269,7 +466,7 @@ export default function ShiftsScreen({
         
         <button
           onClick={handleExportCSV}
-          disabled={filteredShifts.length === 0}
+          disabled={orderedShifts.length === 0}
           className="h-11 px-5 bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-400/30 text-indigo-200 hover:text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Download className="w-4 h-4" />
@@ -383,8 +580,106 @@ export default function ShiftsScreen({
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+          <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+            <div>
+              <label className="text-[9px] font-mono uppercase tracking-wider text-white/35 block mb-1">Desde</label>
+              <div className="relative">
+                <input
+                  id="custom-date-from"
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  className="w-full bg-[#120f26] border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => openDatePicker('custom-date-from')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-300/80 hover:text-indigo-200 transition-colors cursor-pointer"
+                  aria-label="Abrir calendario desde"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] font-mono uppercase tracking-wider text-white/35 block mb-1">Hasta</label>
+              <div className="relative">
+                <input
+                  id="custom-date-to"
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  className="w-full bg-[#120f26] border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => openDatePicker('custom-date-to')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-300/80 hover:text-indigo-200 transition-colors cursor-pointer"
+                  aria-label="Abrir calendario hasta"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-white/35">Rango rápido:</span>
+            <button
+              onClick={() => setSelectedTimeScope('All')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${selectedTimeScope === 'All' ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200' : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'}`}
+            >
+              Todo
+            </button>
+            <button
+              onClick={() => setSelectedTimeScope('Today')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${selectedTimeScope === 'Today' ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200' : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'}`}
+            >
+              Hoy
+            </button>
+            <button
+              onClick={() => setSelectedTimeScope('Last7d')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${selectedTimeScope === 'Last7d' ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200' : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'}`}
+            >
+              Últimos 7 días
+            </button>
+          </div>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-white/45 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
+            Mostrando {pageStart}-{pageEnd} de {orderedShifts.length}{quickRangeLabel ? ` (${quickRangeLabel})` : ''}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-white/35">Orden:</span>
+          <select
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as any)}
+            className="bg-[#120f26] border border-white/10 rounded-lg px-2.5 py-1 text-[10px] font-mono text-white cursor-pointer"
+          >
+            <option value="Newest">Más reciente</option>
+            <option value="Oldest">Más antiguo</option>
+            <option value="NameAZ">Nombre A-Z</option>
+            <option value="NameZA">Nombre Z-A</option>
+            <option value="ActiveFirst">Activos primero</option>
+          </select>
+
+          <span className="text-[10px] font-mono uppercase tracking-wider text-white/35">Por página:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value) as 10 | 20 | 50)}
+            className="bg-[#120f26] border border-white/10 rounded-lg px-2.5 py-1 text-[10px] font-mono text-white cursor-pointer"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+
         {/* Filters Summary / Reset */}
-        {(searchQuery || selectedEventId !== 'All' || selectedDate !== 'All' || selectedStatus !== 'All' || selectedRole !== 'All') && (
+        {hasActiveFilters && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5 text-xs font-mono text-white/50">
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
@@ -397,8 +692,11 @@ export default function ShiftsScreen({
                 setSearchQuery('');
                 setSelectedEventId('All');
                 setSelectedDate('All');
+                setCustomDateFrom('');
+                setCustomDateTo('');
                 setSelectedStatus('All');
                 setSelectedRole('All');
+                setSelectedTimeScope('All');
               }}
               className="text-indigo-300 hover:text-indigo-200 font-bold underline transition-all cursor-pointer"
             >
@@ -410,7 +708,7 @@ export default function ShiftsScreen({
 
       {/* SHIFTS LOG LIST / TABLE */}
       <div className="bg-[#120f26]/90 border border-white/10 rounded-3xl overflow-hidden shadow-hud-glow">
-        {filteredShifts.length === 0 ? (
+        {orderedShifts.length === 0 ? (
           <div className="p-12 text-center space-y-4">
             <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mx-auto text-white/30">
               <AlertCircle className="w-6 h-6" />
@@ -439,7 +737,7 @@ export default function ShiftsScreen({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredShifts.map(shift => {
+                  {paginatedShifts.map(shift => {
                     // Extract Zone and Event cleanly
                     const isParenthesized = shift.location.includes('(');
                     let zone = shift.location;
@@ -491,7 +789,7 @@ export default function ShiftsScreen({
 
                         {/* Date Column */}
                         <td className="px-6 py-4 text-white/80 font-sans">
-                          {shift.dateString}
+                          {normalizeShiftDateLabel(shift.dateString)}
                         </td>
 
                         {/* Location / Event Column */}
@@ -574,7 +872,7 @@ export default function ShiftsScreen({
 
             {/* Mobile View Card List (<md) */}
             <div className="block md:hidden divide-y divide-white/5">
-              {filteredShifts.map(shift => {
+              {paginatedShifts.map(shift => {
                 const isParenthesized = shift.location.includes('(');
                 let zone = shift.location;
                 let eventTitle = 'Control General';
@@ -633,7 +931,7 @@ export default function ShiftsScreen({
                     <div className="grid grid-cols-2 gap-2 text-[10px] font-mono bg-white/2 border border-white/5 p-2.5 rounded-xl">
                       <div>
                         <span className="text-white/30 block text-[8px] uppercase">Fecha</span>
-                        <span className="text-white/80">{shift.dateString}</span>
+                        <span className="text-white/80">{normalizeShiftDateLabel(shift.dateString)}</span>
                       </div>
                       <div>
                         <span className="text-white/30 block text-[8px] uppercase">Horario</span>
@@ -683,6 +981,30 @@ export default function ShiftsScreen({
                   </div>
                 );
               })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-white/10 bg-white/5">
+              <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
+                Página {currentPage} de {totalPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-mono text-white/70 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-mono text-white/70 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
+                >
+                  Siguiente
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -742,7 +1064,7 @@ export default function ShiftsScreen({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Fecha</span>
-                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.dateString}</p>
+                <p className="text-white mt-1 font-semibold">{normalizeShiftDateLabel(selectedShiftDetail.dateString)}</p>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Horario</span>

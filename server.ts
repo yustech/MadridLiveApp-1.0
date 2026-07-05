@@ -11,6 +11,7 @@ dotenv.config();
 const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
 const dbTestRateLimits = new Map<string, { count: number; windowStart: number }>();
+const historyFilterTelemetry = new Map<string, number>();
 
 function getClientIp(req: express.Request) {
   const forwarded = req.headers["x-forwarded-for"];
@@ -205,6 +206,32 @@ async function startServer() {
       app: "Madrid Live Access",
       ...buildInfo,
     });
+  });
+
+  app.post('/api/telemetry/history-filters', (req, res) => {
+    const payload = req.body || {};
+    const filters = payload.filters || {};
+
+    const keys = [
+      `timeScope:${filters.selectedTimeScope || 'All'}`,
+      `sortMode:${filters.sortMode || 'Newest'}`,
+      `pageSize:${String(filters.pageSize || 10)}`,
+      filters.selectedDate && filters.selectedDate !== 'All' ? `datePreset:custom` : 'datePreset:none',
+      filters.customDateFrom || filters.customDateTo ? 'dateRange:custom' : 'dateRange:none',
+    ];
+
+    for (const key of keys) {
+      historyFilterTelemetry.set(key, (historyFilterTelemetry.get(key) || 0) + 1);
+    }
+
+    return res.json({ success: true });
+  });
+
+  app.get('/api/telemetry/history-filters', (_req, res) => {
+    const summary = Array.from(historyFilterTelemetry.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([metric, count]) => ({ metric, count }));
+    return res.json({ summary });
   });
 
   // Vite middleware for development

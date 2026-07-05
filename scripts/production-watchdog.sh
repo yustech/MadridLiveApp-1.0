@@ -8,6 +8,7 @@ expected_staff_count="${WATCHDOG_EXPECTED_STAFF_COUNT:-9}"
 alert_webhook="${WATCHDOG_ALERT_WEBHOOK:-${DEPLOY_ALERT_WEBHOOK:-}}"
 alert_contact="${WATCHDOG_ALERT_CONTACT:-cyuste@gmail.com}"
 service_name="${WATCHDOG_SERVICE_NAME:-madridlive-app.service}"
+min_memavailable_kib="${WATCHDOG_MIN_MEMAVAILABLE_KIB:-524288}"
 
 notify_failure() {
   local message="$1"
@@ -32,6 +33,22 @@ check_health() {
   }
 }
 
+
+check_memory_pressure() {
+  local memavailable_kib
+  memavailable_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+
+  if ! [[ "$memavailable_kib" =~ ^[0-9]+$ ]]; then
+    notify_failure "[madridlive-watchdog] memory parse failed for $service_name (MemAvailable=$memavailable_kib)"
+    exit 1
+  fi
+
+  if (( memavailable_kib < min_memavailable_kib )); then
+    notify_failure "[madridlive-watchdog] memory pressure detected for $service_name (MemAvailable=${memavailable_kib}KiB, threshold=${min_memavailable_kib}KiB)"
+    exit 1
+  fi
+}
+
 check_staff() {
   local response count
   response="$(curl --connect-timeout 3 --max-time 10 --fail -sS "$staff_url")"
@@ -45,6 +62,7 @@ check_staff() {
 }
 
 check_health
+check_memory_pressure
 check_staff
 
 logger -t madridlive-watchdog -p daemon.info "[madridlive-watchdog] checks passed for $service_name"

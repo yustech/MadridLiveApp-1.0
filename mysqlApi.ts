@@ -479,7 +479,8 @@ export function registerMysqlApi(app: express.Express) {
           timespan,
           duration_label AS durationLabel,
           location,
-          status
+          status,
+          updated_at AS updatedAt
         FROM shifts
         ORDER BY id DESC
       `);

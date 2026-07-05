@@ -22,6 +22,7 @@ export interface Shift {
   durationLabel: string; // e.g. 'Active', '12.5h'
   location: string; // e.g. 'Stage Left'
   status: 'Active' | 'Completed';
+  updatedAt?: string;
 }
 
 export interface LiveEvent {
