@@ -43,7 +43,11 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
    ```bash
    npm run smoke:prod
    ```
-5. Comprueba la salud y la versión públicas:
+5. Si solo cambias la UI pública de inmosubastas.top, vuelve a publicar con:
+   ```bash
+   npm run deploy:frontend:public
+   ```
+6. Comprueba la salud y la versión públicas:
    ```bash
    curl -fsS https://inmosubastas.top/api/health
    curl -fsS https://inmosubastas.top/api/version
