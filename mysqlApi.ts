@@ -486,6 +486,28 @@ export function registerMysqlApi(app: express.Express) {
       `);
       return res.json(rows);
     } catch (error: any) {
+      if (error?.code === "ER_BAD_FIELD_ERROR" && String(error?.message || "").includes("updated_at")) {
+        try {
+          const db = getPool();
+          const [rows] = await db.query(`
+            SELECT
+              id,
+              worker_id AS workerId,
+              date_string AS dateString,
+              timespan,
+              duration_label AS durationLabel,
+              location,
+              status,
+              NULL AS updatedAt
+            FROM shifts
+            ORDER BY id DESC
+          `);
+          return res.json(rows);
+        } catch (fallbackError: any) {
+          return res.status(500).json({ message: fallbackError.message });
+        }
+      }
+
       return res.status(500).json({ message: error.message });
     }
   });
