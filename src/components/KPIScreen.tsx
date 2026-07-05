@@ -120,10 +120,22 @@ export default function KPIScreen({
     const activeZonesCount = activeLocations.size;
 
     // Staff breakdown by role
+    const roleStaffBreakdown = {
+      Auxiliar: filteredStaff
+        .filter(s => s.role === 'Auxiliar')
+        .map(s => ({ idCode: s.idCode, name: s.name, location: s.location })),
+      'Auxiliar Plus': filteredStaff
+        .filter(s => s.role === 'Auxiliar Plus')
+        .map(s => ({ idCode: s.idCode, name: s.name, location: s.location })),
+      'Coordinación': filteredStaff
+        .filter(s => s.role === 'Coordinación')
+        .map(s => ({ idCode: s.idCode, name: s.name, location: s.location }))
+    };
+
     const activeStaffByRole = {
-      Auxiliar: filteredStaff.filter(s => s.role === 'Auxiliar').length,
-      'Auxiliar Plus': filteredStaff.filter(s => s.role === 'Auxiliar Plus').length,
-      'Coordinación': filteredStaff.filter(s => s.role === 'Coordinación').length
+      Auxiliar: roleStaffBreakdown.Auxiliar.length,
+      'Auxiliar Plus': roleStaffBreakdown['Auxiliar Plus'].length,
+      'Coordinación': roleStaffBreakdown['Coordinación'].length
     };
 
     const totalActiveByRole = activeStaffByRole.Auxiliar + activeStaffByRole['Auxiliar Plus'] + activeStaffByRole['Coordinación'] || 1;
@@ -163,6 +175,7 @@ export default function KPIScreen({
       activeZonesCount,
       roleCounts: activeStaffByRole,
       rolePercentages,
+      roleStaffBreakdown,
       scanRatePerMin,
       hourlyDistribution
     };
@@ -569,13 +582,32 @@ export default function KPIScreen({
 
           </div>
 
-          <div className="bg-white/5 border border-white/5 p-3 rounded-2xl text-xs font-mono text-white/50 flex items-center gap-2">
-            <Award className="w-4 h-4 text-indigo-400 shrink-0" />
-            <span>
-              {hoveredRole 
-                ? `Mostrando detalles de: ${hoveredRole}` 
-                : 'Pasa el cursor por cada rol para ver desglose'}
-            </span>
+          <div className="bg-white/5 border border-white/5 p-3 rounded-2xl text-xs font-mono text-white/50 flex items-start gap-2">
+            <Award className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+            {!hoveredRole ? (
+              <span>Pasa el cursor por cada rol para ver desglose</span>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-white/80">Mostrando detalles de: {hoveredRole}</p>
+                {stats.roleStaffBreakdown[hoveredRole as keyof typeof stats.roleStaffBreakdown].length === 0 ? (
+                  <p className="text-white/40">Sin personal activo en este rol</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {stats.roleStaffBreakdown[hoveredRole as keyof typeof stats.roleStaffBreakdown].slice(0, 4).map((member) => (
+                      <li key={member.idCode} className="text-white/60">
+                        <span className="text-indigo-300">{member.idCode}</span> · {member.name}
+                        {member.location ? ` · ${member.location}` : ''}
+                      </li>
+                    ))}
+                    {stats.roleStaffBreakdown[hoveredRole as keyof typeof stats.roleStaffBreakdown].length > 4 && (
+                      <li className="text-white/40">
+                        +{stats.roleStaffBreakdown[hoveredRole as keyof typeof stats.roleStaffBreakdown].length - 4} más
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
