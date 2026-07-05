@@ -10,6 +10,8 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
    `npm install`
 2. Run the app:
    `npm run dev`
+   - On Linux hosts with `madridlive-app.service` active, this command is blocked by default to avoid port collisions with production.
+   - For emergency debugging on production hosts only: `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
 3. Build for production:
    `npm run build`
 

@@ -20,6 +20,7 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
 1. Un host Linux o panel de hosting capaz de ejecutar Node/Express y servir archivos estáticos.
 2. Acceso a MySQL/MariaDB para el backend de producción.
 3. Un usuario de despliegue con permisos para copiar `dist/` y reiniciar el servicio.
+4. El servicio `madridlive-app.service` debe cargar variables con `EnvironmentFile=/opt/madridlive-app/.env` (drop-in de systemd).
 
 ---
 
@@ -101,7 +102,12 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    ```bash
    sudo journalctl -u madridlive-app.service --since '30 min ago' --no-pager | tail -n 200
    ```
-5. Health/version/staff rápidos:
+5. Confirmar configuración de entorno activa en systemd:
+   ```bash
+   sudo systemctl show madridlive-app.service -p EnvironmentFiles
+   ```
+6. En producción, evita `npm run dev` en el mismo host del servicio para no ocupar el puerto 3000. Si necesitas depurar puntualmente, usa `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
+7. Health/version/staff rápidos:
    ```bash
    curl -fsS https://inmosubastas.top/api/health
    curl -fsS https://inmosubastas.top/api/version
