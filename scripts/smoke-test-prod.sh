@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SITE_URL="${SITE_URL:-https://inmosubastas.top}"
-EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-6}"
+EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-9}"
 
 health_url="${SITE_URL%/}"
 if [[ "$health_url" == *"/api/health" ]]; then
