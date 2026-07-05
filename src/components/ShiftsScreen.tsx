@@ -176,6 +176,8 @@ export default function ShiftsScreen({
   const handleExportCSV = () => {
     if (filteredShifts.length === 0) return;
 
+    const escapeCsv = (value: string) => '"' + String(value).split(String.fromCharCode(10)).join(' ').replaceAll('"', '""') + '"';
+
     // Headers
     const headers = ['ID Registro', 'Código Empleado', 'Nombre', 'Rol', 'Fecha', 'Horario', 'Ubicación / Evento', 'Duración', 'Estado'];
     
@@ -187,16 +189,16 @@ export default function ShiftsScreen({
       sh.workerRoleLabel,
       sh.dateString,
       sh.timespan,
-      sh.location.replace(/,/g, ' -'), // Clean commas to avoid formatting break
+      sh.location,
       sh.durationLabel,
       sh.status === 'Active' ? 'ACTIVO' : 'COMPLETADO'
     ]);
 
     // Combine headers and rows with standard delimiter
     const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(val => `"${val}"`).join(','))
-    ].join('\n');
+      headers.map(escapeCsv).join(","),
+      ...rows.map(row => row.map(val => escapeCsv(val)).join(","))
+    ].join("\n");
 
     // Create a client-side downloadable file block
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
