@@ -29,9 +29,8 @@ test.describe('MadridLiveApp regression', () => {
     // CI runners often don't provide MySQL env vars. Treat this specific
     // unconfigured backend response as non-regression for UI readonly checks.
     expect(staff.status()).toBe(500);
-    expect(staffJson).toMatchObject({
-      error: expect.stringContaining('MySQL is not configured'),
-    });
+    const apiErrorMessage = String((staffJson as { message?: string; error?: string } | null)?.message || (staffJson as { message?: string; error?: string } | null)?.error || '');
+    expect(apiErrorMessage).toContain('MySQL is not configured');
   });
 
   test('[readonly] denies invalid login', async ({ page }) => {
