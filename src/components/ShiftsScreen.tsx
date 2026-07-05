@@ -16,6 +16,14 @@ import {
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
 
+interface EnrichedShift extends Shift {
+  workerName: string;
+  workerIdCode: string;
+  workerRole: StaffMember['role'];
+  workerRoleLabel: string;
+  workerAvatar: string;
+}
+
 const MONTH_INDEX: Record<string, number> = {
   ENE: 0,
   JAN: 0,
@@ -86,7 +94,11 @@ export default function ShiftsScreen({
 
   // Custom Modal state for shift deletion to avoid ugly native confirm dialogs inside iFrame
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [selectedShiftDetail, setSelectedShiftDetail] = useState<EnrichedShift | null>(null);
 
+  const handleOpenShiftDetail = (shift: EnrichedShift) => {
+    setSelectedShiftDetail(shift);
+  };
 
   const handleOpenWorkerProfile = (workerId: string) => {
     if (!onSelectWorker) return;
@@ -434,7 +446,7 @@ export default function ShiftsScreen({
                     }
 
                     return (
-                      <tr key={shift.id} className="hover:bg-white/2 transition-colors">
+                      <tr key={shift.id} onClick={() => handleOpenShiftDetail(shift)} className="hover:bg-white/2 transition-colors cursor-pointer">
                         {/* Worker column */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -446,8 +458,8 @@ export default function ShiftsScreen({
                             <div>
                               <button
                                 type="button"
-                                onClick={() => handleOpenWorkerProfile(shift.workerId)}
-                                className={`text-xs font-bold font-sans text-white hover:text-indigo-300 transition-colors ${onSelectWorker ? 'cursor-pointer text-left' : ''}`}
+                                onClick={(e) => { e.stopPropagation(); handleOpenShiftDetail(shift); }}
+                                className="text-xs font-bold font-sans text-white hover:text-indigo-300 transition-colors cursor-pointer text-left"
                               >
                                 {shift.workerName}
                               </button>
@@ -528,7 +540,7 @@ export default function ShiftsScreen({
                           <div className="flex items-center justify-end gap-2">
                             {shift.status === 'Active' && (
                               <button
-                                onClick={() => onToggleStatus(shift.workerId)}
+                                onClick={(e) => { e.stopPropagation(); onToggleStatus(shift.workerId); }}
                                 className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
                                 title="Finalizar Turno del personal"
                               >
@@ -580,8 +592,8 @@ export default function ShiftsScreen({
                         <div>
                           <button
                             type="button"
-                            onClick={() => handleOpenWorkerProfile(shift.workerId)}
-                            className={`text-xs font-bold text-white font-sans hover:text-indigo-300 transition-colors ${onSelectWorker ? 'cursor-pointer text-left' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); handleOpenShiftDetail(shift); }}
+                            className="text-xs font-bold text-white font-sans hover:text-indigo-300 transition-colors cursor-pointer text-left"
                           >
                             {shift.workerName}
                           </button>
@@ -667,6 +679,83 @@ export default function ShiftsScreen({
           </>
         )}
       </div>
+
+      {/* SHIFT DETAIL CUSTOM MODAL */}
+      {selectedShiftDetail && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-[#120f26] border border-white/20 rounded-3xl p-6 w-full max-w-2xl relative overflow-hidden space-y-5 shadow-hud-glow text-left">
+            <div className="absolute top-0 inset-x-0 h-1 bg-indigo-500" />
+
+            <div className="flex items-start gap-3.5">
+              <img
+                src={selectedShiftDetail.workerAvatar}
+                alt={selectedShiftDetail.workerName}
+                className="w-16 h-16 rounded-2xl object-cover border border-white/15 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-indigo-300/80">Detalle del fichaje</p>
+                <h4 className="text-xl font-black text-white mt-1 truncate">{selectedShiftDetail.workerName}</h4>
+                <p className="text-xs text-white/50 mt-1 font-mono">
+                  {selectedShiftDetail.workerIdCode} · {selectedShiftDetail.workerRoleLabel}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedShiftDetail(null)}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white rounded-xl text-xs font-mono transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Fecha</span>
+                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.dateString}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Horario</span>
+                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.timespan}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Ubicación / Evento</span>
+                <p className="text-white mt-1 font-semibold break-words">{selectedShiftDetail.location}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Duración / Estado</span>
+                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.durationLabel} · {selectedShiftDetail.status === 'Active' ? 'Activo' : 'Completado'}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+              {onSelectWorker && (
+                <button
+                  onClick={() => {
+                    const worker = staff.find((item) => item.id === selectedShiftDetail.workerId);
+                    if (worker) {
+                      onSelectWorker(worker);
+                      setSelectedShiftDetail(null);
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/20 text-indigo-200 hover:text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Ver perfil
+                </button>
+              )}
+              {selectedShiftDetail.status === 'Active' && (
+                <button
+                  onClick={() => {
+                    onToggleStatus(selectedShiftDetail.workerId);
+                    setSelectedShiftDetail(null);
+                  }}
+                  className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/20 text-emerald-200 hover:text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Marcar salida
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CONFIRMATION DELETION CUSTOM MODAL */}
       {deleteTargetId && (
