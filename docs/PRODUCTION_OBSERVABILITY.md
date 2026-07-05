@@ -7,6 +7,19 @@ This checklist keeps production verification simple and repeatable for Madrid Li
 Set up an external HTTP monitor on:
 
 - `https://inmosubastas.top/api/health`
+## Internal Watchdog
+
+Production also runs a local systemd watchdog every 5 minutes:
+
+- `madridlive-watchdog.timer`
+- `madridlive-watchdog.service`
+
+It checks both:
+
+- `https://inmosubastas.top/api/health`
+- `https://inmosubastas.top/api/mysql/staff`
+
+If a check fails, it logs an error to journald and, when configured, can send a webhook alert via `WATCHDOG_ALERT_WEBHOOK` or `DEPLOY_ALERT_WEBHOOK`.
 
 Recommended settings:
 

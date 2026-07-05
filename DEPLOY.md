@@ -21,6 +21,7 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
 2. Acceso a MySQL/MariaDB para el backend de producción.
 3. Un usuario de despliegue con permisos para copiar `dist/` y reiniciar el servicio.
 4. El servicio `madridlive-app.service` debe cargar variables con `EnvironmentFile=/opt/madridlive-app/.env` (drop-in de systemd).
+5. El watchdog de producción vive como `madridlive-watchdog.service` + `madridlive-watchdog.timer`, ejecutándose cada 5 minutos para validar `/api/health` y `/api/mysql/staff`.
 
 ---
 
@@ -105,6 +106,18 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
 5. Confirmar configuración de entorno activa en systemd:
    ```bash
    sudo systemctl show madridlive-app.service -p EnvironmentFiles
+6. Ver estado del watchdog:
+   ```bash
+   sudo systemctl status madridlive-watchdog.timer --no-pager
+   sudo systemctl status madridlive-watchdog.service --no-pager
+   ```
+7. En producción, evita `npm run dev` en el mismo host del servicio para no ocupar el puerto 3000. Si necesitas depurar puntualmente, usa `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
+8. Health/version/staff rápidos:
+   ```bash
+   curl -fsS https://inmosubastas.top/api/health
+   curl -fsS https://inmosubastas.top/api/version
+   curl -fsS https://inmosubastas.top/api/mysql/staff
+   ```
    ```
 6. En producción, evita `npm run dev` en el mismo host del servicio para no ocupar el puerto 3000. Si necesitas depurar puntualmente, usa `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
 7. Health/version/staff rápidos:

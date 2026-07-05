@@ -1,0 +1,10 @@
+[Unit]
+Description=MadridLive production watchdog
+After=network-online.target madridlive-app.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/madridlive-app
+EnvironmentFile=-/opt/madridlive-app/.env
+ExecStart=/bin/bash /opt/madridlive-app/scripts/production-watchdog.sh

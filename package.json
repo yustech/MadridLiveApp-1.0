@@ -12,6 +12,7 @@
     "deploy": "bash scripts/deploy.sh",
     "rollback": "bash scripts/rollback.sh",
     "reset:mysql:initial": "tsx scripts/reset-mysql-to-initial.ts",
+    "watchdog:prod": "bash scripts/production-watchdog.sh",
     "deploy:frontend:public": "bash scripts/deploy-frontend-public.sh",
     "deploy:full": "DEPLOY_PUBLIC_FRONTEND=true bash scripts/deploy.sh",
     "smoke:prod": "bash scripts/smoke-test-prod.sh",
