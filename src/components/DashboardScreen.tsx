@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { 
   Activity, 
   MapPin, 
@@ -31,9 +31,32 @@ export default function DashboardScreen({
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
 
+  const monthIndex: Record<string, number> = {
+    ENE: 0, JAN: 0, FEB: 1, MAR: 2, ABR: 3, APR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11, DEC: 11,
+  };
+
+  const toEventDate = (event: LiveEvent) => {
+    const day = Number(event.dateDay);
+    const month = monthIndex[event.dateMonth.trim().toUpperCase()];
+    const [hourRaw, minRaw] = event.doorsOpen.split(':');
+    const now = new Date();
+    return new Date(
+      now.getFullYear(),
+      month ?? 0,
+      Number.isFinite(day) ? day : 1,
+      Number(hourRaw) || 0,
+      Number(minRaw) || 0,
+      0,
+      0
+    );
+  };
+
   // Let's filter live vs upcoming events based on activeEventId
   const liveEvent = events.find(e => e.id === activeEventId) || events[0] || null;
-  const upcomingEvents = liveEvent ? events.filter(e => e.id !== liveEvent.id) : events;
+  const upcomingEvents = useMemo(() => {
+    const base = liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events];
+    return base.sort((a, b) => toEventDate(a).getTime() - toEventDate(b).getTime());
+  }, [events, liveEvent]);
 
   // Dynamically calculate active staff count from local state
   const checkedInStaffCount = staff.filter(s => s.status === 'IN').length;
@@ -159,7 +182,7 @@ export default function DashboardScreen({
       {/* Upcoming Deployments List */}
       <div className="space-y-4">
         <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
-          PRÓXIMOS DESPLIEGUES
+          PRÓXIMOS CONCIERTOS
         </h3>
         
         <div className="flex flex-col gap-3">
