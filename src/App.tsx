@@ -1,14 +1,7 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
 
-import DashboardScreen from './components/DashboardScreen';
-import StaffScreen from './components/StaffScreen';
-import ProfileScreen from './components/ProfileScreen';
-import ScannerScreen from './components/ScannerScreen';
-import ShiftsScreen from './components/ShiftsScreen';
-import KPIScreen from './components/KPIScreen';
-import DatabaseManagerScreen from './components/DatabaseManagerScreen';
 
 import {
   seedDatabaseIfEmpty,
@@ -42,6 +35,14 @@ const MONTH_INDEX: Record<string, number> = {
   DIC: 11,
   DEC: 11,
 };
+
+const DashboardScreen = lazy(() => import('./components/DashboardScreen'));
+const StaffScreen = lazy(() => import('./components/StaffScreen'));
+const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
+const ScannerScreen = lazy(() => import('./components/ScannerScreen'));
+const ShiftsScreen = lazy(() => import('./components/ShiftsScreen'));
+const KPIScreen = lazy(() => import('./components/KPIScreen'));
+const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScreen'));
 
 function isFutureEvent(event?: LiveEvent | null): boolean {
   if (!event) return false;
@@ -635,76 +636,88 @@ export default function App() {
 
         {/* RENDERED ACTIVE VIEW CANVASES WITH FLUID VIEWPORTS */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-32 md:pb-12 overflow-y-auto">
-          {activeScreen === 'dashboard' && (
-            <DashboardScreen
-              events={events}
-              alerts={alerts}
-              staff={staff}
-              activeEventId={activeEventId}
-              setActiveEventId={setActiveEventId}
-              onLaunchScanner={() => setActiveScreen('scanner')}
-            />
-          )}
+          <Suspense
+            fallback={
+              <div className="w-full min-h-[280px] flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 backdrop-blur-lg">
+                <div className="text-[11px] font-mono uppercase tracking-wider text-white/65 animate-pulse">
+                  Cargando modulo...
+                </div>
+              </div>
+            }
+          >
+            {activeScreen === 'dashboard' && (
+              <DashboardScreen
+                events={events}
+                alerts={alerts}
+                staff={staff}
+                activeEventId={activeEventId}
+                setActiveEventId={setActiveEventId}
+                onLaunchScanner={() => setActiveScreen('scanner')}
+              />
+            )}
 
-          {activeScreen === 'staff' && (
-            <StaffScreen
-              staff={staff}
-              onSelectWorker={handleSelectWorker}
-              onAddWorker={handleAddNewCrewMember}
-            />
-          )}
+            {activeScreen === 'staff' && (
+              <StaffScreen
+                staff={staff}
+                onSelectWorker={handleSelectWorker}
+                onAddWorker={handleAddNewCrewMember}
+              />
+            )}
 
-          {activeScreen === 'scanner' && (
-            <ScannerScreen
-              staff={staff}
-              events={events}
-              activeEventId={activeEventId}
-              setActiveEventId={setActiveEventId}
-              onScanWorkerToggle={handleToggleWorkerStatus}
-              onNavigateToWorker={handleSelectWorker}
-            />
-          )}
+            {activeScreen === 'scanner' && (
+              <ScannerScreen
+                staff={staff}
+                events={events}
+                activeEventId={activeEventId}
+                setActiveEventId={setActiveEventId}
+                onScanWorkerToggle={handleToggleWorkerStatus}
+                onNavigateToWorker={handleSelectWorker}
+              />
+            )}
 
-          {activeScreen === 'profile' && selectedWorker && (
-            <ProfileScreen
-              worker={selectedWorker}
-              workerShifts={getSelectedWorkerShifts()}
-              onToggleStatus={handleToggleWorkerStatus}
-              onBack={() => setActiveScreen('staff')}
-            />
-          )}
+            {activeScreen === 'profile' && selectedWorker && (
+              <ProfileScreen
+                worker={selectedWorker}
+                workerShifts={getSelectedWorkerShifts()}
+                onToggleStatus={handleToggleWorkerStatus}
+                onBack={() => setActiveScreen('staff')}
+              />
+            )}
 
-          {activeScreen === 'shifts' && (
-            <ShiftsScreen
-              shifts={shifts}
-              staff={staff}
-              events={events}
-              onToggleStatus={handleToggleWorkerStatus}
-              onSelectWorker={handleSelectWorker}
-            />
-          )}
+            {activeScreen === 'shifts' && (
+              <ShiftsScreen
+                shifts={shifts}
+                staff={staff}
+                events={events}
+                onToggleStatus={handleToggleWorkerStatus}
+                onSelectWorker={handleSelectWorker}
+              />
+            )}
 
-          {activeScreen === 'kpis' && (
-            <KPIScreen
-              shifts={shifts}
-              staff={staff}
-              events={events}
-              activeEventId={activeEventId}
-            />
-          )}
+            {activeScreen === 'kpis' && (
+              <KPIScreen
+                shifts={shifts}
+                staff={staff}
+                events={events}
+                activeEventId={activeEventId}
+              />
+            )}
+          </Suspense>
         </main>
       </div>
 
       {/* RENDER DIRECT CORE MYSQL DATABASE MANAGER MODAL */}
-      {isDbOpen && (
-        <DatabaseManagerScreen
-          events={events}
-          staff={staff}
-          shifts={shifts}
-          alerts={alerts}
-          onClose={() => setIsDbOpen(false)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {isDbOpen && (
+          <DatabaseManagerScreen
+            events={events}
+            staff={staff}
+            shifts={shifts}
+            alerts={alerts}
+            onClose={() => setIsDbOpen(false)}
+          />
+        )}
+      </Suspense>
 
       {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}
       <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
