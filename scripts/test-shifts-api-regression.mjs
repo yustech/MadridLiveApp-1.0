@@ -91,6 +91,7 @@ async function run() {
 
     let allowedEvent = null;
     let futureEvent = null;
+    let duplicateActiveBlocked = false;
 
     for (const event of orderedEvents) {
       const createAttempt = await api('/api/mysql/shifts', {
@@ -126,6 +127,25 @@ async function run() {
 
     assert(allowedEvent, 'No se encontró evento permitido para validar alta/cierre.');
     assert(createdShiftId, 'No se recibió id del turno creado.');
+
+    const duplicateActiveRes = await api('/api/mysql/shifts', {
+      method: 'POST',
+      body: {
+        workerId: worker.id,
+        dateString: 'Hoy',
+        timespan: '00:01 - Presente',
+        durationLabel: 'Active',
+        location: `Main Stage (${allowedEvent.title})`,
+        status: 'Active',
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    duplicateActiveBlocked = duplicateActiveRes.status === 409;
+    assert(
+      duplicateActiveBlocked,
+      `Doble turno activo debería bloquearse con 409 y devolvió ${duplicateActiveRes.status}: ${duplicateActiveRes.text}`,
+    );
 
     const closeRes = await api(`/api/mysql/shifts/${createdShiftId}`, {
       method: 'PATCH',
@@ -207,6 +227,7 @@ async function run() {
       allowedEvent: allowedEvent.title,
       futureEvent: futureEvent.title,
       hasCanonicalTimestamps,
+      duplicateActiveBlocked,
     }));
   } catch (error) {
     const durationMs = Date.now() - startedAtMs;

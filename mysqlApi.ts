@@ -285,6 +285,60 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, locat
   }
 }
 
+
+async function ensureWorkerShiftTimeIntegrity(
+  db: any,
+  workerId: unknown,
+  status: unknown,
+  startedAt: unknown,
+  endedAt: unknown,
+  excludeShiftId?: string
+) {
+  const workerIdStr = String(workerId || '').trim();
+  if (!workerIdStr) return;
+
+  const isActivating = status === 'Active';
+  const startedAtMysql = startedAt === undefined ? null : toMysqlDateTimeValue(startedAt);
+  const endedAtMysql = endedAt === undefined ? null : toMysqlDateTimeValue(endedAt);
+  const excludedId = excludeShiftId || '__NO_EXCLUDED_SHIFT__';
+
+  if (isActivating) {
+    const [activeRows] = await db.query(
+      `SELECT id
+       FROM shifts
+       WHERE worker_id = ?
+         AND status = 'Active'
+         AND id <> ?
+       LIMIT 1`,
+      [workerIdStr, excludedId]
+    );
+
+    if (activeRows?.[0]) {
+      throw new Error('Shift conflict: worker already has an active shift.');
+    }
+  }
+
+  // Overlap checks require a normalized start timestamp.
+  if (!startedAtMysql) {
+    return;
+  }
+
+  const [overlapRows] = await db.query(
+    `SELECT id
+     FROM shifts
+     WHERE worker_id = ?
+       AND id <> ?
+       AND started_at IS NOT NULL
+       AND (? IS NULL OR started_at < ?)
+       AND COALESCE(ended_at, '9999-12-31 23:59:59') > ?
+     LIMIT 1`,
+    [workerIdStr, excludedId, endedAtMysql, endedAtMysql, startedAtMysql]
+  );
+
+  if (overlapRows?.[0]) {
+    throw new Error('Shift conflict: overlapping time range for worker.');
+  }
+}
 export function registerMysqlApi(app: express.Express) {
   app.get(`${MYSQL_PREFIX}/status`, async (_req, res) => {
     if (!isMysqlConfigured()) {
@@ -650,7 +704,17 @@ export function registerMysqlApi(app: express.Express) {
       const id = makeId("sh");
       const db = getPool();
 
+      const startedAtMysql = toMysqlDateTimeValue(body.startedAt);
+      const endedAtMysql = toMysqlDateTimeValue(body.endedAt);
+
       await ensureShiftNotLinkedToFutureEvent(db, body.status, body.location);
+      await ensureWorkerShiftTimeIntegrity(
+        db,
+        body.workerId,
+        body.status,
+        startedAtMysql,
+        endedAtMysql
+      );
 
       await db.execute(
         `
@@ -666,8 +730,8 @@ export function registerMysqlApi(app: express.Express) {
           body.durationLabel,
           body.location,
           body.status,
-          toMysqlDateTimeValue(body.startedAt),
-          toMysqlDateTimeValue(body.endedAt),
+          startedAtMysql,
+          endedAtMysql,
         ]
       );
       return res.status(201).json({ id });
@@ -675,6 +739,9 @@ export function registerMysqlApi(app: express.Express) {
       const message = error?.message || "Shift creation failed.";
       if (message.startsWith("Cannot activate shifts for future event")) {
         return res.status(400).json({ message });
+      }
+      if (message.startsWith('Shift conflict:')) {
+        return res.status(409).json({ message });
       }
       return res.status(500).json({ message });
     }
@@ -708,7 +775,10 @@ export function registerMysqlApi(app: express.Express) {
       const db = getPool();
 
       const [currentRows] = await db.query(
-        `SELECT status, location FROM shifts WHERE id = ? LIMIT 1`,
+        `SELECT worker_id AS workerId, status, location, started_at AS startedAt, ended_at AS endedAt
+           FROM shifts
+           WHERE id = ?
+           LIMIT 1`,
         [req.params.id]
       );
       const current = currentRows?.[0];
@@ -716,9 +786,21 @@ export function registerMysqlApi(app: express.Express) {
         return res.status(404).json({ message: "Shift not found." });
       }
 
+      const targetWorkerId = body.workerId ?? current.workerId;
       const targetStatus = body.status ?? current.status;
       const targetLocation = body.location ?? current.location;
+      const targetStartedAt = body.startedAt === undefined ? current.startedAt : body.startedAt;
+      const targetEndedAt = body.endedAt === undefined ? current.endedAt : body.endedAt;
+
       await ensureShiftNotLinkedToFutureEvent(db, targetStatus, targetLocation);
+      await ensureWorkerShiftTimeIntegrity(
+        db,
+        targetWorkerId,
+        targetStatus,
+        targetStartedAt,
+        targetEndedAt,
+        req.params.id
+      );
 
       await db.execute(`UPDATE shifts SET ${clause} WHERE id = ?`, [...values, req.params.id]);
       return res.json({ success: true });
@@ -726,6 +808,9 @@ export function registerMysqlApi(app: express.Express) {
       const message = error?.message || "Shift update failed.";
       if (message.startsWith("Cannot activate shifts for future event")) {
         return res.status(400).json({ message });
+      }
+      if (message.startsWith('Shift conflict:')) {
+        return res.status(409).json({ message });
       }
       return res.status(500).json({ message });
     }
