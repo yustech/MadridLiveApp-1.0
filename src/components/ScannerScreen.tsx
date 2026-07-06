@@ -1,5 +1,4 @@
 import { useState, FormEvent, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { 
   Flashlight, 
   RotateCw, 
@@ -23,6 +22,30 @@ interface ScannerScreenProps {
   setActiveEventId: (id: string) => void;
   onScanWorkerToggle: (workerId: string, customLocation?: string) => Promise<boolean>;
   onNavigateToWorker: (worker: StaffMember) => void;
+}
+
+interface Html5QrcodeCameraConfig {
+  facingMode: 'environment' | 'user';
+}
+
+interface Html5QrcodeConfig {
+  fps: number;
+  qrbox: (width: number, height: number) => { width: number; height: number };
+}
+
+interface Html5QrcodeInstance {
+  isScanning: boolean;
+  start(
+    cameraConfig: Html5QrcodeCameraConfig,
+    config: Html5QrcodeConfig,
+    onSuccess: (decodedText: string) => void,
+    onError: (errorMessage: string) => void
+  ): Promise<void>;
+  stop(): Promise<void>;
+}
+
+interface Html5QrcodeConstructor {
+  new (elementId: string): Html5QrcodeInstance;
 }
 
 const roleIconMap: Record<string, string> = {
@@ -119,63 +142,63 @@ export default function ScannerScreen({
 
   // Handle real-time optical html5-qrcode startup, camera hook, and shutdown
   useEffect(() => {
-    let qrScanner: Html5Qrcode | null = null;
+    let qrScanner: Html5QrcodeInstance | null = null;
     let isMounted = true;
 
-    if (isWebcamActive) {
+    const startScanner = async () => {
       setCameraError(null);
-      
-      // Delay slightly to wait for JSX container render to complete
-      const startupTimeout = setTimeout(() => {
-        if (!isMounted) return;
-        
-        try {
-          qrScanner = new Html5Qrcode("reader-element");
-          
-          qrScanner.start(
-            { facingMode: cameraMode === 'back' ? 'environment' : 'user' },
-            {
-              fps: 15,
-              qrbox: (w, h) => {
-                const s = Math.min(w, h) * 0.72;
-                return { width: Math.floor(s), height: Math.floor(s) };
-              }
-            },
-            (decodedText) => {
-              if (isMounted && !isScanActive && !scannedResult) {
-                handleQrScanned(decodedText);
-              }
-            },
-            () => {
-              // silent scanning tick
-            }
-          )
-          .catch(err => {
-            console.error("Camera start failure:", err);
-            if (isMounted) {
-              setCameraError("La cámara no está disponible. Para escanear, por favor abre la app con HTTPS o en una nueva pestaña del navegador.");
-              setIsWebcamActive(false);
-            }
-          });
-        } catch (e: any) {
-          console.error("html5-qrcode Error", e);
-          if (isMounted) {
-            setCameraError("Fallo al inicializar el lector QR.");
-            setIsWebcamActive(false);
-          }
-        }
-      }, 350);
 
-      return () => {
-        isMounted = false;
-        clearTimeout(startupTimeout);
-        if (qrScanner) {
-          if (qrScanner.isScanning) {
-            qrScanner.stop().catch(err => console.error("Error clean closing qrScanner:", err));
+      try {
+        const scannerModule = await import('html5-qrcode');
+        if (!isMounted) return;
+
+        const Html5Qrcode = scannerModule.Html5Qrcode as unknown as Html5QrcodeConstructor;
+        qrScanner = new Html5Qrcode('reader-element');
+
+        await qrScanner.start(
+          { facingMode: cameraMode === 'back' ? 'environment' : 'user' },
+          {
+            fps: 15,
+            qrbox: (width: number, height: number) => {
+              const boxSize = Math.min(width, height) * 0.72;
+              return { width: Math.floor(boxSize), height: Math.floor(boxSize) };
+            }
+          },
+          (decodedText) => {
+            if (isMounted && !isScanActive && !scannedResult) {
+              handleQrScanned(decodedText);
+            }
+          },
+          () => {
+            // silent scanning tick
           }
+        );
+      } catch (error) {
+        console.error('html5-qrcode startup failure:', error);
+        if (isMounted) {
+          setCameraError('La cámara no está disponible. Para escanear, por favor abre la app con HTTPS o en una nueva pestaña del navegador.');
+          setIsWebcamActive(false);
         }
-      };
+      }
+    };
+
+    if (!isWebcamActive) {
+      return undefined;
     }
+
+    const startupTimeout = setTimeout(() => {
+      void startScanner();
+    }, 350);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(startupTimeout);
+      if (qrScanner?.isScanning) {
+        qrScanner.stop().catch((stopError) => {
+          console.error('Error clean closing qrScanner:', stopError);
+        });
+      }
+    };
   }, [isWebcamActive, cameraMode]);
 
   // Execute actual database toggle and show success animation
