@@ -46,6 +46,11 @@ function isMysqlUnconfiguredMessage(payload: string) {
   return payload.toLowerCase().includes('mysql is not configured');
 }
 
+function isShiftConflictActiveMessage(payload: string) {
+  const normalized = payload.toLowerCase();
+  return normalized.includes('shift conflict:') && normalized.includes('active shift');
+}
+
 async function api(request: import('@playwright/test').APIRequestContext, path: string, options?: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; }): Promise<ApiResult> {
   const response = await request.fetch(path, {
     method: options?.method || 'GET',
@@ -109,7 +114,20 @@ test.describe('Phase 1 - business edge coverage', () => {
       expect(events.length).toBeGreaterThan(0);
       expect(staff.length).toBeGreaterThan(0);
 
-      const worker = staff.find((member: any) => member.status === 'OUT') || staff[0];
+      const shiftsSnapshotRes = await api(request, '/api/mysql/shifts');
+      expect(shiftsSnapshotRes.status).toBe(200);
+      const shiftsSnapshot = Array.isArray(shiftsSnapshotRes.json) ? shiftsSnapshotRes.json : [];
+      const workersWithActiveShift = new Set(
+        shiftsSnapshot
+          .filter((shift: any) => shift.status === 'Active')
+          .map((shift: any) => shift.workerId)
+      );
+
+      const worker =
+        staff.find((member: any) => member.status === 'OUT' && !workersWithActiveShift.has(member.id)) ||
+        staff.find((member: any) => !workersWithActiveShift.has(member.id)) ||
+        staff.find((member: any) => member.status === 'OUT') ||
+        staff[0];
       const orderedEvents = events.slice().sort((a: any, b: any) => {
         const aTs = parseEventDate(a)?.getTime() ?? Number.POSITIVE_INFINITY;
         const bTs = parseEventDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -144,6 +162,10 @@ test.describe('Phase 1 - business edge coverage', () => {
 
         if (attempt.status === 400 && isFutureGuardMessage(guardPayload)) {
           futureEvent = futureEvent || event;
+          continue;
+        }
+
+        if (attempt.status === 409 && isShiftConflictActiveMessage(guardPayload)) {
           continue;
         }
 
@@ -192,6 +214,10 @@ test.describe('Phase 1 - business edge coverage', () => {
           if (probe.status === 400 && isFutureGuardMessage(guardPayload)) {
             futureEvent = event;
             break;
+          }
+
+          if (probe.status === 409 && isShiftConflictActiveMessage(guardPayload)) {
+            continue;
           }
 
           if (probe.status === 201 && probe.json?.id) {
