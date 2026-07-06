@@ -24,3 +24,68 @@ jobs:
     with:
       publish_public_frontend: 'false'
     secrets: inherit
+
+  notify_failure:
+    name: Notify dual-mode validation failure
+    runs-on: ubuntu-latest
+    needs:
+      - deploy_with_frontend
+      - deploy_backend_only
+    if: ${{ always() && (needs.deploy_with_frontend.result == 'failure' || needs.deploy_backend_only.result == 'failure') }}
+    env:
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: SMTP config diagnostics
+        run: |
+          missing=()
+          [[ -z "$SMTP_HOST" ]] && missing+=("SMTP_HOST")
+          [[ -z "$SMTP_USERNAME" ]] && missing+=("SMTP_USERNAME")
+          [[ -z "$SMTP_PASSWORD" ]] && missing+=("SMTP_PASSWORD")
+          [[ -z "$SMTP_FROM" ]] && missing+=("SMTP_FROM")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::warning::Dual-mode failure email disabled. Missing secrets: ${missing[*]}"
+          else
+            echo "SMTP configuration detected (host=$SMTP_HOST, port=$SMTP_PORT)."
+          fi
+
+      - name: Notify failure by email
+        if: ${{ env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: "Dual-mode deploy validation FAILED - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Dual-mode deploy validation failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            with_frontend result: ${{ needs.deploy_with_frontend.result }}
+            backend_only result: ${{ needs.deploy_backend_only.result }}
+            Run URL: ${{ env.RUN_URL }}
+
+      - name: Notify failure webhook
+        if: ${{ env.DEPLOY_ALERT_WEBHOOK != '' }}
+        run: |
+          payload=$(printf '{"text":"Deploy dual-mode validation FAILED for %s on %s. true=%s, false=%s. Run: %s"}' \
+            "${{ github.repository }}" \
+            "${{ github.ref_name }}" \
+            "${{ needs.deploy_with_frontend.result }}" \
+            "${{ needs.deploy_backend_only.result }}" \
+            "$RUN_URL")
+
+          curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$payload"
