@@ -146,7 +146,6 @@ if [[ "$DEPLOY_PUBLIC_FRONTEND" == "true" ]]; then
     backup_dir=\"\$backup_base/inmosubastas.top_frontend_\$ts\"; \
     mkdir -p \"\$backup_dir\"; \
     cp -a \"\$dst\"/. \"\$backup_dir\"/; \
-    rm -rf \"\$dst/assets\"; \
     mkdir -p \"\$dst/assets\"; \
     cp -a \"\$src/index.html\" \"\$dst/index.html\"; \
     cp -a \"\$src/assets\"/. \"\$dst/assets\"/; \

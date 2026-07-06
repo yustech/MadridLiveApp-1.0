@@ -24,7 +24,6 @@ mkdir -p "$BACKUP_DIR"
 # Backup current live static files before replacing.
 cp -a "$DST_DIR"/. "$BACKUP_DIR"/
 
-rm -rf "$DST_DIR/assets"
 mkdir -p "$DST_DIR/assets"
 cp -a "$SRC_DIR/index.html" "$DST_DIR/index.html"
 cp -a "$SRC_DIR/assets"/. "$DST_DIR/assets"/
