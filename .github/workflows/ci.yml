@@ -28,3 +28,46 @@ jobs:
 
       - name: Build
         run: npm run build
+      - name: Bundle size guardrail (non-blocking)
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+
+          const distDir = path.join(process.cwd(), 'dist', 'assets');
+          const thresholdKB = Number(process.env.BUNDLE_WARN_THRESHOLD_KB || '260');
+
+          if (!fs.existsSync(distDir)) {
+            console.log('::warning::Bundle guardrail skipped: dist/assets not found.');
+            process.exit(0);
+          }
+
+          const files = fs.readdirSync(distDir)
+            .filter((name) => name.endsWith('.js'))
+            .map((name) => {
+              const fullPath = path.join(distDir, name);
+              const size = fs.statSync(fullPath).size;
+              return { name, sizeKB: size / 1024 };
+            })
+            .sort((a, b) => b.sizeKB - a.sizeKB);
+
+          if (files.length === 0) {
+            console.log('::warning::Bundle guardrail skipped: no JS assets found.');
+            process.exit(0);
+          }
+
+          const top = files.slice(0, 5);
+          console.log('Top 5 JS assets by size:');
+          for (const asset of top) {
+            console.log(`- ${asset.name}: ${asset.sizeKB.toFixed(2)} KB`);
+          }
+
+          const largest = files[0];
+          if (largest.sizeKB > thresholdKB) {
+            console.log(`::warning::Largest JS asset ${largest.name} is ${largest.sizeKB.toFixed(2)} KB (threshold ${thresholdKB} KB).`);
+          } else {
+            console.log(`Largest JS asset ${largest.name} is ${largest.sizeKB.toFixed(2)} KB (<= ${thresholdKB} KB threshold).`);
+          }
+          EOF
+        env:
+          BUNDLE_WARN_THRESHOLD_KB: ${{ vars.BUNDLE_WARN_THRESHOLD_KB || '260' }}
