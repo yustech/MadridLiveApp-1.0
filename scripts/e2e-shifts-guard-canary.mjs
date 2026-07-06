@@ -1,4 +1,5 @@
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://inmosubastas.top';
+const RUN_STARTED_AT_MS = Date.now();
 
 function assert(condition, message) {
   if (!condition) {
@@ -219,8 +220,10 @@ async function run() {
 
     console.log(
       JSON.stringify({
+        canary: 'shifts-guard',
         status: 'ok',
         baseUrl: BASE_URL,
+        duration_ms: Date.now() - RUN_STARTED_AT_MS,
         allowedEvent: allowedEvent.title,
         futureEvent: futureEvent.title,
         createdShiftId,
@@ -232,6 +235,12 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error(error?.message || error);
+  console.error(JSON.stringify({
+    canary: 'shifts-guard',
+    status: 'fail',
+    baseUrl: BASE_URL,
+    duration_ms: Date.now() - RUN_STARTED_AT_MS,
+    message: error?.message || String(error),
+  }));
   process.exit(1);
 });

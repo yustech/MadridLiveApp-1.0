@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://inmosubastas.top';
+const RUN_STARTED_AT_MS = Date.now();
 
 const MONTH_TO_INDEX = {
   jan: 0,
@@ -180,8 +181,10 @@ async function run() {
     assert(Boolean(paginationText), 'No se encontró texto de paginación.');
 
     console.log(JSON.stringify({
+      canary: 'history',
       status: 'ok',
       baseUrl: BASE_URL,
+      duration_ms: Date.now() - RUN_STARTED_AT_MS,
       rowCountInitial,
       rowCountRange,
       uniqueDatesAfterToday,
@@ -193,6 +196,12 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error(error.message || error);
+  console.error(JSON.stringify({
+    canary: 'history',
+    status: 'fail',
+    baseUrl: BASE_URL,
+    duration_ms: Date.now() - RUN_STARTED_AT_MS,
+    message: error?.message || String(error),
+  }));
   process.exit(1);
 });
