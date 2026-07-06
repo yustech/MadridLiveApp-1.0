@@ -1,0 +1,99 @@
+name: Active Shift Remediation
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_changes:
+        description: 'Apply deletion of duplicate Active shifts (false = dry-run only)'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: active-shift-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediation:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+      ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Run remediation dry/apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event.inputs.apply_changes }}" == "true" ]]; then
+            node scripts/remediate-active-shift-duplicates.mjs --apply 2>&1 | tee remediation-output.json
+          else
+            node scripts/remediate-active-shift-duplicates.mjs 2>&1 | tee remediation-output.json
+          fi
+
+      - name: Publish remediation summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          echo '## Active Shift Remediation' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base URL: ${BASE_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Apply changes: ${{ github.event.inputs.apply_changes }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f remediation-output.json ]]; then
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat remediation-output.json >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Notify remediation failure by email
+        if: ${{ failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: 'Active Shift Remediation FAILED - ${{ github.repository }}'
+          to: 'cyuste@gmail.com'
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Active shift remediation failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Base URL: ${{ env.BASE_URL }}
+            Apply changes: ${{ github.event.inputs.apply_changes }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify remediation failure webhook
+        if: ${{ failure() && env.DEPLOY_ALERT_WEBHOOK != '' }}
+        shell: bash
+        run: |
+          payload=$(cat <<EOF2
+          {
+            "text": "Active Shift Remediation FAILED for ${{ github.repository }} on ${{ github.ref_name }} (apply_changes=${{ github.event.inputs.apply_changes }}). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF2
+          )
+          curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$payload"

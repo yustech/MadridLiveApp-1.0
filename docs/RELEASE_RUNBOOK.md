@@ -81,3 +81,11 @@ Use this checklist when CI or canary reports shift-integrity failures.
 - Workflow: `Active Shift Watchdog` (scheduled daily 09:00 Europe/Madrid + manual dispatch).
 - Local/manual command: `npm run ops:active-shift-watchdog`.
 - Trigger expectation: any `active_shift_duplicates > 0` fails the watchdog and sends alert.
+
+6. Manual auto-remediation (optional)
+- Workflow: `Active Shift Remediation`.
+- Run first in dry mode (`apply_changes=false`) to inspect duplicate plan.
+- If duplicates are confirmed, re-run with `apply_changes=true`.
+- Local commands:
+  - `npm run ops:active-shift-remediate:dry`
+  - `npm run ops:active-shift-remediate:apply`
