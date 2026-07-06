@@ -69,11 +69,13 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Production history canary
+        if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
         run: npm run test:e2e:history:canary
 
       - name: Production shifts guard canary
+        if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
         run: npm run test:e2e:shifts:guard:canary
