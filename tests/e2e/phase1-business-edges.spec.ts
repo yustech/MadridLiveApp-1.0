@@ -95,6 +95,7 @@ async function loginWithDemo(page: import('@playwright/test').Page) {
 test.describe('Phase 1 - business edge coverage', () => {
   test('[readonly] shifts API allows current events and blocks future events', async ({ request }) => {
     const createdShiftIds: string[] = [];
+    const createdStaffIds: string[] = [];
 
     try {
       const [eventsRes, staffRes] = await Promise.all([
@@ -129,7 +130,7 @@ test.describe('Phase 1 - business edge coverage', () => {
           .map((shift: any) => shift.workerId)
       );
 
-      const worker =
+      let worker =
         staff.find((member: any) => member.status === 'OUT' && !workersWithActiveShift.has(member.id)) ||
         staff.find((member: any) => !workersWithActiveShift.has(member.id)) ||
         staff.find((member: any) => member.status === 'OUT') ||
@@ -176,6 +177,72 @@ test.describe('Phase 1 - business edge coverage', () => {
         }
 
         throw new Error(`Unexpected shift creation response for ${event.title}: status ${attempt.status} payload=${attempt.text}`);
+      }
+
+      if (!allowedEvent) {
+        const raceStaffRes = await api(request, '/api/mysql/staff', {
+          method: 'POST',
+          body: {
+            idCode: `E2E-EDGE-${Date.now()}`,
+            name: 'Edge E2E Worker',
+            role: 'Lighting',
+            roleLabel: 'Iluminacion',
+            status: 'OUT',
+            checkedInTime: '-',
+            lastSeen: 'Ahora',
+            avatar: '',
+            totalHours: 0,
+            currentShiftHours: 0,
+            currentShiftMins: 0,
+            location: 'Main Stage',
+          },
+        });
+
+        if (raceStaffRes.status !== 201 || !raceStaffRes.json?.id) {
+          test.skip(true, `No se pudo provisionar worker temporal para edge E2E (status ${raceStaffRes.status}).`);
+        }
+
+        worker = {
+          ...worker,
+          id: raceStaffRes.json.id,
+          status: 'OUT',
+        };
+        createdStaffIds.push(raceStaffRes.json.id);
+
+        for (const event of orderedEvents) {
+          const retry = await api(request, '/api/mysql/shifts', {
+            method: 'POST',
+            body: {
+              workerId: worker.id,
+              dateString: 'Hoy',
+              timespan: '00:00 - Presente',
+              durationLabel: 'Active',
+              location: `Main Stage (${event.title})`,
+              status: 'Active',
+              startedAt: new Date().toISOString(),
+            },
+          });
+
+          const retryPayload = String(retry.json?.message || retry.text || '');
+
+          if (retry.status === 201) {
+            allowedEvent = event;
+            const createdId = retry.json?.id as string | undefined;
+            if (createdId) createdShiftIds.push(createdId);
+            break;
+          }
+
+          if (retry.status === 400 && isFutureGuardMessage(retryPayload)) {
+            futureEvent = futureEvent || event;
+            continue;
+          }
+
+          if (retry.status === 409 && isShiftConflictGuardMessage(retryPayload)) {
+            continue;
+          }
+
+          throw new Error(`Unexpected retry shift creation response for ${event.title}: status ${retry.status} payload=${retry.text}`);
+        }
       }
 
       expect(allowedEvent).toBeTruthy();
@@ -252,6 +319,9 @@ test.describe('Phase 1 - business edge coverage', () => {
     } finally {
       for (const id of createdShiftIds) {
         await api(request, `/api/mysql/shifts/${id}`, { method: 'DELETE' });
+      }
+      for (const staffId of createdStaffIds) {
+        await api(request, `/api/mysql/staff/${staffId}`, { method: 'DELETE' });
       }
     }
   });
