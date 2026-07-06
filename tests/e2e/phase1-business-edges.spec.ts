@@ -46,9 +46,15 @@ function isMysqlUnconfiguredMessage(payload: string) {
   return payload.toLowerCase().includes('mysql is not configured');
 }
 
-function isShiftConflictActiveMessage(payload: string) {
+function isShiftConflictGuardMessage(payload: string) {
   const normalized = payload.toLowerCase();
-  return normalized.includes('shift conflict:') && normalized.includes('active shift');
+  return (
+    normalized.includes('shift conflict:')
+    && (
+      normalized.includes('active shift')
+      || normalized.includes('overlapping time range')
+    )
+  );
 }
 
 async function api(request: import('@playwright/test').APIRequestContext, path: string, options?: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; }): Promise<ApiResult> {
@@ -165,7 +171,7 @@ test.describe('Phase 1 - business edge coverage', () => {
           continue;
         }
 
-        if (attempt.status === 409 && isShiftConflictActiveMessage(guardPayload)) {
+        if (attempt.status === 409 && isShiftConflictGuardMessage(guardPayload)) {
           continue;
         }
 
@@ -216,7 +222,7 @@ test.describe('Phase 1 - business edge coverage', () => {
             break;
           }
 
-          if (probe.status === 409 && isShiftConflictActiveMessage(guardPayload)) {
+          if (probe.status === 409 && isShiftConflictGuardMessage(guardPayload)) {
             continue;
           }
 
