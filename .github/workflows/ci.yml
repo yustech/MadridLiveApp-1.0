@@ -104,3 +104,64 @@ jobs:
 
       - name: Run phase1 edge e2e
         run: npm run test:e2e:phase1:edges
+
+  notify_shifts_integrity_failure:
+    name: Notify shifts integrity failure
+    runs-on: ubuntu-latest
+    needs: shifts_integrity
+    if: ${{ always() && needs.shifts_integrity.result == 'failure' }}
+    env:
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: SMTP config diagnostics
+        run: |
+          missing=()
+          [[ -z "$SMTP_HOST" ]] && missing+=("SMTP_HOST")
+          [[ -z "$SMTP_USERNAME" ]] && missing+=("SMTP_USERNAME")
+          [[ -z "$SMTP_PASSWORD" ]] && missing+=("SMTP_PASSWORD")
+          [[ -z "$SMTP_FROM" ]] && missing+=("SMTP_FROM")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::warning::Email notification disabled for shifts integrity failure. Missing secrets: ${missing[*]}"
+          else
+            echo "SMTP configuration detected (host=$SMTP_HOST, port=$SMTP_PORT)."
+          fi
+
+      - name: Notify shifts integrity failure by email
+        if: ${{ env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: "CI SHIFTS INTEGRITY FAILED - ${{ github.repository }}"
+          to: "cyuste@gmail.com"
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            The non-blocking shifts integrity gate failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Run URL: ${{ env.RUN_URL }}
+
+      - name: Notify shifts integrity failure webhook
+        if: ${{ env.DEPLOY_ALERT_WEBHOOK != '' }}
+        run: |
+          payload=$(cat <<EOF2
+          {
+            "text": "CI SHIFTS INTEGRITY FAILED for ${{ github.repository }} on ${{ github.ref_name }} at ${{ github.sha }}. Run: ${RUN_URL}"
+          }
+          EOF2
+          )
+          curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$payload"
