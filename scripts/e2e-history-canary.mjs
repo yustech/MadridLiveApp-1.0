@@ -60,6 +60,64 @@ function parseDateLabel(label) {
   return Number.NaN;
 }
 
+async function openHistoryScreen(page) {
+  const historyRoot = page.locator('#shifts-history-system');
+
+  if (await historyRoot.count()) {
+    return;
+  }
+
+  const candidates = [
+    page.getByRole('button', { name: /Historial Registros/i }).first(),
+    page.getByRole('button', { name: /^Registros$/i }).first(),
+    page.getByRole('button', { name: /Historial/i }).first(),
+    page.getByRole('tab', { name: /Historial/i }).first(),
+    page.locator('aside button').filter({ hasText: /Historial|Registros/i }).first(),
+    page.locator('#bottom-navigation-dock button').filter({ hasText: /Registros/i }).first(),
+    page.locator('button, [role="tab"]').filter({ hasText: /Historial|Registros/i }).first(),
+  ];
+
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    for (const locator of candidates) {
+      if (await locator.count()) {
+        try {
+          await locator.click({ force: true, timeout: 6000 });
+          await historyRoot.waitFor({ state: 'visible', timeout: 6000 });
+          if (await page.locator('#shifts-history-system table tbody tr').count()) {
+            return;
+          }
+        } catch {
+          // Try other candidate/attempt.
+        }
+      }
+    }
+
+    // Fallback for nav implementations where history text is nested in a clickable container.
+    await page.evaluate(() => {
+      const nodes = Array.from(document.querySelectorAll('button,[role="tab"],a,div,span'));
+      const visible = nodes.filter((el) => {
+        const txt = (el.textContent || '').trim();
+        const rect = el.getBoundingClientRect();
+        return /historial registros|historial|registros/i.test(txt) && rect.width > 0 && rect.height > 0;
+      });
+      if (visible.length) {
+        visible[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+    });
+
+    try {
+      await historyRoot.waitFor({ state: 'visible', timeout: 3500 });
+      if (await page.locator('#shifts-history-system table tbody tr').count()) {
+        return;
+      }
+    } catch {
+      // Retry opening history on next attempt.
+    }
+  }
+
+  throw new Error('No se pudo abrir la pantalla Historial tras varios intentos.');
+}
+
 async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -77,9 +135,12 @@ async function run() {
       await authBtn.click();
     }
 
-    await page.waitForTimeout(1200);
-    await page.getByRole('button', { name: /Historial/i }).first().click({ force: true });
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1500);
+
+    const hasAppRoot = await page.locator('#root').count();
+    assert(hasAppRoot > 0, 'No se encontró el root de la app.');
+
+    await openHistoryScreen(page);
 
     const rowCountInitial = await page.locator('table tbody tr').count();
     assert(rowCountInitial > 0, 'Historial sin filas iniciales para validar canario.');
