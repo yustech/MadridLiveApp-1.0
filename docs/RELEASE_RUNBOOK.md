@@ -76,3 +76,8 @@ Use this checklist when CI or canary reports shift-integrity failures.
 4. If data drift is suspected in occupancy widgets
 - Compare `/api/mysql/staff` `status=="IN"` count vs unique active workers from `/api/mysql/shifts`.
 - If drift exists, run controlled reconciliation and clean duplicate active shifts before next release window.
+
+5. Daily proactive duplicate guard
+- Workflow: `Active Shift Watchdog` (scheduled daily 09:00 Europe/Madrid + manual dispatch).
+- Local/manual command: `npm run ops:active-shift-watchdog`.
+- Trigger expectation: any `active_shift_duplicates > 0` fails the watchdog and sends alert.

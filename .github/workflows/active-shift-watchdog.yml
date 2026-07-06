@@ -1,0 +1,107 @@
+name: Active Shift Watchdog
+
+on:
+  schedule:
+    # 09:00 Europe/Madrid year-round (DST-safe)
+    - cron: '0 7 * * *'
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: active-shift-watchdog
+  cancel-in-progress: true
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Gate schedule to 09:00 Europe/Madrid
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
+            echo "run_watchdog=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          madrid_time=$(TZ=Europe/Madrid date '+%H:%M')
+          if [[ "$madrid_time" == "09:00" ]]; then
+            echo "run_watchdog=true" >> "$GITHUB_OUTPUT"
+            echo "Running scheduled watchdog at Madrid local time: $madrid_time"
+          else
+            echo "run_watchdog=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping this UTC slot; Madrid local time is $madrid_time"
+          fi
+
+      - name: Run active shift watchdog
+        if: ${{ steps.gate.outputs.run_watchdog == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/active-shift-watchdog.mjs 2>&1 | tee watchdog-output.json
+
+      - name: Publish watchdog summary
+        if: ${{ always() && steps.gate.outputs.run_watchdog == 'true' }}
+        shell: bash
+        run: |
+          echo '## Active Shift Watchdog' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base URL: ${BASE_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f watchdog-output.json ]]; then
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat watchdog-output.json >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Notify watchdog failure by email
+        if: ${{ steps.gate.outputs.run_watchdog == 'true' && failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: 'Active Shift Watchdog FAILED - ${{ github.repository }}'
+          to: 'cyuste@gmail.com'
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Active shift watchdog failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Base URL: ${{ env.BASE_URL }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify watchdog failure webhook
+        if: ${{ steps.gate.outputs.run_watchdog == 'true' && failure() && env.DEPLOY_ALERT_WEBHOOK != '' }}
+        shell: bash
+        run: |
+          payload=$(cat <<EOF2
+          {
+            "text": "Active Shift Watchdog FAILED for ${{ github.repository }} on ${{ github.ref_name }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF2
+          )
+          curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$payload"

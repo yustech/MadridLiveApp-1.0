@@ -42,7 +42,8 @@
     "test:api:shifts:regression": "API_BASE_URL=${API_BASE_URL:-http://127.0.0.1:3000} node scripts/test-shifts-api-regression.mjs",
     "test:e2e:phase1": "playwright test tests/e2e/phase1-core.spec.ts",
     "test:e2e:phase1:edges": "playwright test tests/e2e/phase1-business-edges.spec.ts",
-    "test:e2e:phase1:all": "npm run test:e2e:phase1 && npm run test:e2e:phase1:edges"
+    "test:e2e:phase1:all": "npm run test:e2e:phase1 && npm run test:e2e:phase1:edges",
+    "ops:active-shift-watchdog": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/active-shift-watchdog.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
