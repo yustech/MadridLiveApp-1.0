@@ -116,11 +116,11 @@ async function run() {
         method: 'POST',
         body: {
           workerId: candidateWorker.id,
-          dateString: 'Hoy',
+          dateString: '2026-07-06T23:52:28.036Z',
           timespan: '00:00 - Presente',
-          durationLabel: 'Active',
+          durationLabel: 'In Progress',
           location: `Main Stage (${event.title})`,
-          status: 'Active',
+          status: 'active',
           startedAt: nowIso,
         },
       });
@@ -197,11 +197,11 @@ async function run() {
           method: 'POST',
           body: {
             workerId: worker.id,
-            dateString: 'Hoy',
+            dateString: '2026-07-06T23:52:28.036Z',
             timespan: '00:00 - Presente',
-            durationLabel: 'Active',
+            durationLabel: 'In Progress',
             location: `Main Stage (${event.title})`,
-            status: 'Active',
+            status: 'active',
             startedAt: new Date().toISOString(),
           },
         });
@@ -225,11 +225,11 @@ async function run() {
       method: 'POST',
       body: {
         workerId: worker.id,
-        dateString: 'Hoy',
+        dateString: '2026-07-06T23:52:28.036Z',
         timespan: '00:00 - Presente',
-        durationLabel: 'Active',
+        durationLabel: 'In Progress',
         location: `Main Stage (${futureEvent.title})`,
-        status: 'Active',
+        status: 'active',
         startedAt: new Date().toISOString(),
       },
     });

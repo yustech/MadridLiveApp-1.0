@@ -480,12 +480,29 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
 
   const b = body as any;
 
-  // workerId (required, should exist in staff table)
-  const workerIdRes = sanitizeNumber(b.workerId, "workerId", 1);
-  if (!workerIdRes.valid) {
-    errors.push(...workerIdRes.errors);
+  // workerId (required, should exist in staff table, can be number or "usr_XXX" format)
+  let workerId: string | number | null = null;
+  const workerIdVal = String(b.workerId || '').trim();
+  
+  if (workerIdVal.startsWith('usr_')) {
+    // Keep the full "usr_102" format
+    workerId = workerIdVal;
+  } else if (workerIdVal.match(/^\d+$/)) {
+    // Pure numeric ID - convert to number and ensure >= 1
+    const asNum = Number(workerIdVal);
+    if (asNum >= 1) {
+      workerId = asNum;
+    }
+  }
+  
+  if (workerId === null) {
+    errors.push({
+      field: "workerId",
+      message: "Expected a number >= 1 or string like 'usr_102'",
+      value: b.workerId,
+    });
   } else {
-    sanitized.workerId = workerIdRes.sanitized;
+    sanitized.workerId = workerId;
   }
 
   // dateString (required, ISO date)
@@ -523,7 +540,7 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
     sanitized.location = locationRes.sanitized;
   }
 
-  // status (required)
+  // status (required, case-insensitive)
   const statusRes = sanitizeStatus(b.status, "status", ["active", "completed", "cancelled"]);
   if (!statusRes.valid) {
     errors.push(...statusRes.errors);
@@ -539,15 +556,19 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
     sanitized.startedAt = startedRes.sanitized;
   }
 
-  // endedAt (required, ISO datetime)
-  const endedRes = sanitizeDateTime(b.endedAt, "endedAt");
-  if (!endedRes.valid) {
-    errors.push(...endedRes.errors);
+  // endedAt (optional, ISO datetime; can be null for ongoing shifts)
+  if (b.endedAt !== undefined && b.endedAt !== null) {
+    const endedRes = sanitizeDateTime(b.endedAt, "endedAt");
+    if (!endedRes.valid) {
+      errors.push(...endedRes.errors);
+    } else {
+      sanitized.endedAt = endedRes.sanitized;
+    }
   } else {
-    sanitized.endedAt = endedRes.sanitized;
+    sanitized.endedAt = null;
   }
 
-  // Cross-field validation: endedAt > startedAt
+  // Cross-field validation: if endedAt is provided, it must be > startedAt
   if (sanitized.startedAt && sanitized.endedAt) {
     const startTime = new Date(sanitized.startedAt).getTime();
     const endTime = new Date(sanitized.endedAt).getTime();

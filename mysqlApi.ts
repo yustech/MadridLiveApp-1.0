@@ -298,7 +298,7 @@ async function ensureWorkerShiftTimeIntegrity(
   const workerIdStr = String(workerId || '').trim();
   if (!workerIdStr) return;
 
-  const isActivating = status === 'Active';
+  const isActivating = String(status || '').toLowerCase() === 'active';
   const startedAtMysql = startedAt === undefined ? null : toMysqlDateTimeValue(startedAt);
   const endedAtMysql = endedAt === undefined ? null : toMysqlDateTimeValue(endedAt);
   const excludedId = excludeShiftId || '__NO_EXCLUDED_SHIFT__';

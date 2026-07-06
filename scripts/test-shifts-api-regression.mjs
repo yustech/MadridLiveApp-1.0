@@ -122,11 +122,11 @@ async function run() {
           method: 'POST',
           body: {
             workerId: candidateWorker.id,
-            dateString: 'Hoy',
+            dateString: '2026-07-06T23:52:28.041Z',
             timespan: '00:00 - Presente',
-            durationLabel: 'Active',
+            durationLabel: 'In Progress',
             location: `Main Stage (${event.title})`,
-            status: 'Active',
+            status: 'active',
             startedAt: new Date().toISOString(),
           },
         });
@@ -177,11 +177,11 @@ async function run() {
       method: 'POST',
       body: {
         workerId: worker.id,
-        dateString: 'Hoy',
+        dateString: '2026-07-06T23:52:28.041Z',
         timespan: '00:01 - Presente',
-        durationLabel: 'Active',
+        durationLabel: 'In Progress',
         location: `Main Stage (${allowedEvent.title})`,
-        status: 'Active',
+        status: 'active',
         startedAt: new Date().toISOString(),
       },
     });
@@ -221,7 +221,7 @@ async function run() {
       method: 'POST',
       body: {
         workerId: worker.id,
-        dateString: 'Hoy',
+        dateString: '2026-07-06T23:52:28.041Z',
         timespan: '00:30 - 00:40',
         durationLabel: '0.17h',
         location: `Main Stage (${allowedEvent.title})`,
@@ -248,7 +248,7 @@ async function run() {
       method: 'POST',
       body: {
         workerId: worker.id,
-        dateString: 'Hoy',
+        dateString: '2026-07-06T23:52:28.041Z',
         timespan: '00:31 - 00:32',
         durationLabel: '0.02h',
         location: `Main Stage (${allowedEvent.title})`,
@@ -279,7 +279,7 @@ async function run() {
       method: 'POST',
       body: {
         workerId: worker.id,
-        dateString: 'Hoy',
+        dateString: '2026-07-06T23:52:28.041Z',
         timespan: '00:40 - 00:42',
         durationLabel: '0.03h',
         location: `Main Stage (${allowedEvent.title})`,
@@ -307,11 +307,11 @@ async function run() {
           method: 'POST',
           body: {
             workerId: worker.id,
-            dateString: 'Hoy',
+            dateString: '2026-07-06T23:52:28.041Z',
             timespan: '00:00 - Presente',
-            durationLabel: 'Active',
+            durationLabel: 'In Progress',
             location: `Main Stage (${event.title})`,
-            status: 'Active',
+            status: 'active',
             startedAt: new Date().toISOString(),
           },
         });
@@ -335,11 +335,11 @@ async function run() {
       method: 'POST',
       body: {
         workerId: worker.id,
-        dateString: 'Hoy',
+        dateString: '2026-07-06T23:52:28.041Z',
         timespan: '00:00 - Presente',
-        durationLabel: 'Active',
+        durationLabel: 'In Progress',
         location: `Main Stage (${futureEvent.title})`,
-        status: 'Active',
+        status: 'active',
         startedAt: new Date().toISOString(),
       },
     });
@@ -380,11 +380,11 @@ async function run() {
     const raceStartedAt = new Date().toISOString();
     const racePayload = {
       workerId: raceWorkerId,
-      dateString: 'Hoy',
+      dateString: '2026-07-06T23:52:28.041Z',
       timespan: '00:10 - Presente',
-      durationLabel: 'Active',
+      durationLabel: 'In Progress',
       location: `Main Stage (${allowedEvent.title})`,
-      status: 'Active',
+      status: 'active',
       startedAt: raceStartedAt,
     };
 

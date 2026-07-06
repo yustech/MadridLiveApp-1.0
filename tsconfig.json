@@ -26,5 +26,23 @@
       "vite/client",
       "node"
     ]
-  }
+  },
+  "include": [
+    "src",
+    "tests",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    "*.mjs",
+    "*.cjs"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "deploy_backups_local",
+    "deploy_backups_local/**",
+    "assets/.aistudio",
+    "playwright-report",
+    "test-results"
+  ]
 }
