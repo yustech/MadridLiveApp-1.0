@@ -1,0 +1,127 @@
+name: Ops Weekly Integrity Report
+
+on:
+  schedule:
+    # 09:15 Europe/Madrid year-round (DST-safe)
+    - cron: '15 7 * * 1'
+    - cron: '15 8 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ops-weekly-integrity-report
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Gate schedule to 09:15 Europe/Madrid
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
+            echo "run_report=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          madrid_time=$(TZ=Europe/Madrid date '+%H:%M')
+          if [[ "$madrid_time" == "09:15" ]]; then
+            echo "run_report=true" >> "$GITHUB_OUTPUT"
+            echo "Running scheduled report at Madrid local time: $madrid_time"
+          else
+            echo "run_report=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping this UTC slot; Madrid local time is $madrid_time"
+          fi
+
+      - name: Generate weekly integrity report
+        if: ${{ steps.gate.outputs.run_report == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ops-weekly-integrity-report.mjs 2>&1 | tee weekly-integrity-report.json
+
+      - name: Enforce weekly KPI thresholds
+        if: ${{ steps.gate.outputs.run_report == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const raw = fs.readFileSync('weekly-integrity-report.json', 'utf8').trim();
+          const report = JSON.parse(raw);
+          const duplicates = Number(report?.metrics?.active_shift_duplicates || 0);
+          const drift = Number(report?.metrics?.occupancy_drift_vs_unique_active || 0);
+
+          if (duplicates > 0 || drift !== 0) {
+            console.error(`Weekly integrity KPI out of bounds: duplicates=${duplicates}, drift=${drift}`);
+            process.exit(1);
+          }
+
+          console.log(`Weekly integrity KPI OK: duplicates=${duplicates}, drift=${drift}`);
+          NODE
+
+      - name: Publish weekly summary
+        if: ${{ always() && steps.gate.outputs.run_report == 'true' }}
+        shell: bash
+        run: |
+          echo '## Ops Weekly Integrity Report' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base URL: ${BASE_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f weekly-integrity-report.json ]]; then
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat weekly-integrity-report.json >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Notify weekly report failure by email
+        if: ${{ steps.gate.outputs.run_report == 'true' && failure() && env.SMTP_HOST != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.SMTP_FROM != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ env.SMTP_HOST }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: false
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: 'Ops Weekly Integrity Report FAILED - ${{ github.repository }}'
+          to: 'cyuste@gmail.com'
+          from: ${{ env.SMTP_FROM }}
+          body: |
+            Weekly integrity report detected KPI drift or failed.
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Base URL: ${{ env.BASE_URL }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify weekly report failure webhook
+        if: ${{ steps.gate.outputs.run_report == 'true' && failure() && env.DEPLOY_ALERT_WEBHOOK != '' }}
+        shell: bash
+        run: |
+          payload=$(cat <<EOF2
+          {
+            "text": "Ops Weekly Integrity Report FAILED for ${{ github.repository }} on ${{ github.ref_name }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF2
+          )
+          curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$payload"

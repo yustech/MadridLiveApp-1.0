@@ -45,7 +45,8 @@
     "test:e2e:phase1:all": "npm run test:e2e:phase1 && npm run test:e2e:phase1:edges",
     "ops:active-shift-watchdog": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/active-shift-watchdog.mjs",
     "ops:active-shift-remediate:dry": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/remediate-active-shift-duplicates.mjs",
-    "ops:active-shift-remediate:apply": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/remediate-active-shift-duplicates.mjs --apply"
+    "ops:active-shift-remediate:apply": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/remediate-active-shift-duplicates.mjs --apply",
+    "ops:weekly-integrity-report": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/ops-weekly-integrity-report.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

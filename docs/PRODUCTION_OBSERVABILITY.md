@@ -168,3 +168,19 @@ Operational takeaway:
 
 - Treat `publish_public_frontend=false` as backend-only mode; do not run UI Playwright canaries in this mode.
 - Avoid destructive cleanup in shared `public_html` trees unless ownership is guaranteed.
+
+## Weekly Integrity KPI Report
+
+A weekly KPI report now runs in GitHub Actions to track occupancy integrity drift.
+
+- Workflow: `Ops Weekly Integrity Report`
+- Schedule: every Monday at 09:15 Europe/Madrid (DST-safe gate)
+- Manual run: `workflow_dispatch`
+- Local command: `npm run ops:weekly-integrity-report`
+
+KPI thresholds (enforced in workflow):
+
+- `active_shift_duplicates` must be `0`
+- `occupancy_drift_vs_unique_active` must be `0`
+
+Any threshold breach marks the run as failed and triggers configured email/webhook notifications.
