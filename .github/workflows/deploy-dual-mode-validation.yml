@@ -1,0 +1,26 @@
+name: Deploy Dual-Mode Validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * *'
+
+concurrency:
+  group: deploy-dual-mode-validation
+  cancel-in-progress: false
+
+jobs:
+  deploy_with_frontend:
+    name: Deploy (publish_public_frontend=true)
+    uses: ./.github/workflows/deploy.yml
+    with:
+      publish_public_frontend: 'true'
+    secrets: inherit
+
+  deploy_backend_only:
+    name: Deploy (publish_public_frontend=false)
+    needs: deploy_with_frontend
+    uses: ./.github/workflows/deploy.yml
+    with:
+      publish_public_frontend: 'false'
+    secrets: inherit

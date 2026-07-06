@@ -144,3 +144,27 @@ Post-check:
 ```bash
 sudo systemctl show madridlive-app.service -p MemoryCurrent -p MemoryHigh -p MemoryMax -p MemorySwapMax -p DropInPaths
 ```
+
+## Deploy Incident Closure 2026-07-06
+
+Summary of production deploy instability and final remediation:
+
+- Root cause 1: UI canaries were still running when `publish_public_frontend=false`, but public `index.html` could point to non-published hashed assets, causing blank page and selector timeouts.
+- Root cause 2: Frontend publish path removed `public_html/assets` (`rm -rf`) and failed in some hosts due to ownership/permission mismatch.
+- Root cause 3: `e2e-shifts-guard-canary` used date assumptions that were sensitive to runtime day-boundary/timezone and event catalog composition.
+
+Fixes applied:
+
+- Deploy workflow gates UI canaries behind `inputs.publish_public_frontend == 'true'`.
+- Frontend publish uses additive copy (`mkdir -p` + `cp -a`) and no longer deletes `assets`.
+- Shifts guard canary now discovers allowed/future events by API behavior (`201` vs `400 future event`) and tolerates environments without canonical timestamp fields.
+
+Validation runs:
+
+- Deploy success (`publish_public_frontend=true`): https://github.com/yustech/MadridLiveApp-1.0/actions/runs/28764537338
+- Deploy success (`publish_public_frontend=false`): https://github.com/yustech/MadridLiveApp-1.0/actions/runs/28764609900
+
+Operational takeaway:
+
+- Treat `publish_public_frontend=false` as backend-only mode; do not run UI Playwright canaries in this mode.
+- Avoid destructive cleanup in shared `public_html` trees unless ownership is guaranteed.

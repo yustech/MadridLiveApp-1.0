@@ -21,3 +21,16 @@ Migrar datos de Firestore a MySQL sin downtime, manteniendo rollback inmediato.
 
 ## Nota
 La app sigue usando Firestore hasta completar fase de doble escritura/corte final.
+
+## Post-Migration Deploy Notes (2026-07-06)
+
+Observed during production deploy verification:
+
+- Backend-only deploy mode (`publish_public_frontend=false`) must skip frontend/UI canaries.
+- Static frontend publication to `public_html` should be non-destructive to avoid permission issues.
+- Shift-guard checks should validate business outcomes from API responses, not fixed date assumptions.
+
+Reference validations:
+
+- Frontend publish mode success: https://github.com/yustech/MadridLiveApp-1.0/actions/runs/28764537338
+- Backend-only mode success: https://github.com/yustech/MadridLiveApp-1.0/actions/runs/28764609900

@@ -11,6 +11,13 @@ on:
         options:
           - "true"
           - "false"
+  workflow_call:
+    inputs:
+      publish_public_frontend:
+        description: "Publish static frontend to public_html after backend deploy"
+        required: false
+        default: "true"
+        type: string
 
 concurrency:
   group: production-deploy
