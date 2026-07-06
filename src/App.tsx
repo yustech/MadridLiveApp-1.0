@@ -310,6 +310,79 @@ export default function App() {
     setActiveScreen('profile');
   };
 
+  const renderActiveScreenFallback = () => {
+    const loadingMeta: Record<'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis', {
+      title: string;
+      subtitle: string;
+      icon: typeof Calendar;
+    }> = {
+      dashboard: {
+        title: 'Eventos y Control',
+        subtitle: 'Sincronizando agenda y alertas en directo...',
+        icon: Calendar,
+      },
+      scanner: {
+        title: 'Lector QR',
+        subtitle: 'Inicializando camaras y validadores de acceso...',
+        icon: QrCode,
+      },
+      staff: {
+        title: 'Plantilla',
+        subtitle: 'Cargando roster operativo y estados de personal...',
+        icon: Users,
+      },
+      profile: {
+        title: 'Perfil Especialista',
+        subtitle: 'Recuperando historial individual y credencial QR...',
+        icon: Users,
+      },
+      shifts: {
+        title: 'Historial de Registros',
+        subtitle: 'Compilando entradas, salidas y filtros de turno...',
+        icon: History,
+      },
+      kpis: {
+        title: 'KPIs y Estadisticas',
+        subtitle: 'Procesando metricas de cobertura y tendencia...',
+        icon: TrendingUp,
+      },
+    };
+
+    const activeMeta = loadingMeta[activeScreen];
+    const ActiveIcon = activeMeta.icon;
+
+    return (
+      <div className="w-full min-h-[300px] rounded-3xl border border-white/10 bg-white/5 backdrop-blur-lg p-6 md:p-8 relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-56 h-56 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 w-44 h-44 rounded-full bg-cyan-500/10 blur-3xl" />
+
+        <div className="relative z-10 space-y-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-400/30 bg-indigo-500/10 text-indigo-200">
+            <ActiveIcon className="w-3.5 h-3.5 animate-pulse" />
+            <span className="text-[10px] font-mono uppercase tracking-[0.18em]">
+              Cargando vista
+            </span>
+          </div>
+
+          <div>
+            <h3 className="text-xl md:text-2xl font-display font-black tracking-tight text-[#dbfcff]">
+              {activeMeta.title}
+            </h3>
+            <p className="mt-1 text-xs md:text-sm text-white/60 font-mono">
+              {activeMeta.subtitle}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="h-14 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+            <div className="h-14 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+            <div className="h-14 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="w-full min-h-screen bg-[#0A051A] text-[#e2e2e8] flex items-center justify-center font-sans relative overflow-hidden px-4 py-8">
@@ -637,13 +710,7 @@ export default function App() {
         {/* RENDERED ACTIVE VIEW CANVASES WITH FLUID VIEWPORTS */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-32 md:pb-12 overflow-y-auto">
           <Suspense
-            fallback={
-              <div className="w-full min-h-[280px] flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 backdrop-blur-lg">
-                <div className="text-[11px] font-mono uppercase tracking-wider text-white/65 animate-pulse">
-                  Cargando modulo...
-                </div>
-              </div>
-            }
+            fallback={renderActiveScreenFallback()}
           >
             {activeScreen === 'dashboard' && (
               <DashboardScreen
