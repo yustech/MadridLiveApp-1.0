@@ -1,7 +1,7 @@
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from './types';
 import { INITIAL_EVENTS, INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_ALERTS } from './data';
 
-const MYSQL_API_BASE = '/api/mysql';
+const MYSQL_API_BASE = import.meta.env.VITE_MYSQL_API_BASE || '/api/mysql';
 const POLL_MS = 3000;
 const DEFAULT_STAFF_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
 
