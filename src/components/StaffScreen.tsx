@@ -133,8 +133,6 @@ export default function StaffScreen({
   });
 
   const checkedInCount = staff.filter(s => s.status === 'IN').length;
-  // Let's add simulated dynamic base numbers (e.g., 141 background workers check in, matching 145 total checked in)
-  const totalInDisplayCount = checkedInCount + 138;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -179,13 +177,13 @@ export default function StaffScreen({
             Plantilla de Personal
           </h2>
           <p className="text-xs font-mono text-white/50 mt-1">
-            200 Personal Registrado
+            {staff.length} Personal Registrado
           </p>
         </div>
         <div>
           <span className="bg-emerald-400/10 text-emerald-300 px-3.5 py-1.5 rounded-full text-xs font-mono border border-emerald-400/20 flex items-center gap-1.5 font-bold">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span> 
-            {totalInDisplayCount} DENTRO
+            {checkedInCount} DENTRO
           </span>
         </div>
       </div>

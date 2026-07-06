@@ -420,21 +420,27 @@ export function registerMysqlApi(app: express.Express) {
       const db = getPool();
       const [rows] = await db.query(`
         SELECT
-          id,
-          id_code AS idCode,
-          name,
-          role,
-          role_label AS roleLabel,
-          status,
-          checked_in_time AS checkedInTime,
-          last_seen AS lastSeen,
-          avatar,
-          CAST(total_hours AS DOUBLE) AS totalHours,
-          current_shift_hours AS currentShiftHours,
-          current_shift_mins AS currentShiftMins,
-          location
-        FROM staff
-        ORDER BY name ASC
+          st.id,
+          st.id_code AS idCode,
+          st.name,
+          st.role,
+          st.role_label AS roleLabel,
+          CASE WHEN active.worker_id IS NOT NULL THEN 'IN' ELSE 'OUT' END AS status,
+          CASE WHEN active.worker_id IS NOT NULL THEN st.checked_in_time ELSE '' END AS checkedInTime,
+          st.last_seen AS lastSeen,
+          st.avatar,
+          CAST(st.total_hours AS DOUBLE) AS totalHours,
+          CASE WHEN active.worker_id IS NOT NULL THEN st.current_shift_hours ELSE 0 END AS currentShiftHours,
+          CASE WHEN active.worker_id IS NOT NULL THEN st.current_shift_mins ELSE 0 END AS currentShiftMins,
+          st.location
+        FROM staff st
+        LEFT JOIN (
+          SELECT worker_id
+          FROM shifts
+          WHERE status = 'Active'
+          GROUP BY worker_id
+        ) active ON active.worker_id = st.id
+        ORDER BY st.name ASC
       `);
       return res.json(rows);
     } catch (error: any) {
