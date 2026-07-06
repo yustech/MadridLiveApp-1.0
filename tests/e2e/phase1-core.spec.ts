@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+function isMysqlUnconfiguredMessage(payload: string) {
+  return payload.toLowerCase().includes('mysql is not configured');
+}
+
 async function loginWithDemo(page: import('@playwright/test').Page) {
   await page.goto('/');
 
@@ -39,7 +43,16 @@ test.describe('Phase 1 - core functional flows', () => {
     await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();
   });
 
-  test('[readonly] opens profile from header avatar and returns to staff', async ({ page }) => {
+  test('[readonly] opens profile from header avatar and returns to staff', async ({ page, request }) => {
+    const staffResponse = await request.get('/api/mysql/staff');
+    const staffJson = await staffResponse.json().catch(() => null);
+    const staffPayload = String((staffJson as { message?: string; error?: string } | null)?.message || (staffJson as { message?: string; error?: string } | null)?.error || '');
+
+    test.skip(
+      staffResponse.status() === 500 && isMysqlUnconfiguredMessage(staffPayload),
+      'MySQL is not configured in this runner; skipping profile-navigation check that depends on roster data.'
+    );
+
     await loginWithDemo(page);
 
     await page.getByTitle(/Ver perfil de Javier Rodríguez/i).click();

@@ -42,6 +42,10 @@ function isFutureGuardMessage(payload: string) {
   return payload.toLowerCase().includes('future event');
 }
 
+function isMysqlUnconfiguredMessage(payload: string) {
+  return payload.toLowerCase().includes('mysql is not configured');
+}
+
 async function api(request: import('@playwright/test').APIRequestContext, path: string, options?: { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; }): Promise<ApiResult> {
   const response = await request.fetch(path, {
     method: options?.method || 'GET',
@@ -86,6 +90,15 @@ test.describe('Phase 1 - business edge coverage', () => {
         api(request, '/api/mysql/events'),
         api(request, '/api/mysql/staff'),
       ]);
+
+      const eventsPayload = String(eventsRes.json?.message || eventsRes.json?.error || eventsRes.text || '');
+      const staffPayload = String(staffRes.json?.message || staffRes.json?.error || staffRes.text || '');
+
+      test.skip(
+        (eventsRes.status === 500 && isMysqlUnconfiguredMessage(eventsPayload)) ||
+          (staffRes.status === 500 && isMysqlUnconfiguredMessage(staffPayload)),
+        'MySQL is not configured in this runner; skipping data-dependent shift guard checks.'
+      );
 
       expect(eventsRes.status).toBe(200);
       expect(staffRes.status).toBe(200);
