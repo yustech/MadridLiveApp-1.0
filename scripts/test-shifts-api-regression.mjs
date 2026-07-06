@@ -72,6 +72,7 @@ function toIsoAtOffset(baseValue, offsetMs) {
 async function run() {
   const startedAtMs = Date.now();
   const createdShiftIds = [];
+  const createdStaffIds = [];
 
   try {
     const [eventsRes, staffRes, shiftsRes] = await Promise.all([
@@ -113,6 +114,7 @@ async function run() {
     let duplicateActiveBlocked = false;
     let overlapRangeBlocked = false;
     let contiguousRangeAllowed = false;
+    let concurrentStartRaceGuarded = false;
 
     for (const candidateWorker of candidateWorkers) {
       for (const event of orderedEvents) {
@@ -146,7 +148,13 @@ async function run() {
           continue;
         }
 
-        if (createAttempt.status === 409 && guardMsg.toLowerCase().includes('active shift')) {
+        if (
+          createAttempt.status === 409
+          && (
+            guardMsg.toLowerCase().includes('active shift')
+            || guardMsg.toLowerCase().includes('overlapping time range')
+          )
+        ) {
           break;
         }
 
@@ -342,6 +350,65 @@ async function run() {
       `Mensaje de bloqueo inesperado para evento futuro: ${futureRes.text}`,
     );
 
+    // Validate concurrent starts with a dedicated worker: exactly one request should win, the other must be blocked.
+    const raceStaffRes = await api('/api/mysql/staff', {
+      method: 'POST',
+      body: {
+        idCode: `RACE-${Date.now()}`,
+        name: 'Shift Race Probe',
+        role: 'Lighting',
+        roleLabel: 'Iluminacion',
+        status: 'OUT',
+        checkedInTime: '-',
+        lastSeen: 'Ahora',
+        avatar: '',
+        totalHours: 0,
+        currentShiftHours: 0,
+        currentShiftMins: 0,
+        location: 'Main Stage',
+      },
+    });
+
+    assert(
+      raceStaffRes.status === 201 && raceStaffRes.json?.id,
+      `No se pudo crear worker temporal para carrera concurrente (${raceStaffRes.status}): ${raceStaffRes.text}`,
+    );
+
+    const raceWorkerId = raceStaffRes.json.id;
+    createdStaffIds.push(raceWorkerId);
+
+    const raceStartedAt = new Date().toISOString();
+    const racePayload = {
+      workerId: raceWorkerId,
+      dateString: 'Hoy',
+      timespan: '00:10 - Presente',
+      durationLabel: 'Active',
+      location: `Main Stage (${allowedEvent.title})`,
+      status: 'Active',
+      startedAt: raceStartedAt,
+    };
+
+    const [raceA, raceB] = await Promise.all([
+      api('/api/mysql/shifts', { method: 'POST', body: racePayload }),
+      api('/api/mysql/shifts', { method: 'POST', body: racePayload }),
+    ]);
+
+    const raceStatuses = [raceA.status, raceB.status];
+    const successCount = raceStatuses.filter((status) => status === 201).length;
+    const conflictCount = raceStatuses.filter((status) => status === 409).length;
+    concurrentStartRaceGuarded = successCount === 1 && conflictCount === 1;
+
+    assert(
+      concurrentStartRaceGuarded,
+      `Carrera de alta concurrente debería devolver [201,409] y devolvió [${raceStatuses.join(',')}].`,
+    );
+
+    for (const raceRes of [raceA, raceB]) {
+      if (raceRes.status === 201 && raceRes.json?.id) {
+        createdShiftIds.push(raceRes.json.id);
+      }
+    }
+
     const durationMs = Date.now() - startedAtMs;
     console.log(JSON.stringify({
       test: 'shifts-api-regression',
@@ -368,6 +435,10 @@ async function run() {
   } finally {
     for (const shiftId of createdShiftIds) {
       await api(`/api/mysql/shifts/${shiftId}`, { method: 'DELETE' });
+    }
+
+    for (const staffId of createdStaffIds) {
+      await api(`/api/mysql/staff/${staffId}`, { method: 'DELETE' });
     }
   }
 }

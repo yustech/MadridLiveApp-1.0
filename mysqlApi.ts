@@ -705,6 +705,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/shifts`, async (req, res) => {
+    let conn: any = null;
     try {
       const body = req.body || {};
       const id = makeId("sh");
@@ -713,16 +714,22 @@ export function registerMysqlApi(app: express.Express) {
       const startedAtMysql = toMysqlDateTimeValue(body.startedAt);
       const endedAtMysql = toMysqlDateTimeValue(body.endedAt);
 
-      await ensureShiftNotLinkedToFutureEvent(db, body.status, body.location);
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+
+      // Serialize writes per worker to avoid races between integrity checks and insertions.
+      await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [body.workerId]);
+
+      await ensureShiftNotLinkedToFutureEvent(conn, body.status, body.location);
       await ensureWorkerShiftTimeIntegrity(
-        db,
+        conn,
         body.workerId,
         body.status,
         startedAtMysql,
         endedAtMysql
       );
 
-      await db.execute(
+      await conn.execute(
         `
           INSERT INTO shifts (
             id, worker_id, date_string, timespan, duration_label, location, status, started_at, ended_at
@@ -740,8 +747,17 @@ export function registerMysqlApi(app: express.Express) {
           endedAtMysql,
         ]
       );
+
+      await conn.commit();
       return res.status(201).json({ id });
     } catch (error: any) {
+      if (conn) {
+        try {
+          await conn.rollback();
+        } catch {
+          // Ignore rollback errors and keep original failure response.
+        }
+      }
       const message = error?.message || "Shift creation failed.";
       if (message.startsWith("Cannot activate shifts for future event")) {
         return res.status(400).json({ message });
@@ -750,6 +766,10 @@ export function registerMysqlApi(app: express.Express) {
         return res.status(409).json({ message });
       }
       return res.status(500).json({ message });
+    } finally {
+      if (conn) {
+        conn.release();
+      }
     }
   });
 
@@ -777,18 +797,23 @@ export function registerMysqlApi(app: express.Express) {
       return res.status(400).json({ message: "No valid fields to update." });
     }
 
+    let conn: any = null;
     try {
       const db = getPool();
+      conn = await db.getConnection();
+      await conn.beginTransaction();
 
-      const [currentRows] = await db.query(
+      const [currentRows] = await conn.query(
         `SELECT worker_id AS workerId, status, location, started_at AS startedAt, ended_at AS endedAt
            FROM shifts
            WHERE id = ?
+           FOR UPDATE
            LIMIT 1`,
         [req.params.id]
       );
       const current = currentRows?.[0];
       if (!current) {
+        await conn.rollback();
         return res.status(404).json({ message: "Shift not found." });
       }
 
@@ -798,9 +823,12 @@ export function registerMysqlApi(app: express.Express) {
       const targetStartedAt = body.startedAt === undefined ? current.startedAt : body.startedAt;
       const targetEndedAt = body.endedAt === undefined ? current.endedAt : body.endedAt;
 
-      await ensureShiftNotLinkedToFutureEvent(db, targetStatus, targetLocation);
+      // Serialize writes for destination worker while evaluating integrity constraints.
+      await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [targetWorkerId]);
+
+      await ensureShiftNotLinkedToFutureEvent(conn, targetStatus, targetLocation);
       await ensureWorkerShiftTimeIntegrity(
-        db,
+        conn,
         targetWorkerId,
         targetStatus,
         targetStartedAt,
@@ -808,9 +836,17 @@ export function registerMysqlApi(app: express.Express) {
         req.params.id
       );
 
-      await db.execute(`UPDATE shifts SET ${clause} WHERE id = ?`, [...values, req.params.id]);
+      await conn.execute(`UPDATE shifts SET ${clause} WHERE id = ?`, [...values, req.params.id]);
+      await conn.commit();
       return res.json({ success: true });
     } catch (error: any) {
+      if (conn) {
+        try {
+          await conn.rollback();
+        } catch {
+          // Ignore rollback errors and keep original failure response.
+        }
+      }
       const message = error?.message || "Shift update failed.";
       if (message.startsWith("Cannot activate shifts for future event")) {
         return res.status(400).json({ message });
@@ -819,6 +855,10 @@ export function registerMysqlApi(app: express.Express) {
         return res.status(409).json({ message });
       }
       return res.status(500).json({ message });
+    } finally {
+      if (conn) {
+        conn.release();
+      }
     }
   });
   app.delete(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
