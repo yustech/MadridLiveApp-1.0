@@ -69,21 +69,32 @@ async function api(path, options = {}) {
 }
 
 async function run() {
-  const [eventsRes, staffRes] = await Promise.all([
+  const [eventsRes, staffRes, shiftsRes] = await Promise.all([
     api('/api/mysql/events'),
     api('/api/mysql/staff'),
+    api('/api/mysql/shifts'),
   ]);
 
   assert(eventsRes.status === 200, `No se pudieron leer eventos (status ${eventsRes.status}).`);
   assert(staffRes.status === 200, `No se pudo leer staff (status ${staffRes.status}).`);
+  assert(shiftsRes.status === 200, `No se pudo leer shifts (status ${shiftsRes.status}).`);
 
   const events = Array.isArray(eventsRes.json) ? eventsRes.json : [];
   const staff = Array.isArray(staffRes.json) ? staffRes.json : [];
+  const shiftsSnapshot = Array.isArray(shiftsRes.json) ? shiftsRes.json : [];
 
   assert(events.length > 0, 'No hay eventos para ejecutar el canario de guardias.');
   assert(staff.length > 0, 'No hay staff para ejecutar el canario de guardias.');
 
-  const worker = staff.find((s) => s.status === 'OUT') || staff[0];
+  const activeWorkerIds = new Set(
+    shiftsSnapshot
+      .filter((shift) => shift.status === 'Active')
+      .map((shift) => shift.workerId),
+  );
+
+  const candidateWorkers = staff.filter((member) => !activeWorkerIds.has(member.id));
+  assert(candidateWorkers.length > 0, 'No hay trabajadores disponibles sin turno activo.');
+
   const nowIso = new Date().toISOString();
 
   const orderedEvents = events
@@ -94,44 +105,57 @@ async function run() {
       return aTs - bTs;
     });
 
+  let worker = null;
   let allowedEvent = null;
   let futureEvent = null;
   let createdShiftId = null;
 
-  for (const event of orderedEvents) {
-    const createAttempt = await api('/api/mysql/shifts', {
-      method: 'POST',
-      body: {
-        workerId: worker.id,
-        dateString: 'Hoy',
-        timespan: '00:00 - Presente',
-        durationLabel: 'Active',
-        location: `Main Stage (${event.title})`,
-        status: 'Active',
-        startedAt: nowIso,
-      },
-    });
+  for (const candidateWorker of candidateWorkers) {
+    for (const event of orderedEvents) {
+      const createAttempt = await api('/api/mysql/shifts', {
+        method: 'POST',
+        body: {
+          workerId: candidateWorker.id,
+          dateString: 'Hoy',
+          timespan: '00:00 - Presente',
+          durationLabel: 'Active',
+          location: `Main Stage (${event.title})`,
+          status: 'Active',
+          startedAt: nowIso,
+        },
+      });
 
-    const guardMsg = createAttempt.json?.message || createAttempt.text;
+      const guardMsg = String(createAttempt.json?.message || createAttempt.text || '');
 
-    if (createAttempt.status === 201) {
-      allowedEvent = event;
-      createdShiftId = createAttempt.json?.id || null;
+      if (createAttempt.status === 201) {
+        worker = candidateWorker;
+        allowedEvent = event;
+        createdShiftId = createAttempt.json?.id || null;
+        break;
+      }
+
+      if (createAttempt.status === 400 && isFutureGuardMessage(guardMsg)) {
+        if (!futureEvent) {
+          futureEvent = event;
+        }
+        continue;
+      }
+
+      if (createAttempt.status === 409 && guardMsg.toLowerCase().includes('active shift')) {
+        break;
+      }
+
+      throw new Error(
+        `Alta de turno inesperada para evento ${event.title} (status ${createAttempt.status}): ${createAttempt.text}`,
+      );
+    }
+
+    if (createdShiftId) {
       break;
     }
-
-    if (createAttempt.status === 400 && isFutureGuardMessage(guardMsg)) {
-      if (!futureEvent) {
-        futureEvent = event;
-      }
-      continue;
-    }
-
-    throw new Error(
-      `Alta de turno inesperada para evento ${event.title} (status ${createAttempt.status}): ${createAttempt.text}`,
-    );
   }
 
+  assert(worker, 'No se encontró trabajador disponible para validar alta/cierre de turno.');
   assert(allowedEvent, 'No se encontró ningún evento no-futuro para validar alta/cierre de turno.');
   assert(createdShiftId, 'No se recibió id del turno creado para evento permitido.');
 

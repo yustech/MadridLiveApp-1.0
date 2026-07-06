@@ -66,21 +66,31 @@ async function run() {
   let createdShiftId = null;
 
   try {
-    const [eventsRes, staffRes] = await Promise.all([
+    const [eventsRes, staffRes, shiftsRes] = await Promise.all([
       api('/api/mysql/events'),
       api('/api/mysql/staff'),
+      api('/api/mysql/shifts'),
     ]);
 
     assert(eventsRes.status === 200, `No se pudieron leer eventos (status ${eventsRes.status}).`);
     assert(staffRes.status === 200, `No se pudo leer staff (status ${staffRes.status}).`);
+    assert(shiftsRes.status === 200, `No se pudo leer shifts (status ${shiftsRes.status}).`);
 
     const events = Array.isArray(eventsRes.json) ? eventsRes.json : [];
     const staff = Array.isArray(staffRes.json) ? staffRes.json : [];
+    const shiftsSnapshot = Array.isArray(shiftsRes.json) ? shiftsRes.json : [];
 
     assert(events.length > 0, 'No hay eventos para ejecutar regresión de shifts API.');
     assert(staff.length > 0, 'No hay staff para ejecutar regresión de shifts API.');
 
-    const worker = staff.find((s) => s.status === 'OUT') || staff[0];
+    const activeWorkerIds = new Set(
+      shiftsSnapshot
+        .filter((shift) => shift.status === 'Active')
+        .map((shift) => shift.workerId),
+    );
+
+    const candidateWorkers = staff.filter((member) => !activeWorkerIds.has(member.id));
+
     const orderedEvents = events
       .slice()
       .sort((a, b) => {
@@ -89,42 +99,55 @@ async function run() {
         return aTs - bTs;
       });
 
+    let worker = null;
     let allowedEvent = null;
     let futureEvent = null;
     let duplicateActiveBlocked = false;
 
-    for (const event of orderedEvents) {
-      const createAttempt = await api('/api/mysql/shifts', {
-        method: 'POST',
-        body: {
-          workerId: worker.id,
-          dateString: 'Hoy',
-          timespan: '00:00 - Presente',
-          durationLabel: 'Active',
-          location: `Main Stage (${event.title})`,
-          status: 'Active',
-          startedAt: new Date().toISOString(),
-        },
-      });
+    for (const candidateWorker of candidateWorkers) {
+      for (const event of orderedEvents) {
+        const createAttempt = await api('/api/mysql/shifts', {
+          method: 'POST',
+          body: {
+            workerId: candidateWorker.id,
+            dateString: 'Hoy',
+            timespan: '00:00 - Presente',
+            durationLabel: 'Active',
+            location: `Main Stage (${event.title})`,
+            status: 'Active',
+            startedAt: new Date().toISOString(),
+          },
+        });
 
-      const guardMsg = createAttempt.json?.message || createAttempt.text;
+        const guardMsg = String(createAttempt.json?.message || createAttempt.text || '');
 
-      if (createAttempt.status === 201) {
-        allowedEvent = event;
-        createdShiftId = createAttempt.json?.id || null;
+        if (createAttempt.status === 201) {
+          worker = candidateWorker;
+          allowedEvent = event;
+          createdShiftId = createAttempt.json?.id || null;
+          break;
+        }
+
+        if (createAttempt.status === 400 && isFutureGuardMessage(guardMsg)) {
+          if (!futureEvent) futureEvent = event;
+          continue;
+        }
+
+        if (createAttempt.status === 409 && guardMsg.toLowerCase().includes('active shift')) {
+          break;
+        }
+
+        throw new Error(
+          `Alta de turno inesperada para evento ${event.title} (status ${createAttempt.status}): ${createAttempt.text}`,
+        );
+      }
+
+      if (createdShiftId) {
         break;
       }
-
-      if (createAttempt.status === 400 && isFutureGuardMessage(guardMsg)) {
-        if (!futureEvent) futureEvent = event;
-        continue;
-      }
-
-      throw new Error(
-        `Alta de turno inesperada para evento ${event.title} (status ${createAttempt.status}): ${createAttempt.text}`,
-      );
     }
 
+    assert(worker, 'No se encontró personal disponible sin turno activo para validar.');
     assert(allowedEvent, 'No se encontró evento permitido para validar alta/cierre.');
     assert(createdShiftId, 'No se recibió id del turno creado.');
 
@@ -158,10 +181,10 @@ async function run() {
     });
     assert(closeRes.status === 200, `Cierre de turno falló (status ${closeRes.status}): ${closeRes.text}`);
 
-    const shiftsRes = await api('/api/mysql/shifts');
-    assert(shiftsRes.status === 200, `No se pudo leer shifts (status ${shiftsRes.status}).`);
+    const shiftsAfterCloseRes = await api('/api/mysql/shifts');
+    assert(shiftsAfterCloseRes.status === 200, `No se pudo leer shifts (status ${shiftsAfterCloseRes.status}).`);
 
-    const shifts = Array.isArray(shiftsRes.json) ? shiftsRes.json : [];
+    const shifts = Array.isArray(shiftsAfterCloseRes.json) ? shiftsAfterCloseRes.json : [];
     const createdShift = shifts.find((shift) => shift.id === createdShiftId);
     assert(Boolean(createdShift), 'No se encontró el turno creado al reconsultar shifts.');
 
