@@ -12,17 +12,19 @@ function required(value: string | undefined, name: string) {
   return value;
 }
 
-async function hasUpdatedAtColumn(db: any) {
+async function getMissingColumns(db: any) {
+  const requiredColumns = ['updated_at', 'started_at', 'ended_at'];
+
   const [rows] = await db.query(
-    `SELECT COUNT(*) AS cnt
+    `SELECT column_name AS columnName
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
        AND table_name = 'shifts'
-       AND column_name = 'updated_at'`
+       AND column_name IN ('updated_at', 'started_at', 'ended_at')`
   );
 
-  const count = Number((rows as Array<{ cnt: number }>)[0]?.cnt || 0);
-  return count > 0;
+  const present = new Set((rows as Array<{ columnName: string }>).map((r) => r.columnName));
+  return requiredColumns.filter((column) => !present.has(column));
 }
 
 async function main() {
@@ -43,27 +45,54 @@ async function main() {
   });
 
   try {
-    const hasColumn = await hasUpdatedAtColumn(db);
+    const missing = await getMissingColumns(db);
 
-    if (hasColumn) {
+    if (missing.length === 0) {
       console.log('schema_ok=true');
-      console.log('column=shifts.updated_at present=true');
+      console.log('columns=shifts.updated_at,shifts.started_at,shifts.ended_at present=true');
       return;
     }
 
     console.log('schema_ok=false');
-    console.log('column=shifts.updated_at present=false');
+    console.log(`missing=${missing.map((c) => `shifts.${c}`).join(',')}`);
 
     if (!apply) {
       console.log('mode=dry-run');
-      console.log('action=ALTER TABLE shifts ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+      if (missing.includes('updated_at')) {
+        console.log('action=ALTER TABLE shifts ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+      }
+      if (missing.includes('started_at')) {
+        console.log('action=ALTER TABLE shifts ADD COLUMN started_at DATETIME NULL');
+      }
+      if (missing.includes('ended_at')) {
+        console.log('action=ALTER TABLE shifts ADD COLUMN ended_at DATETIME NULL');
+      }
       return;
     }
 
-    await db.query(
-      `ALTER TABLE shifts
-       ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
-    );
+    if (missing.includes('updated_at')) {
+      await db.query(
+        `ALTER TABLE shifts
+         ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
+      );
+      console.log('migration_applied=shifts.updated_at');
+    }
+
+    if (missing.includes('started_at')) {
+      await db.query(
+        `ALTER TABLE shifts
+         ADD COLUMN started_at DATETIME NULL`
+      );
+      console.log('migration_applied=shifts.started_at');
+    }
+
+    if (missing.includes('ended_at')) {
+      await db.query(
+        `ALTER TABLE shifts
+         ADD COLUMN ended_at DATETIME NULL`
+      );
+      console.log('migration_applied=shifts.ended_at');
+    }
 
     console.log('mode=apply');
     console.log('migration_applied=true');

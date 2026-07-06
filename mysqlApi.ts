@@ -92,6 +92,8 @@ async function initSchema() {
       duration_label VARCHAR(64) NOT NULL,
       location VARCHAR(255) NOT NULL,
       status VARCHAR(32) NOT NULL,
+      started_at DATETIME NULL,
+      ended_at DATETIME NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_shifts_worker (worker_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -115,11 +117,11 @@ async function getSchemaStatus(db: any) {
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
        AND table_name IN ('shifts')
-       AND column_name IN ('updated_at')`
+       AND column_name IN ('updated_at', 'started_at', 'ended_at')`
   );
 
   const found = new Set((rows as Array<{ tableName: string; columnName: string }>).map((r) => `${r.tableName}.${r.columnName}`));
-  const required = ['shifts.updated_at'];
+  const required = ['shifts.updated_at', 'shifts.started_at', 'shifts.ended_at'];
   const missing = required.filter((key) => !found.has(key));
 
   return {
@@ -131,23 +133,54 @@ async function getSchemaStatus(db: any) {
 
 async function applySchemaMigrations(db: any) {
   const status = await getSchemaStatus(db);
+  const migrated: string[] = [];
 
-  if (!status.missing.includes('shifts.updated_at')) {
-    return { migrated: [] as string[] };
+  if (status.missing.includes('shifts.started_at')) {
+    await db.query(
+      `ALTER TABLE shifts
+       ADD COLUMN started_at DATETIME NULL`
+    );
+    migrated.push('shifts.started_at');
   }
 
-  await db.query(
-    `ALTER TABLE shifts
-     ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
-  );
+  if (status.missing.includes('shifts.ended_at')) {
+    await db.query(
+      `ALTER TABLE shifts
+       ADD COLUMN ended_at DATETIME NULL`
+    );
+    migrated.push('shifts.ended_at');
+  }
 
-  return { migrated: ['shifts.updated_at'] };
+  if (status.missing.includes('shifts.updated_at')) {
+    await db.query(
+      `ALTER TABLE shifts
+       ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
+    );
+    migrated.push('shifts.updated_at');
+  }
+
+  return { migrated };
 }
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 }
 
+function toMysqlDateTimeValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+
+  const pad = (num: number) => String(num).padStart(2, '0');
+  return (
+    String(date.getFullYear()) + '-' +
+    pad(date.getMonth() + 1) + '-' +
+    pad(date.getDate()) + ' ' +
+    pad(date.getHours()) + ':' +
+    pad(date.getMinutes()) + ':' +
+    pad(date.getSeconds())
+  );
+}
 function buildUpdateClause(payload: Record<string, unknown>, allowedFields: string[]) {
   const fields = Object.keys(payload).filter((key) => allowedFields.includes(key));
   if (fields.length === 0) {
@@ -238,7 +271,16 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, locat
     return;
   }
 
-  if (eventDate.getTime() > Date.now()) {
+  // Allow check-ins for events happening today, even if doors_open is later.
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const eventDayStart = new Date(
+    eventDate.getFullYear(),
+    eventDate.getMonth(),
+    eventDate.getDate()
+  ).getTime();
+
+  if (eventDayStart > todayStart) {
     throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth}).`);
   }
 }
@@ -566,13 +608,15 @@ export function registerMysqlApi(app: express.Express) {
           duration_label AS durationLabel,
           location,
           status,
+          started_at AS startedAt,
+          ended_at AS endedAt,
           updated_at AS updatedAt
         FROM shifts
         ORDER BY id DESC
       `);
       return res.json(rows);
     } catch (error: any) {
-      if (error?.code === "ER_BAD_FIELD_ERROR" && String(error?.message || "").includes("updated_at")) {
+      if (error?.code === "ER_BAD_FIELD_ERROR") {
         try {
           const db = getPool();
           const [rows] = await db.query(`
@@ -584,6 +628,8 @@ export function registerMysqlApi(app: express.Express) {
               duration_label AS durationLabel,
               location,
               status,
+              NULL AS startedAt,
+              NULL AS endedAt,
               NULL AS updatedAt
             FROM shifts
             ORDER BY id DESC
@@ -609,10 +655,20 @@ export function registerMysqlApi(app: express.Express) {
       await db.execute(
         `
           INSERT INTO shifts (
-            id, worker_id, date_string, timespan, duration_label, location, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, worker_id, date_string, timespan, duration_label, location, status, started_at, ended_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-        [id, body.workerId, body.dateString, body.timespan, body.durationLabel, body.location, body.status]
+        [
+          id,
+          body.workerId,
+          body.dateString,
+          body.timespan,
+          body.durationLabel,
+          body.location,
+          body.status,
+          toMysqlDateTimeValue(body.startedAt),
+          toMysqlDateTimeValue(body.endedAt),
+        ]
       );
       return res.status(201).json({ id });
     } catch (error: any) {
@@ -625,7 +681,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
-    const allowed = ["worker_id", "date_string", "timespan", "duration_label", "location", "status"];
+    const allowed = ["worker_id", "date_string", "timespan", "duration_label", "location", "status", "started_at", "ended_at"];
 
     const body = req.body || {};
     const dbPayload: Record<string, unknown> = {
@@ -635,6 +691,8 @@ export function registerMysqlApi(app: express.Express) {
       duration_label: body.durationLabel,
       location: body.location,
       status: body.status,
+      started_at: body.startedAt === undefined ? undefined : toMysqlDateTimeValue(body.startedAt),
+      ended_at: body.endedAt === undefined ? undefined : toMysqlDateTimeValue(body.endedAt),
     };
 
     Object.keys(dbPayload).forEach((key) => {
@@ -672,7 +730,6 @@ export function registerMysqlApi(app: express.Express) {
       return res.status(500).json({ message });
     }
   });
-
   app.delete(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
     try {
       const db = getPool();
