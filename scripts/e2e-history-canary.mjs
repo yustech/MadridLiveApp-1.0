@@ -2,6 +2,25 @@ import { chromium } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://inmosubastas.top';
 
+const MONTH_TO_INDEX = {
+  jan: 0,
+  ene: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  abr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  ago: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
+  dic: 11,
+};
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
@@ -22,6 +41,20 @@ function parseDateLabel(label) {
   const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) {
     return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])).getTime();
+  }
+
+  // Supports localized labels rendered by the app like "12 abr".
+  const shortMonthMatch = clean.match(/^(\d{1,2})\s+([A-Za-z]{3})$/);
+  if (shortMonthMatch) {
+    const day = Number(shortMonthMatch[1]);
+    const monthKey = shortMonthMatch[2].toLowerCase();
+    const monthIndex = MONTH_TO_INDEX[monthKey];
+
+    if (Number.isFinite(day) && monthIndex !== undefined) {
+      const now = new Date();
+      const year = now.getFullYear();
+      return new Date(year, monthIndex, day).getTime();
+    }
   }
 
   return Number.NaN;

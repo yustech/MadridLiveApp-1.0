@@ -51,6 +51,14 @@ jobs:
             echo "SKIP_E2E_STAGING=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Run staging history canary
+        if: env.SKIP_E2E_STAGING != 'true'
+        run: npm run test:e2e:history:canary
+
+      - name: Run staging shifts guard canary
+        if: env.SKIP_E2E_STAGING != 'true'
+        run: npm run test:e2e:shifts:guard:canary
+
       - name: Run staging full regression
         if: env.SKIP_E2E_STAGING != 'true'
         run: npm run test:e2e
@@ -82,7 +90,7 @@ jobs:
         if: always()
         run: |
           echo "## E2E Staging Nightly" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Scope: full" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: history canary + shifts guard canary + full" >> "$GITHUB_STEP_SUMMARY"
           echo "- Base URL: $PLAYWRIGHT_BASE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Skipped: ${SKIP_E2E_STAGING:-false}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Run ID: ${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

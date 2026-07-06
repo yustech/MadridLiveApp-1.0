@@ -3,6 +3,7 @@ set -euo pipefail
 
 SITE_URL="${SITE_URL:-https://inmosubastas.top}"
 EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-9}"
+SMOKE_CHECK_FRONTEND_BUNDLE="${SMOKE_CHECK_FRONTEND_BUNDLE:-true}"
 
 health_url="${SITE_URL%/}"
 if [[ "$health_url" == *"/api/health" ]]; then
@@ -42,24 +43,29 @@ if [[ "$schema_ok" != "true" ]]; then
   exit 1
 fi
 
-bundle_name="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL" | grep -o 'index-[A-Za-z0-9_-]*\.js' | head -n 1 || true)"
-if [[ -z "$bundle_name" ]]; then
-  echo "Could not detect served bundle"
-  exit 1
-fi
+if [[ "$SMOKE_CHECK_FRONTEND_BUNDLE" == "true" ]]; then
+  bundle_name="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL" | grep -o 'index-[A-Za-z0-9_-]*\.js' | head -n 1 || true)"
+  if [[ -z "$bundle_name" ]]; then
+    echo "Could not detect served bundle"
+    exit 1
+  fi
 
-bundle_content="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/assets/$bundle_name")"
-if [[ "$bundle_content" != *"/api/mysql"* ]]; then
-  echo "Bundle does not reference /api/mysql"
-  exit 1
-fi
-if [[ "$bundle_content" == *"firebase"* ]]; then
-  echo "Bundle still contains firebase references"
-  exit 1
+  bundle_content="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/assets/$bundle_name")"
+  if [[ "$bundle_content" != *"/api/mysql"* ]]; then
+    echo "Bundle does not reference /api/mysql"
+    exit 1
+  fi
+  if [[ "$bundle_content" == *"firebase"* ]]; then
+    echo "Bundle still contains firebase references"
+    exit 1
+  fi
+
+  echo "bundle=$bundle_name"
+else
+  echo "bundle_check=skipped"
 fi
 
 echo "smoke=ok"
 echo "health_url=$health_url"
 echo "version_url=$version_url"
 echo "staff_count=$staff_count"
-echo "bundle=$bundle_name"

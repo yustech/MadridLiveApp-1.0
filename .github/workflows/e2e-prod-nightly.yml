@@ -39,6 +39,12 @@ jobs:
             echo "PLAYWRIGHT_BASE_URL=${{ vars.PROD_URL || 'https://inmosubastas.top' }}" >> "$GITHUB_ENV"
           fi
 
+      - name: Run production history canary
+        run: npm run test:e2e:history:canary
+
+      - name: Run production shifts guard canary
+        run: npm run test:e2e:shifts:guard:canary
+
       - name: Run production readonly regression
         run: npm run test:e2e:readonly
 
@@ -64,7 +70,7 @@ jobs:
         if: always()
         run: |
           echo "## E2E Prod Nightly" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Scope: readonly" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: history canary + shifts guard canary + readonly" >> "$GITHUB_STEP_SUMMARY"
           echo "- Base URL: $PLAYWRIGHT_BASE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Run ID: ${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifacts: playwright-report-prod-${{ github.run_id }}, junit-prod-${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
