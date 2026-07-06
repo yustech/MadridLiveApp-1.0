@@ -164,6 +164,15 @@ export default function App() {
     return `Hoy, ${rest}`;
   };
 
+  const getIsoForTodayTime = (clockLabel: string) => {
+    const [hourRaw, minuteRaw] = clockLabel.split(':');
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const base = new Date();
+    base.setHours(Number.isFinite(hour) ? hour : 0, Number.isFinite(minute) ? minute : 0, 0, 0);
+    return base.toISOString();
+  };
+
   // Login handler
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
@@ -191,6 +200,7 @@ export default function App() {
   // Check worker toggle IN/OUT
   const handleToggleWorkerStatus = async (workerId: string, customLocation?: string) => {
     const nowStr = getCurrentTimeStr();
+    const nowIso = new Date().toISOString();
     const todayDateStr = getTodayDateStr();
 
     const worker = staff.find(w => w.id === workerId);
@@ -222,7 +232,8 @@ export default function App() {
           await updateShift(activeShift.id, {
             status: 'Completed',
             timespan: `${startLabel} - ${nowStr}`,
-            durationLabel: `${(activeHours + activeMins / 60).toFixed(1)}h`
+            durationLabel: `${(activeHours + activeMins / 60).toFixed(1)}h`,
+            endedAt: nowIso,
           });
         }
 
@@ -243,7 +254,8 @@ export default function App() {
         timespan: `${nowStr} - Presente`,
         durationLabel: 'Active',
         location: chosenLoc,
-        status: 'Active'
+        status: 'Active',
+        startedAt: nowIso,
       });
 
       try {
@@ -270,13 +282,15 @@ export default function App() {
     try {
       const newId = await addStaff(newCrewData);
 
+      const checkedInClock = newCrewData.checkedInTime || '14:00';
       await addShift({
         workerId: newId,
         dateString: getTodayDateStr(),
-        timespan: `${newCrewData.checkedInTime || '14:00'} - Presente`,
+        timespan: `${checkedInClock} - Presente`,
         durationLabel: 'Activo',
         location: newCrewData.location || 'Stage Left',
-        status: 'Active'
+        status: 'Active',
+        startedAt: getIsoForTodayTime(checkedInClock),
       });
     } catch (err) {
       console.error("Failed to register crew member in the API: ", err);

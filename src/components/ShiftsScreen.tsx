@@ -45,8 +45,20 @@ const MONTH_INDEX: Record<string, number> = {
   DEC: 11,
 };
 
-function parseShiftDateTime(dateString: string, timespan: string, updatedAt?: string): number {
+function extractShiftTimestampFromId(shiftId?: string): number | null {
+  if (!shiftId) return null;
+  const match = shiftId.match(/^sh_(\d{13})(?:_|$)/);
+  if (!match) return null;
+  const timestamp = Number(match[1]);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function parseShiftDateTime(dateString: string, timespan: string, updatedAt?: string, shiftId?: string, startedAt?: string): number {
   const now = new Date();
+  const canonicalStart = startedAt ? new Date(startedAt) : null;
+  if (canonicalStart && !Number.isNaN(canonicalStart.getTime())) {
+    return canonicalStart.getTime();
+  }
   const normalized = dateString.trim().toLowerCase();
   const [startHourRaw, startMinuteRaw] = timespan.split(' - ')[0]?.split(':') || ['0', '0'];
 
@@ -73,24 +85,37 @@ function parseShiftDateTime(dateString: string, timespan: string, updatedAt?: st
 
   const slashDateMatch = normalized.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
   if (slashDateMatch) {
-    const day = Number(slashDateMatch[1]);
-    const month = Number(slashDateMatch[2]) - 1;
+    const first = Number(slashDateMatch[1]);
+    const second = Number(slashDateMatch[2]);
     const rawYear = Number(slashDateMatch[3]);
     const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+
+    // Accept both dd/mm/yyyy and mm/dd/yyyy to avoid locale mismatch gaps.
+    let day = first;
+    let month = second - 1;
+    if (first <= 12 && second > 12) {
+      day = second;
+      month = first - 1;
+    }
+
     if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
       return build(year, month, day);
     }
   }
 
-  const dateMatch = dateString.match(/(\d{1,2})\s+([a-záéíóúñ]{3,9})/i);
+  const dateMatch = dateString.match(/(\d{1,2})[\s,.-]+([a-záéíóúñ]{3,9})/i);
   const parsedMonth = dateMatch ? MONTH_INDEX[dateMatch[2].slice(0, 3).toUpperCase()] : undefined;
   if (dateMatch && parsedMonth !== undefined) {
     const parsedDay = Number(dateMatch[1]);
     return build(now.getFullYear(), parsedMonth, Number.isFinite(parsedDay) ? parsedDay : now.getDate());
   }
 
-  const reference = updatedAt ? new Date(updatedAt) : now;
-  const safeReference = Number.isNaN(reference.getTime()) ? now : reference;
+  const idTimestamp = extractShiftTimestampFromId(shiftId);
+  const idReference = idTimestamp !== null ? new Date(idTimestamp) : null;
+  const updatedAtReference = updatedAt ? new Date(updatedAt) : null;
+  const safeReference = [idReference, updatedAtReference, now].find(
+    (candidate): candidate is Date => Boolean(candidate) && !Number.isNaN(candidate.getTime())
+  ) || now;
   const baseDate = new Date(
     safeReference.getFullYear(),
     safeReference.getMonth(),
@@ -121,18 +146,34 @@ function splitShiftLocation(location: string): { zone: string; eventTitle: strin
   return { zone: match[1].trim(), eventTitle: match[2].trim() };
 }
 
-function normalizeShiftDateLabel(dateString: string): string {
-  const normalized = dateString.trim().toLowerCase();
+function getDayStartTs(timestamp: number): number {
+  if (!Number.isFinite(timestamp)) return Number.NaN;
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
 
-  if (normalized.startsWith('today') || normalized.startsWith('hoy')) {
-    return 'Hoy';
+function normalizeShiftDateLabel(dateString: string, timespan = '00:00 - 00:00', updatedAt?: string, shiftId?: string, startedAt?: string): string {
+  const trimmed = dateString.trim();
+  if (!trimmed) return '';
+
+  const shiftTime = parseShiftDateTime(trimmed, timespan, updatedAt, shiftId, startedAt);
+  const shiftDayStart = getDayStartTs(shiftTime);
+  if (!Number.isFinite(shiftDayStart)) {
+    return trimmed;
   }
 
-  if (normalized.startsWith('yesterday') || normalized.startsWith('ayer')) {
-    return 'Ayer';
-  }
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
 
-  return dateString.trim();
+  if (shiftDayStart === todayStart) return 'Hoy';
+  if (shiftDayStart === yesterdayStart) return 'Ayer';
+
+  return new Date(shiftTime).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'short',
+  });
 }
 
 interface ShiftsScreenProps {
@@ -193,14 +234,14 @@ export default function ShiftsScreen({
     const datesSet = new Set<string>();
     shifts.forEach(s => {
       if (s.dateString) {
-        datesSet.add(normalizeShiftDateLabel(s.dateString));
+        datesSet.add(normalizeShiftDateLabel(s.dateString, s.timespan, s.updatedAt, s.id, s.startedAt));
       }
     });
     return Array.from(datesSet).sort((a, b) => {
-      const sampleA = shifts.find(shift => normalizeShiftDateLabel(shift.dateString) === a);
-      const sampleB = shifts.find(shift => normalizeShiftDateLabel(shift.dateString) === b);
-      const timeA = sampleA ? parseShiftDateTime(sampleA.dateString, sampleA.timespan, sampleA.updatedAt) : 0;
-      const timeB = sampleB ? parseShiftDateTime(sampleB.dateString, sampleB.timespan, sampleB.updatedAt) : 0;
+      const sampleA = shifts.find(shift => normalizeShiftDateLabel(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt) === a);
+      const sampleB = shifts.find(shift => normalizeShiftDateLabel(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt) === b);
+      const timeA = sampleA ? parseShiftDateTime(sampleA.dateString, sampleA.timespan, sampleA.updatedAt, sampleA.id, sampleA.startedAt) : 0;
+      const timeB = sampleB ? parseShiftDateTime(sampleB.dateString, sampleB.timespan, sampleB.updatedAt, sampleB.id, sampleB.startedAt) : 0;
       return timeB - timeA;
     });
   }, [shifts]);
@@ -253,9 +294,10 @@ export default function ShiftsScreen({
       }
 
       // Date filtering
-      const matchesDate = selectedDate === 'All' || normalizeShiftDateLabel(shift.dateString) === selectedDate;
+      const normalizedDateLabel = normalizeShiftDateLabel(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt);
+      const matchesDate = selectedDate === 'All' || normalizedDateLabel === selectedDate;
 
-      const shiftTime = parseShiftDateTime(shift.dateString, shift.timespan, shift.updatedAt);
+      const shiftTime = parseShiftDateTime(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt);
       const matchesCustomDateRange =
         (customDateFromTs === null || shiftTime >= customDateFromTs) &&
         (customDateToTs === null || shiftTime <= customDateToTs);
@@ -266,18 +308,23 @@ export default function ShiftsScreen({
       // Role filtering
       const matchesRole = selectedRole === 'All' || shift.workerRole === selectedRole;
 
-      // Quick time scope filtering
-      const now = Date.now();
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+        // Quick time scope filtering
+        const now = new Date();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date(now);
+        endOfToday.setHours(23, 59, 59, 999);
+        const startOfLast7d = new Date(startOfToday);
+        startOfLast7d.setDate(startOfLast7d.getDate() - 6);
 
-      const matchesTimeScope =
-        selectedTimeScope === 'All'
-          ? true
-          : selectedTimeScope === 'Today'
-            ? shiftTime >= startOfToday.getTime() && shiftTime <= now
-            : shiftTime >= sevenDaysAgo && shiftTime <= now;
+        const isInTodayRange = shiftTime >= startOfToday.getTime() && shiftTime <= endOfToday.getTime();
+
+        const matchesTimeScope =
+          selectedTimeScope === 'All'
+            ? true
+            : selectedTimeScope === 'Today'
+              ? isInTodayRange
+              : shiftTime >= startOfLast7d.getTime() && shiftTime <= endOfToday.getTime();
 
       return matchesSearch && matchesEvent && matchesDate && matchesCustomDateRange && matchesStatus && matchesRole && matchesTimeScope;
       });
@@ -289,7 +336,7 @@ export default function ShiftsScreen({
     switch (sortMode) {
       case 'Oldest':
         return copied.sort((a, b) => {
-          const timeDiff = parseShiftDateTime(a.dateString, a.timespan, a.updatedAt) - parseShiftDateTime(b.dateString, b.timespan, b.updatedAt);
+          const timeDiff = parseShiftDateTime(a.dateString, a.timespan, a.updatedAt, a.id, a.startedAt) - parseShiftDateTime(b.dateString, b.timespan, b.updatedAt, b.id, b.startedAt);
           return timeDiff !== 0 ? timeDiff : a.id.localeCompare(b.id);
         });
       case 'NameAZ':
@@ -299,7 +346,7 @@ export default function ShiftsScreen({
       case 'ActiveFirst':
         return copied.sort((a, b) => {
           if (a.status === b.status) {
-            const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt);
+            const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt, b.id, b.startedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt, a.id, a.startedAt);
             return timeDiff !== 0 ? timeDiff : b.id.localeCompare(a.id);
           }
           return a.status === 'Active' ? -1 : 1;
@@ -307,7 +354,7 @@ export default function ShiftsScreen({
       case 'Newest':
       default:
         return copied.sort((a, b) => {
-          const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt);
+          const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt, b.id, b.startedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt, a.id, a.startedAt);
           return timeDiff !== 0 ? timeDiff : b.id.localeCompare(a.id);
         });
     }
@@ -415,7 +462,7 @@ export default function ShiftsScreen({
       sh.workerIdCode,
       sh.workerName,
       sh.workerRoleLabel,
-      normalizeShiftDateLabel(sh.dateString),
+      normalizeShiftDateLabel(sh.dateString, sh.timespan, sh.updatedAt, sh.id, sh.startedAt),
       sh.timespan,
       sh.location,
       sh.durationLabel,
@@ -629,19 +676,40 @@ export default function ShiftsScreen({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-mono uppercase tracking-wider text-white/35">Rango rápido:</span>
             <button
-              onClick={() => setSelectedTimeScope('All')}
+              onClick={() => {
+                  setSelectedDate('All');
+                  setCustomDateFrom('');
+                  setCustomDateTo('');
+                  setSelectedStatus('All');
+                    setSelectedRole('All');
+                    setSelectedTimeScope('All');
+                }}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${selectedTimeScope === 'All' ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200' : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'}`}
             >
               Todo
             </button>
             <button
-              onClick={() => setSelectedTimeScope('Today')}
+              onClick={() => {
+                  setSelectedDate('All');
+                  setCustomDateFrom('');
+                  setCustomDateTo('');
+                  setSelectedStatus('All');
+                    setSelectedRole('All');
+                    setSelectedTimeScope('Today');
+                }}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${selectedTimeScope === 'Today' ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200' : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'}`}
             >
               Hoy
             </button>
             <button
-              onClick={() => setSelectedTimeScope('Last7d')}
+              onClick={() => {
+                  setSelectedDate('All');
+                  setCustomDateFrom('');
+                  setCustomDateTo('');
+                  setSelectedStatus('All');
+                    setSelectedRole('All');
+                    setSelectedTimeScope('Last7d');
+                }}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${selectedTimeScope === 'Last7d' ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200' : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'}`}
             >
               Últimos 7 días
@@ -789,7 +857,7 @@ export default function ShiftsScreen({
 
                         {/* Date Column */}
                         <td className="px-6 py-4 text-white/80 font-sans">
-                          {normalizeShiftDateLabel(shift.dateString)}
+                          {normalizeShiftDateLabel(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt)}
                         </td>
 
                         {/* Location / Event Column */}
@@ -931,7 +999,7 @@ export default function ShiftsScreen({
                     <div className="grid grid-cols-2 gap-2 text-[10px] font-mono bg-white/2 border border-white/5 p-2.5 rounded-xl">
                       <div>
                         <span className="text-white/30 block text-[8px] uppercase">Fecha</span>
-                        <span className="text-white/80">{normalizeShiftDateLabel(shift.dateString)}</span>
+                        <span className="text-white/80">{normalizeShiftDateLabel(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt)}</span>
                       </div>
                       <div>
                         <span className="text-white/30 block text-[8px] uppercase">Horario</span>
@@ -1064,7 +1132,7 @@ export default function ShiftsScreen({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Fecha</span>
-                <p className="text-white mt-1 font-semibold">{normalizeShiftDateLabel(selectedShiftDetail.dateString)}</p>
+                <p className="text-white mt-1 font-semibold">{normalizeShiftDateLabel(selectedShiftDetail.dateString, selectedShiftDetail.timespan, selectedShiftDetail.updatedAt, selectedShiftDetail.id, selectedShiftDetail.startedAt)}</p>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Horario</span>
