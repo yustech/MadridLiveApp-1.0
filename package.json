@@ -39,7 +39,8 @@
     "dev:frontend:proddata:5175": "VITE_MYSQL_API_BASE=/api/mysql VITE_DEV_PROXY_MYSQL_TARGET=https://inmosubastas.top PORT=5175 vite --strictPort",
     "dev:frontend:cleanstart": "pkill -f \"vite --port|vite --strictPort\" || true && npm run dev:frontend:5175",
     "dev:frontend:proddata:cleanstart": "pkill -f \"vite --port|vite --strictPort\" || true && npm run dev:frontend:proddata:5175",
-    "test:api:shifts:regression": "API_BASE_URL=${API_BASE_URL:-http://127.0.0.1:3000} node scripts/test-shifts-api-regression.mjs"
+    "test:api:shifts:regression": "API_BASE_URL=${API_BASE_URL:-http://127.0.0.1:3000} node scripts/test-shifts-api-regression.mjs",
+    "test:e2e:phase1": "playwright test tests/e2e/phase1-core.spec.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
