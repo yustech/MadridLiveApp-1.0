@@ -61,9 +61,17 @@ async function api(path, options = {}) {
   return { status: response.status, json, text };
 }
 
+function toIsoAtOffset(baseValue, offsetMs) {
+  const base = new Date(String(baseValue));
+  if (Number.isNaN(base.getTime())) {
+    return null;
+  }
+  return new Date(base.getTime() + offsetMs).toISOString();
+}
+
 async function run() {
   const startedAtMs = Date.now();
-  let createdShiftId = null;
+  const createdShiftIds = [];
 
   try {
     const [eventsRes, staffRes, shiftsRes] = await Promise.all([
@@ -103,6 +111,8 @@ async function run() {
     let allowedEvent = null;
     let futureEvent = null;
     let duplicateActiveBlocked = false;
+    let overlapRangeBlocked = false;
+    let contiguousRangeAllowed = false;
 
     for (const candidateWorker of candidateWorkers) {
       for (const event of orderedEvents) {
@@ -124,7 +134,10 @@ async function run() {
         if (createAttempt.status === 201) {
           worker = candidateWorker;
           allowedEvent = event;
-          createdShiftId = createAttempt.json?.id || null;
+          const createdShiftId = createAttempt.json?.id || null;
+          if (createdShiftId) {
+            createdShiftIds.push(createdShiftId);
+          }
           break;
         }
 
@@ -142,14 +155,15 @@ async function run() {
         );
       }
 
-      if (createdShiftId) {
+      if (createdShiftIds.length > 0) {
         break;
       }
     }
 
     assert(worker, 'No se encontró personal disponible sin turno activo para validar.');
     assert(allowedEvent, 'No se encontró evento permitido para validar alta/cierre.');
-    assert(createdShiftId, 'No se recibió id del turno creado.');
+    assert(createdShiftIds.length > 0, 'No se recibió id del turno creado.');
+    const createdShiftId = createdShiftIds[0];
 
     const duplicateActiveRes = await api('/api/mysql/shifts', {
       method: 'POST',
@@ -189,6 +203,93 @@ async function run() {
     assert(Boolean(createdShift), 'No se encontró el turno creado al reconsultar shifts.');
 
     const hasCanonicalTimestamps = Boolean(createdShift.startedAt) && Boolean(createdShift.endedAt);
+
+    // Validate overlap rule using a deterministic completed range window.
+    const baselineStart = toIsoAtOffset(new Date().toISOString(), 30 * 60_000);
+    const baselineEnd = toIsoAtOffset(new Date().toISOString(), 40 * 60_000);
+    assert(baselineStart && baselineEnd, 'No fue posible construir rango base para validación de solape.');
+
+    const baselineRes = await api('/api/mysql/shifts', {
+      method: 'POST',
+      body: {
+        workerId: worker.id,
+        dateString: 'Hoy',
+        timespan: '00:30 - 00:40',
+        durationLabel: '0.17h',
+        location: `Main Stage (${allowedEvent.title})`,
+        status: 'Completed',
+        startedAt: baselineStart,
+        endedAt: baselineEnd,
+      },
+    });
+
+    assert(
+      baselineRes.status === 201,
+      `No se pudo crear rango base de integridad (${baselineRes.status}): ${baselineRes.text}`,
+    );
+
+    if (baselineRes.json?.id) {
+      createdShiftIds.push(baselineRes.json.id);
+    }
+
+    const overlapStart = toIsoAtOffset(baselineStart, 60_000);
+    const overlapEnd = toIsoAtOffset(baselineStart, 120_000);
+    assert(overlapStart && overlapEnd, 'No fue posible construir rango de solape para validación.');
+
+    const overlapRes = await api('/api/mysql/shifts', {
+      method: 'POST',
+      body: {
+        workerId: worker.id,
+        dateString: 'Hoy',
+        timespan: '00:31 - 00:32',
+        durationLabel: '0.02h',
+        location: `Main Stage (${allowedEvent.title})`,
+        status: 'Completed',
+        startedAt: overlapStart,
+        endedAt: overlapEnd,
+      },
+    });
+
+    overlapRangeBlocked = overlapRes.status === 409;
+    assert(
+      overlapRangeBlocked,
+      `Solape de rango debería bloquearse con 409 y devolvió ${overlapRes.status}: ${overlapRes.text}`,
+    );
+
+    const overlapMsg = String(overlapRes.json?.message || overlapRes.text || '').toLowerCase();
+    assert(
+      overlapMsg.includes('overlapping time range'),
+      `Mensaje inesperado para bloqueo de solape: ${overlapRes.text}`,
+    );
+
+    // Validate boundary behavior: contiguous ranges are allowed.
+    const contiguousStart = baselineEnd;
+    const contiguousEnd = toIsoAtOffset(baselineEnd, 120_000);
+    assert(contiguousStart && contiguousEnd, 'No fue posible construir rango contiguo para validación.');
+
+    const contiguousRes = await api('/api/mysql/shifts', {
+      method: 'POST',
+      body: {
+        workerId: worker.id,
+        dateString: 'Hoy',
+        timespan: '00:40 - 00:42',
+        durationLabel: '0.03h',
+        location: `Main Stage (${allowedEvent.title})`,
+        status: 'Completed',
+        startedAt: contiguousStart,
+        endedAt: contiguousEnd,
+      },
+    });
+
+    contiguousRangeAllowed = contiguousRes.status === 201;
+    assert(
+      contiguousRangeAllowed,
+      `Rango contiguo debería permitirse y devolvió ${contiguousRes.status}: ${contiguousRes.text}`,
+    );
+
+    if (contiguousRes.json?.id) {
+      createdShiftIds.push(contiguousRes.json.id);
+    }
 
     if (!futureEvent) {
       for (const event of orderedEvents.slice().reverse()) {
@@ -251,6 +352,8 @@ async function run() {
       futureEvent: futureEvent.title,
       hasCanonicalTimestamps,
       duplicateActiveBlocked,
+      overlapRangeBlocked,
+      contiguousRangeAllowed,
     }));
   } catch (error) {
     const durationMs = Date.now() - startedAtMs;
@@ -263,8 +366,8 @@ async function run() {
     }));
     process.exit(1);
   } finally {
-    if (createdShiftId) {
-      await api(`/api/mysql/shifts/${createdShiftId}`, { method: 'DELETE' });
+    for (const shiftId of createdShiftIds) {
+      await api(`/api/mysql/shifts/${shiftId}`, { method: 'DELETE' });
     }
   }
 }

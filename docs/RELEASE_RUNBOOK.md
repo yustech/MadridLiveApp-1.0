@@ -55,3 +55,24 @@ Rollback immediately if any deploy mode fails and cannot be remediated within th
 
 - Workflow: `Rollback`
 - Script fallback: `npm run rollback`
+
+## Shift Integrity Triage (409)
+
+Use this checklist when CI or canary reports shift-integrity failures.
+
+1. Quick regression check
+- `API_BASE_URL=https://inmosubastas.top npm run test:api:shifts:regression`
+- Expected flags in output: `duplicateActiveBlocked=true`, `overlapRangeBlocked=true`, `contiguousRangeAllowed=true`.
+
+2. Validate active-shift uniqueness
+- `curl -s https://inmosubastas.top/api/mysql/shifts | jq '[.[] | select(.status=="Active") | .workerId] | group_by(.) | map(select(length>1)) | length'`
+- Expected: `0` (no worker with more than one active shift).
+
+3. Interpret common backend responses
+- `409 Shift conflict: worker already has an active shift.`: duplicate active protection works.
+- `409 Shift conflict: overlapping time range for worker.`: overlap protection works.
+- `400 Cannot activate shifts for future event ...`: future-event guard works.
+
+4. If data drift is suspected in occupancy widgets
+- Compare `/api/mysql/staff` `status=="IN"` count vs unique active workers from `/api/mysql/shifts`.
+- If drift exists, run controlled reconciliation and clean duplicate active shifts before next release window.
