@@ -1,0 +1,681 @@
+/**
+ * Input Validation & Sanitization Module
+ * 
+ * Provides comprehensive sanitization and schema validation for all API endpoints.
+ * All user-supplied data passes through these validators before database operations.
+ */
+
+export interface ValidationError {
+  field: string;
+  message: string;
+  value?: unknown;
+}
+
+export interface ValidationResult<T> {
+  valid: boolean;
+  errors: ValidationError[];
+  sanitized?: T;
+}
+
+/**
+ * Sanitize generic string: trim, enforce max length, block control characters
+ */
+export function sanitizeString(
+  value: unknown,
+  fieldName: string,
+  maxLength: number = 255
+): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: fieldName,
+      message: `Expected string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  let sanitized = value.trim();
+
+  if (sanitized.length === 0) {
+    errors.push({
+      field: fieldName,
+      message: "String cannot be empty after trimming",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (sanitized.length > maxLength) {
+    errors.push({
+      field: fieldName,
+      message: `String exceeds max length of ${maxLength} characters`,
+      value: sanitized.substring(0, 50) + "...",
+    });
+    return { valid: false, errors };
+  }
+
+  // Block control characters (except newline/tab for some fields)
+  if (/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g.test(sanitized)) {
+    errors.push({
+      field: fieldName,
+      message: "String contains invalid control characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Sanitize ID code: alphanumeric, dashes, underscores only; max 96 chars
+ */
+export function sanitizeIdCode(value: unknown): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: "idCode",
+      message: `Expected string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  let sanitized = value.trim();
+
+  if (sanitized.length === 0) {
+    errors.push({
+      field: "idCode",
+      message: "ID code cannot be empty",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (sanitized.length > 96) {
+    errors.push({
+      field: "idCode",
+      message: "ID code exceeds max length of 96 characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(sanitized)) {
+    errors.push({
+      field: "idCode",
+      message: "ID code must contain only letters, numbers, dashes, and underscores",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Sanitize name: letters, numbers, spaces, hyphens, apostrophes, accents; max 255
+ */
+export function sanitizeName(value: unknown): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: "name",
+      message: `Expected string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  let sanitized = value.trim();
+
+  if (sanitized.length === 0) {
+    errors.push({
+      field: "name",
+      message: "Name cannot be empty",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (sanitized.length > 255) {
+    errors.push({
+      field: "name",
+      message: "Name exceeds max length of 255 characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  // Allow letters (incl. accents), numbers, spaces, hyphens, apostrophes
+  if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-'0-9]+$/.test(sanitized)) {
+    errors.push({
+      field: "name",
+      message: "Name contains invalid characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Sanitize role: lowercase alphanumeric and underscores only; max 64
+ */
+export function sanitizeRole(value: unknown): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: "role",
+      message: `Expected string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  let sanitized = value.trim().toLowerCase();
+
+  if (sanitized.length === 0) {
+    errors.push({
+      field: "role",
+      message: "Role cannot be empty",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (sanitized.length > 64) {
+    errors.push({
+      field: "role",
+      message: "Role exceeds max length of 64 characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (!/^[a-z0-9_]+$/.test(sanitized)) {
+    errors.push({
+      field: "role",
+      message: "Role must contain only lowercase letters, numbers, and underscores",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Sanitize status: must be one of allowed values
+ */
+export function sanitizeStatus(
+  value: unknown,
+  fieldName: string = "status",
+  allowedValues: string[] = ["active", "inactive", "on_duty"]
+): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: fieldName,
+      message: `Expected string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  const sanitized = value.trim().toLowerCase();
+
+  if (!allowedValues.includes(sanitized)) {
+    errors.push({
+      field: fieldName,
+      message: `Status must be one of: ${allowedValues.join(", ")}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Sanitize location: letters, numbers, spaces, hyphens, slashes; max 128
+ */
+export function sanitizeLocation(value: unknown): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: "location",
+      message: `Expected string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  let sanitized = value.trim();
+
+  if (sanitized.length === 0) {
+    errors.push({
+      field: "location",
+      message: "Location cannot be empty",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (sanitized.length > 128) {
+    errors.push({
+      field: "location",
+      message: "Location exceeds max length of 128 characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (!/^[a-zA-Z0-9\s\-\/]+$/.test(sanitized)) {
+    errors.push({
+      field: "location",
+      message: "Location contains invalid characters",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Sanitize number: must be finite, optionally bounded
+ */
+export function sanitizeNumber(
+  value: unknown,
+  fieldName: string,
+  min?: number,
+  max?: number
+): ValidationResult<number> {
+  const errors: ValidationError[] = [];
+
+  const num = Number(value);
+
+  if (isNaN(num) || !isFinite(num)) {
+    errors.push({
+      field: fieldName,
+      message: "Expected a valid number",
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  if (min !== undefined && num < min) {
+    errors.push({
+      field: fieldName,
+      message: `Number must be at least ${min}`,
+      value: num,
+    });
+    return { valid: false, errors };
+  }
+
+  if (max !== undefined && num > max) {
+    errors.push({
+      field: fieldName,
+      message: `Number must be at most ${max}`,
+      value: num,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized: num };
+}
+
+/**
+ * Sanitize datetime: ISO 8601 format validation
+ */
+export function sanitizeDateTime(value: unknown, fieldName: string): ValidationResult<string> {
+  const errors: ValidationError[] = [];
+
+  if (typeof value !== "string") {
+    errors.push({
+      field: fieldName,
+      message: `Expected ISO 8601 string, got ${typeof value}`,
+      value,
+    });
+    return { valid: false, errors };
+  }
+
+  const sanitized = value.trim();
+
+  // Validate ISO 8601 format and parsability
+  const dateObj = new Date(sanitized);
+  if (isNaN(dateObj.getTime())) {
+    errors.push({
+      field: fieldName,
+      message: "Invalid datetime format (expected ISO 8601)",
+      value: sanitized,
+    });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors, sanitized };
+}
+
+/**
+ * Validate staff creation payload
+ */
+export function validateStaffPayload(body: unknown): ValidationResult<any> {
+  const errors: ValidationError[] = [];
+  const sanitized: any = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as any;
+
+  // idCode (required)
+  const idCodeRes = sanitizeIdCode(b.idCode);
+  if (!idCodeRes.valid) {
+    errors.push(...idCodeRes.errors);
+  } else {
+    sanitized.idCode = idCodeRes.sanitized;
+  }
+
+  // name (required)
+  const nameRes = sanitizeName(b.name);
+  if (!nameRes.valid) {
+    errors.push(...nameRes.errors);
+  } else {
+    sanitized.name = nameRes.sanitized;
+  }
+
+  // role (required)
+  const roleRes = sanitizeRole(b.role);
+  if (!roleRes.valid) {
+    errors.push(...roleRes.errors);
+  } else {
+    sanitized.role = roleRes.sanitized;
+  }
+
+  // roleLabel (required, max 128)
+  const roleLabelRes = sanitizeString(b.roleLabel, "roleLabel", 128);
+  if (!roleLabelRes.valid) {
+    errors.push(...roleLabelRes.errors);
+  } else {
+    sanitized.roleLabel = roleLabelRes.sanitized;
+  }
+
+  // status (required, enum)
+  const statusRes = sanitizeStatus(b.status, "status", ["active", "inactive"]);
+  if (!statusRes.valid) {
+    errors.push(...statusRes.errors);
+  } else {
+    sanitized.status = statusRes.sanitized;
+  }
+
+  // avatar (optional, URL, max 512, defaults to empty string)
+  if (b.avatar !== undefined) {
+    if (typeof b.avatar === "string") {
+      const avatarTrimmed = b.avatar.trim();
+      if (avatarTrimmed.length > 512) {
+        errors.push({
+          field: "avatar",
+          message: "Avatar URL exceeds max length of 512 characters",
+        });
+      } else {
+        sanitized.avatar = avatarTrimmed || "";
+      }
+    } else if (b.avatar !== null) {
+      errors.push({
+        field: "avatar",
+        message: `Expected string or null, got ${typeof b.avatar}`,
+      });
+    } else {
+      sanitized.avatar = "";
+    }
+  } else {
+    sanitized.avatar = "";
+  }
+
+  // location (required)
+  const locationRes = sanitizeLocation(b.location);
+  if (!locationRes.valid) {
+    errors.push(...locationRes.errors);
+  } else {
+    sanitized.location = locationRes.sanitized;
+  }
+
+  // Force null for system-managed fields
+  sanitized.checkedInTime = null;
+  sanitized.lastSeen = null;
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
+ * Validate shift creation payload
+ */
+export function validateShiftPayload(body: unknown): ValidationResult<any> {
+  const errors: ValidationError[] = [];
+  const sanitized: any = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as any;
+
+  // workerId (required, should exist in staff table)
+  const workerIdRes = sanitizeNumber(b.workerId, "workerId", 1);
+  if (!workerIdRes.valid) {
+    errors.push(...workerIdRes.errors);
+  } else {
+    sanitized.workerId = workerIdRes.sanitized;
+  }
+
+  // dateString (required, ISO date)
+  const dateStringRes = sanitizeDateTime(b.dateString, "dateString");
+  if (!dateStringRes.valid) {
+    errors.push(...dateStringRes.errors);
+  } else {
+    sanitized.dateString = dateStringRes.sanitized;
+  }
+
+  // timespan (required, enum-like)
+  if (typeof b.timespan !== "string" || !b.timespan.trim()) {
+    errors.push({
+      field: "timespan",
+      message: "Timespan is required",
+      value: b.timespan,
+    });
+  } else {
+    sanitized.timespan = b.timespan.trim();
+  }
+
+  // durationLabel (required, max 128)
+  const durationRes = sanitizeString(b.durationLabel, "durationLabel", 128);
+  if (!durationRes.valid) {
+    errors.push(...durationRes.errors);
+  } else {
+    sanitized.durationLabel = durationRes.sanitized;
+  }
+
+  // location (required)
+  const locationRes = sanitizeLocation(b.location);
+  if (!locationRes.valid) {
+    errors.push(...locationRes.errors);
+  } else {
+    sanitized.location = locationRes.sanitized;
+  }
+
+  // status (required)
+  const statusRes = sanitizeStatus(b.status, "status", ["active", "completed", "cancelled"]);
+  if (!statusRes.valid) {
+    errors.push(...statusRes.errors);
+  } else {
+    sanitized.status = statusRes.sanitized;
+  }
+
+  // startedAt (required, ISO datetime)
+  const startedRes = sanitizeDateTime(b.startedAt, "startedAt");
+  if (!startedRes.valid) {
+    errors.push(...startedRes.errors);
+  } else {
+    sanitized.startedAt = startedRes.sanitized;
+  }
+
+  // endedAt (required, ISO datetime)
+  const endedRes = sanitizeDateTime(b.endedAt, "endedAt");
+  if (!endedRes.valid) {
+    errors.push(...endedRes.errors);
+  } else {
+    sanitized.endedAt = endedRes.sanitized;
+  }
+
+  // Cross-field validation: endedAt > startedAt
+  if (sanitized.startedAt && sanitized.endedAt) {
+    const startTime = new Date(sanitized.startedAt).getTime();
+    const endTime = new Date(sanitized.endedAt).getTime();
+
+    if (endTime <= startTime) {
+      errors.push({
+        field: "endedAt",
+        message: "End time must be after start time",
+      });
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
+ * Validate event creation payload
+ */
+export function validateEventPayload(body: unknown): ValidationResult<any> {
+  const errors: ValidationError[] = [];
+  const sanitized: any = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as any;
+
+  // title (required, max 256)
+  const titleRes = sanitizeString(b.title, "title", 256);
+  if (!titleRes.valid) {
+    errors.push(...titleRes.errors);
+  } else {
+    sanitized.title = titleRes.sanitized;
+  }
+
+  // location (required)
+  const locationRes = sanitizeLocation(b.location);
+  if (!locationRes.valid) {
+    errors.push(...locationRes.errors);
+  } else {
+    sanitized.location = locationRes.sanitized;
+  }
+
+  // dateDay (required, 1-31)
+  const dayRes = sanitizeNumber(b.dateDay, "dateDay", 1, 31);
+  if (!dayRes.valid) {
+    errors.push(...dayRes.errors);
+  } else {
+    sanitized.dateDay = dayRes.sanitized;
+  }
+
+  // dateMonth (required, 1-12)
+  const monthRes = sanitizeNumber(b.dateMonth, "dateMonth", 1, 12);
+  if (!monthRes.valid) {
+    errors.push(...monthRes.errors);
+  } else {
+    sanitized.dateMonth = monthRes.sanitized;
+  }
+
+  // doorsOpen (required, max 64, time format)
+  const doorsRes = sanitizeString(b.doorsOpen, "doorsOpen", 64);
+  if (!doorsRes.valid) {
+    errors.push(...doorsRes.errors);
+  } else {
+    sanitized.doorsOpen = doorsRes.sanitized;
+  }
+
+  // requiredStaff (optional, 0+)
+  if (b.requiredStaff !== undefined) {
+    const reqRes = sanitizeNumber(b.requiredStaff, "requiredStaff", 0);
+    if (!reqRes.valid) {
+      errors.push(...reqRes.errors);
+    } else {
+      sanitized.requiredStaff = reqRes.sanitized;
+    }
+  }
+
+  // activeStaff (optional, 0+)
+  if (b.activeStaff !== undefined) {
+    const activeRes = sanitizeNumber(b.activeStaff, "activeStaff", 0);
+    if (!activeRes.valid) {
+      errors.push(...activeRes.errors);
+    } else {
+      sanitized.activeStaff = activeRes.sanitized;
+    }
+  }
+
+  // totalStaffNeeded (optional, 0+)
+  if (b.totalStaffNeeded !== undefined) {
+    const totalRes = sanitizeNumber(b.totalStaffNeeded, "totalStaffNeeded", 0);
+    if (!totalRes.valid) {
+      errors.push(...totalRes.errors);
+    } else {
+      sanitized.totalStaffNeeded = totalRes.sanitized;
+    }
+  }
+
+  // scanRate (optional, 0-100)
+  if (b.scanRate !== undefined) {
+    const scanRes = sanitizeNumber(b.scanRate, "scanRate", 0, 100);
+    if (!scanRes.valid) {
+      errors.push(...scanRes.errors);
+    } else {
+      sanitized.scanRate = scanRes.sanitized;
+    }
+  }
+
+  // loadInPercent (optional, 0-100)
+  if (b.loadInPercent !== undefined) {
+    const loadRes = sanitizeNumber(b.loadInPercent, "loadInPercent", 0, 100);
+    if (!loadRes.valid) {
+      errors.push(...loadRes.errors);
+    } else {
+      sanitized.loadInPercent = loadRes.sanitized;
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}

@@ -1,5 +1,6 @@
 import express from "express";
 import mysql from "mysql2/promise";
+import { validateStaffPayload, validateShiftPayload, validateEventPayload } from "./src/validators";
 
 const MYSQL_PREFIX = "/api/mysql";
 
@@ -451,6 +452,18 @@ export function registerMysqlApi(app: express.Express) {
   app.post(`${MYSQL_PREFIX}/staff`, async (req, res) => {
     try {
       const body = req.body || {};
+      
+      // Validate and sanitize input
+      const validation = validateStaffPayload(body);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "Input validation failed",
+          errors: validation.errors,
+        });
+      }
+
+      const sanitized = validation.sanitized!;
       const id = makeId("usr");
       const db = getPool();
 
@@ -463,18 +476,18 @@ export function registerMysqlApi(app: express.Express) {
         `,
         [
           id,
-          body.idCode,
-          body.name,
-          body.role,
-          body.roleLabel,
-          body.status,
-          body.checkedInTime || null,
-          body.lastSeen || null,
-          body.avatar,
-          Number(body.totalHours || 0),
-          Number(body.currentShiftHours || 0),
-          Number(body.currentShiftMins || 0),
-          body.location,
+          sanitized.idCode,
+          sanitized.name,
+          sanitized.role,
+          sanitized.roleLabel,
+          sanitized.status,
+          sanitized.checkedInTime || null,
+          sanitized.lastSeen || null,
+          sanitized.avatar,
+          Number(0),
+          Number(0),
+          Number(0),
+          sanitized.location,
         ]
       );
 
@@ -571,6 +584,18 @@ export function registerMysqlApi(app: express.Express) {
   app.post(`${MYSQL_PREFIX}/events`, async (req, res) => {
     try {
       const body = req.body || {};
+      
+      // Validate and sanitize input
+      const validation = validateEventPayload(body);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "Input validation failed",
+          errors: validation.errors,
+        });
+      }
+
+      const sanitized = validation.sanitized!;
       const id = makeId("ev");
       const db = getPool();
       await db.execute(
@@ -582,16 +607,16 @@ export function registerMysqlApi(app: express.Express) {
         `,
         [
           id,
-          body.title,
-          body.location,
-          body.dateDay,
-          body.dateMonth,
-          body.doorsOpen,
-          Number(body.requiredStaff || 0),
-          Number(body.activeStaff || 0),
-          Number(body.totalStaffNeeded || 0),
-          Number(body.scanRate || 0),
-          Number(body.loadInPercent || 0),
+          sanitized.title,
+          sanitized.location,
+          sanitized.dateDay,
+          sanitized.dateMonth,
+          sanitized.doorsOpen,
+          Number(sanitized.requiredStaff || 0),
+          Number(sanitized.activeStaff || 0),
+          Number(sanitized.totalStaffNeeded || 0),
+          Number(sanitized.scanRate || 0),
+          Number(sanitized.loadInPercent || 0),
         ]
       );
       return res.status(201).json({ id });
@@ -708,23 +733,35 @@ export function registerMysqlApi(app: express.Express) {
     let conn: any = null;
     try {
       const body = req.body || {};
+      
+      // Validate and sanitize input
+      const validation = validateShiftPayload(body);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "Input validation failed",
+          errors: validation.errors,
+        });
+      }
+
+      const sanitized = validation.sanitized!;
       const id = makeId("sh");
       const db = getPool();
 
-      const startedAtMysql = toMysqlDateTimeValue(body.startedAt);
-      const endedAtMysql = toMysqlDateTimeValue(body.endedAt);
+      const startedAtMysql = toMysqlDateTimeValue(sanitized.startedAt);
+      const endedAtMysql = toMysqlDateTimeValue(sanitized.endedAt);
 
       conn = await db.getConnection();
       await conn.beginTransaction();
 
       // Serialize writes per worker to avoid races between integrity checks and insertions.
-      await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [body.workerId]);
+      await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [sanitized.workerId]);
 
-      await ensureShiftNotLinkedToFutureEvent(conn, body.status, body.location);
+      await ensureShiftNotLinkedToFutureEvent(conn, sanitized.status, sanitized.location);
       await ensureWorkerShiftTimeIntegrity(
         conn,
-        body.workerId,
-        body.status,
+        sanitized.workerId,
+        sanitized.status,
         startedAtMysql,
         endedAtMysql
       );
@@ -737,12 +774,12 @@ export function registerMysqlApi(app: express.Express) {
         `,
         [
           id,
-          body.workerId,
-          body.dateString,
-          body.timespan,
-          body.durationLabel,
-          body.location,
-          body.status,
+          sanitized.workerId,
+          sanitized.dateString,
+          sanitized.timespan,
+          sanitized.durationLabel,
+          sanitized.location,
+          sanitized.status,
           startedAtMysql,
           endedAtMysql,
         ]
