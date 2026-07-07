@@ -62,7 +62,7 @@ async function initSchema() {
       total_hours DECIMAL(10,2) NOT NULL DEFAULT 0,
       current_shift_hours INT NOT NULL DEFAULT 0,
       current_shift_mins INT NOT NULL DEFAULT 0,
-      location VARCHAR(255) NOT NULL,
+      location VARCHAR(255) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
@@ -158,6 +158,23 @@ async function applySchemaMigrations(db: any) {
        ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
     );
     migrated.push('shifts.updated_at');
+  }
+
+  const [staffLocationRows] = await db.query(
+    `SELECT IS_NULLABLE AS isNullable
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'staff'
+         AND column_name = 'location'
+       LIMIT 1`
+  );
+  const staffLocation = Array.isArray(staffLocationRows) ? staffLocationRows[0] : null;
+  if (staffLocation?.isNullable === 'NO') {
+    await db.query(
+      `ALTER TABLE staff
+       MODIFY COLUMN location VARCHAR(255) NULL`
+    );
+    migrated.push('staff.location_nullable');
   }
 
   return { migrated };
@@ -433,7 +450,7 @@ export function registerMysqlApi(app: express.Express) {
           CAST(st.total_hours AS DOUBLE) AS totalHours,
           CASE WHEN active.worker_id IS NOT NULL THEN st.current_shift_hours ELSE 0 END AS currentShiftHours,
           CASE WHEN active.worker_id IS NOT NULL THEN st.current_shift_mins ELSE 0 END AS currentShiftMins,
-          st.location
+          COALESCE(st.location, '') AS location
         FROM staff st
         LEFT JOIN (
           SELECT worker_id
@@ -487,7 +504,7 @@ export function registerMysqlApi(app: express.Express) {
           Number(0),
           Number(0),
           Number(0),
-          sanitized.location,
+          sanitized.location || null,
         ]
       );
 

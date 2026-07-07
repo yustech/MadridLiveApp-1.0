@@ -11,7 +11,7 @@ export interface StaffMember {
   totalHours: number;
   currentShiftHours: number;
   currentShiftMins: number;
-  location: string; // e.g. 'Stage Left', 'Main Stage', 'Loading Dock'
+  location?: string; // optional primary zone; check-in flow sets active shift location
 }
 
 export interface Shift {

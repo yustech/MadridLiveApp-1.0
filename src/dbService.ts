@@ -9,6 +9,7 @@ function normalizeStaffAvatar(worker: StaffMember): StaffMember {
   return {
     ...worker,
     avatar: worker.avatar?.trim() || DEFAULT_STAFF_AVATAR,
+    location: worker.location?.trim() || '',
   };
 }
 

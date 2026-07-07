@@ -459,12 +459,16 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
     sanitized.avatar = "";
   }
 
-  // location (required)
-  const locationRes = sanitizeLocation(b.location);
-  if (!locationRes.valid) {
-    errors.push(...locationRes.errors);
+  // location (optional for staff profile; shifts/events keep strict location)
+  if (b.location !== undefined && b.location !== null && String(b.location).trim() !== '') {
+    const locationRes = sanitizeLocation(b.location);
+    if (!locationRes.valid) {
+      errors.push(...locationRes.errors);
+    } else {
+      sanitized.location = locationRes.sanitized;
+    }
   } else {
-    sanitized.location = locationRes.sanitized;
+    sanitized.location = null;
   }
 
   // Force null for system-managed fields

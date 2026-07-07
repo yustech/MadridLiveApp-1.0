@@ -221,7 +221,7 @@ export default function App() {
         await updateStaff(workerId, {
           status: 'OUT',
           checkedInTime: '',
-          lastSeen: `Hoy a las ${nowStr}`,
+          lastSeen: nowIso,
           currentShiftHours: 0,
           currentShiftMins: 0,
           totalHours: finalHours
@@ -246,7 +246,7 @@ export default function App() {
         return false;
       }
 
-      const baseLoc = customLocation || worker.location || 'Stage Left';
+      const baseLoc = customLocation || worker.location || 'Control General';
       const chosenLoc = `${baseLoc}${eventSuffix}`;
 
       const shiftId = await addShift({
@@ -262,7 +262,7 @@ export default function App() {
       try {
         await updateStaff(workerId, {
           status: 'IN',
-          checkedInTime: nowStr,
+          checkedInTime: nowIso,
           currentShiftHours: 4,
           currentShiftMins: 30,
           location: chosenLoc
@@ -281,20 +281,9 @@ export default function App() {
 
   const handleAddNewCrewMember = async (newCrewData: Omit<StaffMember, 'id'>) => {
     try {
-      const newId = await addStaff(newCrewData);
-
-      const checkedInClock = newCrewData.checkedInTime || '14:00';
-      await addShift({
-        workerId: newId,
-        dateString: getTodayDateStr(),
-        timespan: `${checkedInClock} - Presente`,
-        durationLabel: 'Activo',
-        location: newCrewData.location || 'Stage Left',
-        status: 'Active',
-        startedAt: getIsoForTodayTime(checkedInClock),
-      });
+      await addStaff(newCrewData);
     } catch (err) {
-      console.error("Failed to register crew member in the API: ", err);
+      console.error('Failed to register crew member in the API: ', err);
     }
   };
 
