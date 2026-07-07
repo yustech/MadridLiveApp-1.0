@@ -145,16 +145,19 @@ test.describe('Phase 1 - business edge coverage', () => {
       let futureEvent: any = null;
 
       for (const event of orderedEvents) {
+        const now = new Date();
+        const later = new Date(now.getTime() + 3600000); // 1 hour later
         const attempt = await api(request, '/api/mysql/shifts', {
           method: 'POST',
           body: {
             workerId: worker.id,
-            dateString: 'Hoy',
+            dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
             timespan: '00:00 - Presente',
             durationLabel: 'Active',
             location: `Main Stage (${event.title})`,
             status: 'Active',
-            startedAt: new Date().toISOString(),
+            startedAt: now.toISOString(),
+            endedAt: later.toISOString(),
           },
         });
 
@@ -210,16 +213,19 @@ test.describe('Phase 1 - business edge coverage', () => {
         createdStaffIds.push(raceStaffRes.json.id);
 
         for (const event of orderedEvents) {
+          const now = new Date();
+          const later = new Date(now.getTime() + 3600000); // 1 hour later
           const retry = await api(request, '/api/mysql/shifts', {
             method: 'POST',
             body: {
               workerId: worker.id,
-              dateString: 'Hoy',
+              dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
               timespan: '00:00 - Presente',
               durationLabel: 'Active',
               location: `Main Stage (${event.title})`,
               status: 'Active',
-              startedAt: new Date().toISOString(),
+              startedAt: now.toISOString(),
+              endedAt: later.toISOString(),
             },
           });
 
@@ -270,16 +276,19 @@ test.describe('Phase 1 - business edge coverage', () => {
         for (const event of orderedEvents.slice().reverse()) {
           if (event.id === allowedEvent.id) continue;
 
+          const now = new Date();
+          const later = new Date(now.getTime() + 3600000); // 1 hour later
           const probe = await api(request, '/api/mysql/shifts', {
             method: 'POST',
             body: {
               workerId: worker.id,
-              dateString: 'Hoy',
+              dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
               timespan: '00:00 - Presente',
               durationLabel: 'Active',
               location: `Main Stage (${event.title})`,
               status: 'Active',
-              startedAt: new Date().toISOString(),
+              startedAt: now.toISOString(),
+              endedAt: later.toISOString(),
             },
           });
 
@@ -301,16 +310,19 @@ test.describe('Phase 1 - business edge coverage', () => {
 
       expect(futureEvent).toBeTruthy();
 
+      const now = new Date();
+      const later = new Date(now.getTime() + 3600000); // 1 hour later
       const futureAttempt = await api(request, '/api/mysql/shifts', {
         method: 'POST',
         body: {
           workerId: worker.id,
-          dateString: 'Hoy',
+          dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
           timespan: '00:00 - Presente',
           durationLabel: 'Active',
           location: `Main Stage (${futureEvent.title})`,
           status: 'Active',
-          startedAt: new Date().toISOString(),
+          startedAt: now.toISOString(),
+          endedAt: later.toISOString(),
         },
       });
 
