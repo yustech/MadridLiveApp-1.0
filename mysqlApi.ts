@@ -244,7 +244,7 @@ function parseEventDateTime(dateDay?: string, dateMonth?: string, doorsOpen?: st
 }
 
 async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, location: unknown) {
-  if (status !== 'Active') {
+  if (String(status || '').toLowerCase() !== 'active') {
     return;
   }
 
@@ -844,8 +844,8 @@ export function registerMysqlApi(app: express.Express) {
         `SELECT worker_id AS workerId, status, location, started_at AS startedAt, ended_at AS endedAt
            FROM shifts
            WHERE id = ?
-           FOR UPDATE
-           LIMIT 1`,
+           LIMIT 1
+           FOR UPDATE`,
         [req.params.id]
       );
       const current = currentRows?.[0];

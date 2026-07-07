@@ -5,22 +5,9 @@ function assert(condition, message) {
 }
 
 const MONTH_TO_INDEX = {
-  JAN: 0,
-  FEB: 1,
-  MAR: 2,
-  APR: 3,
-  MAY: 4,
-  JUN: 5,
-  JUL: 6,
-  AUG: 7,
-  SEP: 8,
-  OCT: 9,
-  NOV: 10,
-  DEC: 11,
-  ENE: 0,
-  ABR: 3,
-  AGO: 7,
-  DIC: 11,
+  JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+  ENE: 0, ABR: 3, AGO: 7, DIC: 11,
+  '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '10': 9, '11': 10, '12': 11,
 };
 
 function parseEventDate(event) {

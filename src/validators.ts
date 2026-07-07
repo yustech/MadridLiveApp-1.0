@@ -279,7 +279,7 @@ export function sanitizeLocation(value: unknown): ValidationResult<string> {
     return { valid: false, errors };
   }
 
-  if (!/^[a-zA-Z0-9\s\-\/]+$/.test(sanitized)) {
+  if (!/^[a-zA-Z0-9\s\-\/()]+$/.test(sanitized)) {
     errors.push({
       field: "location",
       message: "Location contains invalid characters",
@@ -414,7 +414,21 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
   }
 
   // status (required, enum)
-  const statusRes = sanitizeStatus(b.status, "status", ["active", "inactive"]);
+  // Staff status can be IN/OUT (computed) or active/inactive (stored)
+  let statusValue = String(b.status || '').trim();
+  const validStaffStatuses = ["IN", "OUT", "active", "inactive"];
+  // Normalize: make it case-insensitive check
+  if (!validStaffStatuses.some(v => v.toLowerCase() === statusValue.toLowerCase())) {
+    errors.push({
+      field: "status",
+      message: "Status must be one of: IN, OUT, active, inactive",
+      value: b.status,
+    });
+  } else {
+    // Store in the case provided, or normalize to lowercase
+    sanitized.status = statusValue;
+  }
+  const statusRes = { valid: true, errors: [], sanitized: statusValue };
   if (!statusRes.valid) {
     errors.push(...statusRes.errors);
   } else {
