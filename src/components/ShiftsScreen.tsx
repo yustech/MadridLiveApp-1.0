@@ -345,11 +345,13 @@ export default function ShiftsScreen({
         return copied.sort((a, b) => b.workerName.localeCompare(a.workerName, 'es', { sensitivity: 'base' }));
       case 'ActiveFirst':
         return copied.sort((a, b) => {
-          if (a.status === b.status) {
+          const aStatus = a.status?.toLowerCase() || '';
+          const bStatus = b.status?.toLowerCase() || '';
+          if (aStatus === bStatus) {
             const timeDiff = parseShiftDateTime(b.dateString, b.timespan, b.updatedAt, b.id, b.startedAt) - parseShiftDateTime(a.dateString, a.timespan, a.updatedAt, a.id, a.startedAt);
             return timeDiff !== 0 ? timeDiff : b.id.localeCompare(a.id);
           }
-          return a.status === 'Active' ? -1 : 1;
+          return aStatus === 'active' ? -1 : 1;
         });
       case 'Newest':
       default:
@@ -429,13 +431,13 @@ export default function ShiftsScreen({
   // 4. Calculate stats based on filtered results
   const stats = useMemo(() => {
     const total = filteredShifts.length;
-    const active = filteredShifts.filter(s => s.status === 'Active').length;
-    const completed = filteredShifts.filter(s => s.status === 'Completed').length;
+    const active = filteredShifts.filter(s => s.status?.toLowerCase() === 'active').length;
+    const completed = filteredShifts.filter(s => s.status?.toLowerCase() === 'completed').length;
     
     // Sum hours parsed from Completed shifts
     let totalHours = 0;
     filteredShifts.forEach(sh => {
-      if (sh.status === 'Completed' && sh.durationLabel) {
+      if (sh.status?.toLowerCase() === 'completed' && sh.durationLabel) {
         // Extract numeric hours, e.g. "3.5 hrs" or "4h" -> 3.5 or 4
         const hoursNum = parseFloat(sh.durationLabel.replace(/[^0-9.]/g, ''));
         if (!isNaN(hoursNum)) {
@@ -466,7 +468,7 @@ export default function ShiftsScreen({
       sh.timespan,
       sh.location,
       sh.durationLabel,
-      sh.status === 'Active' ? 'ACTIVO' : 'COMPLETADO'
+      sh.status?.toLowerCase() === 'active' ? 'ACTIVO' : 'COMPLETADO'
     ]);
 
     // Combine headers and rows with standard delimiter
