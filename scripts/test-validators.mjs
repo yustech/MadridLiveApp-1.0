@@ -1,10 +1,14 @@
-import fetch from 'node-fetch';
-
-const API_BASE = process.env.API_URL || 'http://localhost:5000';
+// Use native fetch in Node.js 18+
+const API_BASE = process.env.API_URL || 'http://localhost:3000';
 
 class ValidatorTestSuite {
   constructor() {
     this.results = { passed: 0, failed: 0, tests: [] };
+    this.uniqueCounter = Date.now();
+  }
+
+  getUniqueId(prefix = 'TEST') {
+    return `${prefix}-${++this.uniqueCounter}`;
   }
 
   async test(name, fn) {
@@ -54,7 +58,7 @@ async function runTests() {
 
   await suite.test('POST /staff with valid payload', async () => {
     const res = await makeRequest('/staff', 'POST', {
-      idCode: 'TEST-001',
+      idCode: suite.getUniqueId('VALID'),
       name: 'John Doe',
       role: 'technician',
       roleLabel: 'Technical Director',
@@ -62,7 +66,7 @@ async function runTests() {
       avatar: 'https://example.com/avatar.jpg',
       location: 'Main Stage',
     });
-    suite.assert(res.status === 201, `Expected 201, got ${res.status}`);
+    suite.assert(res.status === 201, `Expected 201, got ${res.status}: ${JSON.stringify(res.data)}`);
     suite.assert(res.data.id, 'Response should contain id');
   });
 
@@ -85,7 +89,7 @@ async function runTests() {
 
   await suite.test('POST /staff rejects empty name', async () => {
     const res = await makeRequest('/staff', 'POST', {
-      idCode: 'TEST-002',
+      idCode: suite.getUniqueId('EMPTY'),
       name: '   ', // Whitespace only
       role: 'technician',
       roleLabel: 'Technical Director',
@@ -101,7 +105,7 @@ async function runTests() {
 
   await suite.test('POST /staff rejects invalid status', async () => {
     const res = await makeRequest('/staff', 'POST', {
-      idCode: 'TEST-003',
+      idCode: suite.getUniqueId('INVSTAT'),
       name: 'John Doe',
       role: 'technician',
       roleLabel: 'Technical Director',
@@ -120,7 +124,7 @@ async function runTests() {
 
   await suite.test('POST /events with valid payload', async () => {
     const res = await makeRequest('/events', 'POST', {
-      title: 'Summer Festival 2024',
+      title: `Summer Festival ${suite.uniqueCounter}`,
       location: 'Central Park',
       dateDay: 15,
       dateMonth: 7,
@@ -137,7 +141,7 @@ async function runTests() {
 
   await suite.test('POST /events rejects invalid dateDay', async () => {
     const res = await makeRequest('/events', 'POST', {
-      title: 'Summer Festival 2024',
+      title: `Festival ${suite.uniqueCounter}`,
       location: 'Central Park',
       dateDay: 32, // Invalid day
       dateMonth: 7,
@@ -152,7 +156,7 @@ async function runTests() {
 
   await suite.test('POST /events rejects invalid dateMonth', async () => {
     const res = await makeRequest('/events', 'POST', {
-      title: 'Summer Festival 2024',
+      title: `Festival ${suite.uniqueCounter}`,
       location: 'Central Park',
       dateDay: 15,
       dateMonth: 13, // Invalid month
