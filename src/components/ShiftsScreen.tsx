@@ -303,7 +303,7 @@ export default function ShiftsScreen({
         (customDateToTs === null || shiftTime <= customDateToTs);
 
       // Status filtering
-      const matchesStatus = selectedStatus === 'All' || shift.status === selectedStatus;
+      const matchesStatus = selectedStatus === 'All' || (shift.status?.toLowerCase() === selectedStatus?.toLowerCase());
 
       // Role filtering
       const matchesRole = selectedRole === 'All' || shift.workerRole === selectedRole;
@@ -880,7 +880,7 @@ export default function ShiftsScreen({
 
                         {/* Duration Column */}
                         <td className="px-6 py-4 text-center">
-                          {shift.status === 'Active' ? (
+                          {shift.status?.toLowerCase() === 'active' ? (
                             <span className="text-emerald-300 bg-emerald-500/10 border border-emerald-400/20 px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 animate-pulse">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                               Activo
@@ -895,7 +895,7 @@ export default function ShiftsScreen({
                         {/* Status Column */}
                         <td className="px-6 py-4 text-center">
                           <div className="flex justify-center">
-                            {shift.status === 'Active' ? (
+                            {shift.status?.toLowerCase() === 'active' ? (
                               <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold uppercase">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
                                 DENTRO
@@ -912,7 +912,7 @@ export default function ShiftsScreen({
                         {/* Actions column */}
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {shift.status === 'Active' && (
+                            {shift.status?.toLowerCase() === 'active' && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); onToggleStatus(shift.workerId); }}
                                 className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
@@ -983,7 +983,7 @@ export default function ShiftsScreen({
                       </div>
 
                       {/* Status indicator pill */}
-                      {shift.status === 'Active' ? (
+                      {shift.status?.toLowerCase() === 'active' ? (
                         <span className="text-[9px] font-mono bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                           <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
                           ACTIVO
@@ -1020,7 +1020,7 @@ export default function ShiftsScreen({
                     {/* Actions Row */}
                     <div className="flex items-center justify-between gap-2.5 pt-1">
                       <div>
-                        {shift.status === 'Completed' && (
+                        {shift.status?.toLowerCase() === 'completed' && (
                           <div className="text-[10px] font-mono text-white/50 flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-indigo-400" />
                             <span>Duración: <strong className="text-indigo-200">{shift.durationLabel}</strong></span>
@@ -1029,7 +1029,7 @@ export default function ShiftsScreen({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {shift.status === 'Active' && (
+                        {shift.status?.toLowerCase() === 'active' && (
                           <button
                             onClick={() => onToggleStatus(shift.workerId)}
                             className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-300 hover:text-white rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
@@ -1119,12 +1119,12 @@ export default function ShiftsScreen({
                 </div>
                 <div className="h-2 rounded-full bg-white/10 mt-2 overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${selectedShiftDetail.status === 'Active' ? 'bg-emerald-400/90' : 'bg-indigo-400/90'}`}
-                    style={{ width: selectedShiftDetail.status === 'Active' ? '70%' : '100%' }}
+                    className={`h-full rounded-full ${selectedShiftDetail.status?.toLowerCase() === 'active' ? 'bg-emerald-400/90' : 'bg-indigo-400/90'}`}
+                    style={{ width: selectedShiftDetail.status?.toLowerCase() === 'active' ? '70%' : '100%' }}
                   />
                 </div>
-                <p className="text-[10px] font-mono uppercase tracking-wider mt-2 ${selectedShiftDetail.status === 'Active' ? 'text-emerald-300' : 'text-indigo-300'}">
-                  {selectedShiftDetail.status === 'Active' ? 'Turno en curso' : 'Turno finalizado'}
+                <p className="text-[10px] font-mono uppercase tracking-wider mt-2 ${selectedShiftDetail.status?.toLowerCase() === 'active' ? 'text-emerald-300' : 'text-indigo-300'}">
+                  {selectedShiftDetail.status?.toLowerCase() === 'active' ? 'Turno en curso' : 'Turno finalizado'}
                 </p>
               </div>
             </div>
@@ -1144,7 +1144,7 @@ export default function ShiftsScreen({
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Duración / Estado</span>
-                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.durationLabel} · {selectedShiftDetail.status === 'Active' ? 'Activo' : 'Completado'}</p>
+                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.durationLabel} · {selectedShiftDetail.status?.toLowerCase() === 'active' ? 'Activo' : 'Completado'}</p>
               </div>
             </div>
 
@@ -1163,7 +1163,7 @@ export default function ShiftsScreen({
                   Ver perfil
                 </button>
               )}
-              {selectedShiftDetail.status === 'Active' && (
+              {selectedShiftDetail.status?.toLowerCase() === 'active' && (
                 <button
                   onClick={() => {
                     onToggleStatus(selectedShiftDetail.workerId);
