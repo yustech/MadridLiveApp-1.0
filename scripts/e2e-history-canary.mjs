@@ -29,12 +29,12 @@ function assert(condition, message) {
 }
 
 function parseDateLabel(label) {
-  const clean = (label || '').trim();
-  if (clean === 'Hoy') {
+  const clean = (label || "").trim();
+  if (clean === "Hoy" || clean.startsWith("Hoy ·")) {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   }
-  if (clean === 'Ayer') {
+  if (clean === "Ayer" || clean.startsWith("Ayer ·")) {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
   }
@@ -44,8 +44,8 @@ function parseDateLabel(label) {
     return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])).getTime();
   }
 
-  // Supports localized labels rendered by the app like "12 abr".
-  const shortMonthMatch = clean.match(/^(\d{1,2})\s+([A-Za-z]{3})$/);
+  // Supports localized labels rendered by the app like "12 abr" or "12 abr 2026".
+  const shortMonthMatch = clean.match(/^(\d{1,2})\s+([A-Za-z]{3})(?:\s+(\d{4}))?$/);
   if (shortMonthMatch) {
     const day = Number(shortMonthMatch[1]);
     const monthKey = shortMonthMatch[2].toLowerCase();
@@ -53,7 +53,7 @@ function parseDateLabel(label) {
 
     if (Number.isFinite(day) && monthIndex !== undefined) {
       const now = new Date();
-      const year = now.getFullYear();
+      const year = shortMonthMatch[3] ? Number(shortMonthMatch[3]) : now.getFullYear();
       return new Date(year, monthIndex, day).getTime();
     }
   }
@@ -156,7 +156,7 @@ async function run() {
     await page.waitForTimeout(700);
     const datesAfterToday = await page.locator('table tbody tr td:nth-child(2)').allTextContents();
     const uniqueDatesAfterToday = [...new Set(datesAfterToday.map((v) => v.trim()))];
-    assert(uniqueDatesAfterToday.every((v) => v === 'Hoy'), `Filtro Hoy devolvió fechas no esperadas: ${JSON.stringify(uniqueDatesAfterToday)}.`);
+    assert(uniqueDatesAfterToday.every((v) => v === 'Hoy' || v.startsWith('Hoy ·')), `Filtro Hoy devolvió fechas no esperadas: ${JSON.stringify(uniqueDatesAfterToday)}.`);
 
     await page.getByRole('button', { name: 'Todo' }).first().click({ force: true });
     await page.waitForTimeout(400);
