@@ -167,13 +167,16 @@ function normalizeShiftDateLabel(dateString: string, timespan = '00:00 - 00:00',
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
 
-  if (shiftDayStart === todayStart) return 'Hoy';
-  if (shiftDayStart === yesterdayStart) return 'Ayer';
-
-  return new Date(shiftTime).toLocaleDateString('es-ES', {
+  const fullLabel = new Date(shiftTime).toLocaleDateString('es-ES', {
     day: '2-digit',
     month: 'short',
+    year: 'numeric',
   });
+
+  if (shiftDayStart === todayStart) return `Hoy · ${fullLabel}`;
+  if (shiftDayStart === yesterdayStart) return `Ayer · ${fullLabel}`;
+
+  return fullLabel;
 }
 
 interface ShiftsScreenProps {
@@ -206,6 +209,7 @@ export default function ShiftsScreen({
 
   // Custom Modal state for shift deletion to avoid ugly native confirm dialogs inside iFrame
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [selectedShiftDetail, setSelectedShiftDetail] = useState<EnrichedShift | null>(null);
 
   const handleOpenShiftDetail = (shift: EnrichedShift) => {
@@ -494,6 +498,9 @@ export default function ShiftsScreen({
     try {
       await deleteShift(deleteTargetId);
       setDeleteTargetId(null);
+      setSelectedShiftDetail(null);
+      setDeleteFeedback('Fichaje eliminado');
+      setTimeout(() => setDeleteFeedback(null), 2200);
     } catch (err) {
       console.error('Error al eliminar registro:', err);
     }
@@ -925,7 +932,7 @@ export default function ShiftsScreen({
                               </button>
                             )}
                             <button
-                              onClick={() => setDeleteTargetId(shift.id)}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTargetId(shift.id); }}
                               className="p-1.5 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/50 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
                               title="Eliminar este fichaje permanentemente"
                             >
@@ -1041,7 +1048,7 @@ export default function ShiftsScreen({
                           </button>
                         )}
                         <button
-                          onClick={() => setDeleteTargetId(shift.id)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(shift.id); }}
                           className="p-1.5 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 text-white/40 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -1079,6 +1086,12 @@ export default function ShiftsScreen({
           </>
         )}
       </div>
+
+      {deleteFeedback && (
+        <div className="fixed top-5 right-5 z-50 bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 px-4 py-2 rounded-xl shadow-hud-glow font-mono text-xs uppercase tracking-wider">
+          {deleteFeedback}
+        </div>
+      )}
 
       {/* SHIFT DETAIL CUSTOM MODAL */}
       {selectedShiftDetail && (
@@ -1125,7 +1138,7 @@ export default function ShiftsScreen({
                     style={{ width: selectedShiftDetail.status?.toLowerCase() === 'active' ? '70%' : '100%' }}
                   />
                 </div>
-                <p className="text-[10px] font-mono uppercase tracking-wider mt-2 ${selectedShiftDetail.status?.toLowerCase() === 'active' ? 'text-emerald-300' : 'text-indigo-300'}">
+                <p className={`text-[10px] font-mono uppercase tracking-wider mt-2 ${selectedShiftDetail.status?.toLowerCase() === 'active' ? 'text-emerald-300' : 'text-indigo-300'}`}>
                   {selectedShiftDetail.status?.toLowerCase() === 'active' ? 'Turno en curso' : 'Turno finalizado'}
                 </p>
               </div>

@@ -30,6 +30,23 @@ const zoneTranslationMap: Record<string, string> = {
   'Artist Entrance': 'Entrada de Artistas'
 };
 
+function formatShiftDateLabel(dateString: string): string {
+  if (!dateString) return "Sin fecha";
+
+  const parsed = new Date(dateString);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  return dateString
+    .replace("Today", "Hoy")
+    .replace("Yesterday", "Ayer");
+}
+
 export default function ProfileScreen({
   worker,
   onBack,
@@ -276,7 +293,7 @@ export default function ProfileScreen({
 
                       <div className="flex flex-col ml-1 text-left">
                         <span className="text-sm font-semibold text-white">
-                          {shift.dateString === 'Today, Oct 28' ? 'Hoy, Oct 28' : shift.dateString === 'Yesterday, Oct 27' ? 'Ayer, Oct 27' : shift.dateString}
+                          {formatShiftDateLabel(shift.dateString)}
                         </span>
                         <span className="text-xs font-mono text-white/40 mt-1">
                           {shift.timespan === '14:00 - Present' ? '14:00 - Presente' : shift.timespan === '14:30 - Present' ? '14:30 - Presente' : shift.timespan === '09:00 - Present' ? '09:00 - Presente' : shift.timespan}
