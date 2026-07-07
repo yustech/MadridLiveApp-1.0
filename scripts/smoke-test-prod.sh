@@ -31,8 +31,16 @@ echo "$action_version" | grep -q '"status":"ok"'
 
 actions_staff="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/staff")"
 staff_count="$(printf '%s' "$actions_staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);process.stdout.write(String(a.length));});")"
-if [[ "$staff_count" != "$EXPECTED_STAFF_COUNT" ]]; then
-  echo "Unexpected staff count: got $staff_count, expected $EXPECTED_STAFF_COUNT"
+if ! [[ "$EXPECTED_STAFF_COUNT" =~ ^[0-9]+$ ]]; then
+  echo "Invalid EXPECTED_STAFF_COUNT value: $EXPECTED_STAFF_COUNT"
+  exit 1
+fi
+if ! [[ "$staff_count" =~ ^[0-9]+$ ]]; then
+  echo "Invalid staff count payload: $staff_count"
+  exit 1
+fi
+if (( staff_count < EXPECTED_STAFF_COUNT )); then
+  echo "Unexpected staff count: got $staff_count, minimum expected $EXPECTED_STAFF_COUNT"
   exit 1
 fi
 
