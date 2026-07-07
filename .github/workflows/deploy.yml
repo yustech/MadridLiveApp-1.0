@@ -50,7 +50,19 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Capture expected frontend bundle from dist
+        id: expected_bundle
+        run: |
+          set -euo pipefail
+          expected_bundle=$(grep -o "index-[A-Za-z0-9_-]*\\.js" dist/index.html | head -n 1)
+          if [[ -z "$expected_bundle" ]]; then
+            echo "Could not extract expected bundle from dist/index.html"
+            exit 1
+          fi
+          echo "bundle=$expected_bundle" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to production
+        id: deploy_step
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -63,7 +75,60 @@ jobs:
           PUBLIC_HTML_PATH: ${{ secrets.PUBLIC_HTML_PATH }}
           PUBLIC_FRONTEND_BACKUP_BASE: ${{ secrets.PUBLIC_FRONTEND_BACKUP_BASE }}
           STRICT_NO_FIREBASE: "true"
-        run: npm run deploy
+        run: |
+          set -euo pipefail
+          npm run deploy 2>&1 | tee deploy-step.log
+
+      - name: Validate served bundle hash (post-deploy)
+        if: ${{ inputs.publish_public_frontend == 'true' }}
+        id: served_bundle
+        env:
+          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+        run: |
+          set -euo pipefail
+          expected='${{ steps.expected_bundle.outputs.bundle }}'
+          served=$(curl -fsS "$SITE_URL" | grep -o "index-[A-Za-z0-9_-]*\\.js" | head -n 1)
+          if [[ -z "$served" ]]; then
+            echo "Could not detect served bundle from $SITE_URL"
+            exit 1
+          fi
+          echo "bundle=$served" >> "$GITHUB_OUTPUT"
+          if [[ "$served" != "$expected" ]]; then
+            echo "Bundle mismatch: expected=$expected served=$served"
+            exit 1
+          fi
+
+      - name: Upload deploy step log artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-step-log
+          path: deploy-step.log
+          if-no-files-found: warn
+
+      - name: Write deploy summary
+        if: ${{ always() }}
+        env:
+          EXPECTED_BUNDLE: ${{ steps.expected_bundle.outputs.bundle }}
+          SERVED_BUNDLE: ${{ steps.served_bundle.outputs.bundle }}
+          PUBLISH_PUBLIC_FRONTEND: ${{ inputs.publish_public_frontend }}
+        run: |
+          {
+            echo "## Deploy Summary"
+            echo ""
+            echo "- Deploy step result: ${{ steps.deploy_step.outcome }}"
+            echo "- publish_public_frontend: ${PUBLISH_PUBLIC_FRONTEND}"
+            echo "- Expected bundle: ${EXPECTED_BUNDLE:-unknown}"
+            echo "- Served bundle: ${SERVED_BUNDLE:-not_checked}"
+            if [[ -f deploy-step.log ]]; then
+              echo ""
+              echo "### Deploy log tail"
+              echo ""
+              echo "```text"
+              tail -n 40 deploy-step.log
+              echo "```"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke test production
         env:
