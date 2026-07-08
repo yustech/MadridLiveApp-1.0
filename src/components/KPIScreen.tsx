@@ -14,6 +14,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { Shift, StaffMember, LiveEvent } from '../types';
+import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
 
 interface KPIScreenProps {
   shifts: Shift[];
@@ -348,7 +349,7 @@ export default function KPIScreen({
           <div className="text-left">
             <span className="text-[9px] font-mono text-teal-300 uppercase block tracking-wider">Promedio de Turno</span>
             <span className="text-xl font-sans font-black text-white mt-0.5 block">
-              {stats.avgShiftHours}h
+              {formatHoursMinutesFromDecimal(stats.avgShiftHours)}
             </span>
             <span className="text-[10px] text-white/40 block mt-0.5">Horas de trabajo real</span>
           </div>

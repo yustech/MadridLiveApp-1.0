@@ -13,6 +13,7 @@ import {
   QrCode
 } from 'lucide-react';
 import { StaffMember, Shift } from '../types';
+import { formatHoursMinutesFromDecimal } from '../utils/duration';
 
 interface ProfileScreenProps {
   worker: StaffMember;
@@ -167,8 +168,7 @@ export default function ProfileScreen({
                 Horas Totales
               </div>
               <div className="text-3xl font-display font-black text-indigo-300 my-2 leading-none">
-                {worker.totalHours.toFixed(1)}
-                <span className="text-sm font-mono text-white/30 ml-1">h</span>
+                {formatHoursMinutesFromDecimal(worker.totalHours)}
               </div>
               <div className="text-[10px] font-mono text-white/40">
                 Esta Producción

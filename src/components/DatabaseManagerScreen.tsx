@@ -24,6 +24,7 @@ import {
   Terminal
 } from 'lucide-react';
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from '../types';
+import { formatHoursMinutesFromDecimal } from '../utils/duration';
 import { 
   addEvent, updateEvent, deleteEvent,
   addStaff, updateStaff, deleteStaff,
@@ -976,7 +977,7 @@ app.post('/api/auth/login', async (req, res) => {
                             {sectorTranslationMap[item.role] || item.role} ({item.location})
                           </p>
                           <p className="text-[10px] text-white/50 font-mono mt-1">
-                            Horas Totales: {item.totalHours.toFixed(1)}h | Estado: {item.status === 'IN' ? 'DENTRO' : 'FUERA'} | Entrada: {item.checkedInTime || '—'}
+                            Horas Totales: {formatHoursMinutesFromDecimal(item.totalHours)} | Estado: {item.status === 'IN' ? 'DENTRO' : 'FUERA'} | Entrada: {item.checkedInTime || '—'}
                           </p>
                         </div>
                       )}
@@ -988,7 +989,7 @@ app.post('/api/auth/login', async (req, res) => {
                             {item.eventTitle} ({item.timespan === '14:00 - Present' ? '14:00 - Presente' : item.timespan === '14:30 - Present' ? '14:30 - Presente' : item.timespan === '09:00 - Present' ? '09:00 - Presente' : item.timespan})
                           </p>
                           <p className="text-[10px] text-indigo-300 font-mono mt-0.5">
-                            Fecha: {item.dateString === 'Today' ? 'Hoy' : item.dateString === 'Yesterday' ? 'Ayer' : item.dateString} | Duración: {item.durationLabel === 'Active' ? 'Activo' : item.durationLabel}
+                            Fecha: {item.dateString === 'Today' ? 'Hoy' : item.dateString === 'Yesterday' ? 'Ayer' : item.dateString} | Duración: {item.durationLabel === 'Active' ? 'Activo' : formatHoursMinutesFromDecimal(item.durationLabel)}
                           </p>
                         </div>
                       )}
