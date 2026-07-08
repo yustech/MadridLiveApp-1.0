@@ -16,6 +16,7 @@
     "deploy:frontend:public": "bash scripts/deploy-frontend-public.sh",
     "deploy:full": "DEPLOY_PUBLIC_FRONTEND=true bash scripts/deploy.sh",
     "smoke:prod": "bash scripts/smoke-test-prod.sh",
+    "guard:shifts:contract": "bash scripts/guard-shifts-contract.sh",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:prod": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://inmosubastas.top} playwright test",

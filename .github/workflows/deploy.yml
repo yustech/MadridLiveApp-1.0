@@ -47,6 +47,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Shifts contract guard
+        run: npm run guard:shifts:contract
+
       - name: Build
         run: npm run build
 

@@ -26,6 +26,9 @@ jobs:
       - name: Type check
         run: npm run lint
 
+      - name: Shifts contract guard
+        run: npm run guard:shifts:contract
+
       - name: Build
         run: npm run build
       - name: Bundle size guardrail (non-blocking)
