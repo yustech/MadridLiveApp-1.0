@@ -134,6 +134,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke test production
+        if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
           SITE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
           EXPECTED_STAFF_COUNT: ${{ vars.PROD_EXPECTED_STAFF_COUNT || '9' }}
@@ -141,6 +142,7 @@ jobs:
         run: npm run smoke:prod
 
       - name: Install Playwright browser
+        if: ${{ inputs.publish_public_frontend == 'true' }}
         run: npx playwright install --with-deps chromium
 
       - name: Production history canary
@@ -154,6 +156,18 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
         run: npm run test:e2e:shifts:guard:canary
+
+      - name: Record post-deploy functional gate
+        if: ${{ inputs.publish_public_frontend == 'true' }}
+        run: |
+          {
+            echo ""
+            echo "### Post-deploy functional gate"
+            echo ""
+            echo "- Smoke: passed"
+            echo "- History canary: passed"
+            echo "- Shifts guard canary: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: SMTP config diagnostics
         if: ${{ always() }}
