@@ -11,37 +11,92 @@ jobs:
     env:
       BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
       ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+      MAX_HEALTH_LATENCY_MS: ${{ vars.WATCHDOG_MAX_HEALTH_LATENCY_MS || '2000' }}
+      MAX_SHIFTS_LATENCY_MS: ${{ vars.WATCHDOG_MAX_SHIFTS_LATENCY_MS || '2500' }}
+      MAX_ACTIVE_RATIO_PERCENT: ${{ vars.WATCHDOG_MAX_ACTIVE_RATIO_PERCENT || '90' }}
 
     steps:
       - name: Probe health endpoint
+        id: health_probe
         run: |
           set -euo pipefail
-          health=$(curl --connect-timeout 5 --max-time 10 -fsS "$BASE_URL/api/health")
-          echo "$health" | grep -q '"status":"ok"'
 
-      - name: Probe shifts endpoint contract
+          health_time_s=$(curl --connect-timeout 5 --max-time 10 -fsS \
+            -w '%{time_total}' \
+            -o /tmp/watchdog-health.json \
+            "$BASE_URL/api/health")
+
+          grep -q '"status":"ok"' /tmp/watchdog-health.json
+
+          health_latency_ms=$(awk -v s="$health_time_s" 'BEGIN { printf "%.0f", s * 1000 }')
+          echo "health_latency_ms=$health_latency_ms" >> "$GITHUB_OUTPUT"
+
+      - name: Probe shifts endpoint contract and metrics
+        id: shifts_probe
         run: |
           set -euo pipefail
-          shifts=$(curl --connect-timeout 5 --max-time 12 -fsS "$BASE_URL/api/mysql/shifts")
-          printf '%s' "$shifts" | node -e "
-            let s='';
-            process.stdin.on('data', d => s += d);
-            process.stdin.on('end', () => {
-              const data = JSON.parse(s);
-              if (!Array.isArray(data)) {
-                throw new Error('Shifts payload is not an array');
-              }
-              const hasLegacyLocation = data.some((shift) => Object.prototype.hasOwnProperty.call(shift || {}, 'location'));
-              if (hasLegacyLocation) {
-                throw new Error('Legacy location field detected in shifts payload');
-              }
-              const missingCanonicalFields = data.some((shift) => !(shift && Object.prototype.hasOwnProperty.call(shift, 'eventId') && Object.prototype.hasOwnProperty.call(shift, 'eventTitle')));
-              if (missingCanonicalFields) {
-                throw new Error('Canonical eventId/eventTitle missing in shifts payload');
-              }
-              process.stdout.write(String(data.length));
-            });
-          "
+
+          shifts_time_s=$(curl --connect-timeout 5 --max-time 12 -fsS \
+            -w '%{time_total}' \
+            -o /tmp/watchdog-shifts.json \
+            "$BASE_URL/api/mysql/shifts")
+
+          shifts_latency_ms=$(awk -v s="$shifts_time_s" 'BEGIN { printf "%.0f", s * 1000 }')
+          echo "shifts_latency_ms=$shifts_latency_ms" >> "$GITHUB_OUTPUT"
+
+          node - <<'NODE' > /tmp/watchdog-shifts-metrics.out
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/watchdog-shifts.json', 'utf8'));
+
+          if (!Array.isArray(payload)) {
+            throw new Error('Shifts payload is not an array');
+          }
+
+          const hasLegacyLocation = payload.some((shift) => Object.prototype.hasOwnProperty.call(shift || {}, 'location'));
+          if (hasLegacyLocation) {
+            throw new Error('Legacy location field detected in shifts payload');
+          }
+
+          const missingCanonicalFields = payload.some(
+            (shift) => !(shift && Object.prototype.hasOwnProperty.call(shift, 'eventId') && Object.prototype.hasOwnProperty.call(shift, 'eventTitle')),
+          );
+          if (missingCanonicalFields) {
+            throw new Error('Canonical eventId/eventTitle missing in shifts payload');
+          }
+
+          const total = payload.length;
+          const active = payload.filter((shift) => String(shift?.status || '').toLowerCase() === 'active').length;
+          const ratio = total > 0 ? (active / total) * 100 : 0;
+
+          console.log(`total_shifts=${total}`);
+          console.log(`active_shifts=${active}`);
+          console.log(`active_ratio_percent=${ratio.toFixed(2)}`);
+          NODE
+
+          cat /tmp/watchdog-shifts-metrics.out >> "$GITHUB_OUTPUT"
+
+      - name: Enforce watchdog thresholds
+        run: |
+          set -euo pipefail
+
+          health_latency_ms='${{ steps.health_probe.outputs.health_latency_ms }}'
+          shifts_latency_ms='${{ steps.shifts_probe.outputs.shifts_latency_ms }}'
+          active_ratio_percent='${{ steps.shifts_probe.outputs.active_ratio_percent }}'
+
+          if (( health_latency_ms > MAX_HEALTH_LATENCY_MS )); then
+            echo "Health latency threshold exceeded: ${health_latency_ms}ms > ${MAX_HEALTH_LATENCY_MS}ms"
+            exit 1
+          fi
+
+          if (( shifts_latency_ms > MAX_SHIFTS_LATENCY_MS )); then
+            echo "Shifts latency threshold exceeded: ${shifts_latency_ms}ms > ${MAX_SHIFTS_LATENCY_MS}ms"
+            exit 1
+          fi
+
+          if awk -v value="$active_ratio_percent" -v max="$MAX_ACTIVE_RATIO_PERCENT" 'BEGIN { exit !(value > max) }'; then
+            echo "Active ratio threshold exceeded: ${active_ratio_percent}% > ${MAX_ACTIVE_RATIO_PERCENT}%"
+            exit 1
+          fi
 
       - name: Notify watchdog failure webhook
         if: ${{ failure() && env.ALERT_WEBHOOK != '' }}
@@ -63,5 +118,10 @@ jobs:
             echo ""
             echo "- Base URL: $BASE_URL"
             echo "- Result: ${{ job.status }}"
+            echo "- Health latency: ${{ steps.health_probe.outputs.health_latency_ms || 'n/a' }} ms (max $MAX_HEALTH_LATENCY_MS ms)"
+            echo "- Shifts latency: ${{ steps.shifts_probe.outputs.shifts_latency_ms || 'n/a' }} ms (max $MAX_SHIFTS_LATENCY_MS ms)"
+            echo "- Total shifts: ${{ steps.shifts_probe.outputs.total_shifts || 'n/a' }}"
+            echo "- Active shifts: ${{ steps.shifts_probe.outputs.active_shifts || 'n/a' }}"
+            echo "- Active ratio: ${{ steps.shifts_probe.outputs.active_ratio_percent || 'n/a' }}% (max $MAX_ACTIVE_RATIO_PERCENT%)"
             echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
