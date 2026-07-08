@@ -429,6 +429,20 @@ export default function DashboardScreen({
                     );
                   })()}
                 </div>
+                {eventListTab === 'past' && (
+                  <button
+                    type="button"
+                    onClick={(evt) => {
+                      evt.stopPropagation();
+                      setDeleteTargetEvent(event);
+                    }}
+                    className="h-9 w-9 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 transition-colors flex items-center justify-center"
+                    aria-label={`Borrar evento ${event.title}`}
+                    title="Borrar evento pasado"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
                 <ChevronRight className="w-5 h-5 text-white/40 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
