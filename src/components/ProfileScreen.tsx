@@ -58,6 +58,22 @@ export default function ProfileScreen({
   
   const isCheckedIn = worker.status === 'IN';
 
+  const getCurrentShiftParts = (member: StaffMember) => {
+    const fallbackMinutes = (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0);
+    const startTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
+    const elapsedMinutes = Number.isFinite(startTs) && Date.now() > startTs
+      ? Math.floor((Date.now() - startTs) / (1000 * 60))
+      : fallbackMinutes;
+    const shiftMinutes = Math.max(fallbackMinutes, elapsedMinutes);
+
+    return {
+      hours: Math.floor(shiftMinutes / 60),
+      mins: shiftMinutes % 60,
+    };
+  };
+
+  const liveShift = getCurrentShiftParts(worker);
+
   const handleToggle = () => {
     if (isCheckedIn) {
       // Check-out is straight-forward

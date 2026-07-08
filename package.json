@@ -47,7 +47,9 @@
     "ops:active-shift-watchdog": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/active-shift-watchdog.mjs",
     "ops:active-shift-remediate:dry": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/remediate-active-shift-duplicates.mjs",
     "ops:active-shift-remediate:apply": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/remediate-active-shift-duplicates.mjs --apply",
-    "ops:weekly-integrity-report": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/ops-weekly-integrity-report.mjs"
+    "ops:weekly-integrity-report": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/ops-weekly-integrity-report.mjs",
+    "backfill:shift-durations:dry": "tsx scripts/backfill-shift-durations.ts",
+    "backfill:shift-durations:apply": "tsx scripts/backfill-shift-durations.ts --apply"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

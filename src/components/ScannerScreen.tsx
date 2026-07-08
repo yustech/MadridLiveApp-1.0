@@ -261,8 +261,21 @@ export default function ScannerScreen({
   );
 
   const activeSelectedWorker = staff.find(w => w.id === selectedWorkerId) || staff[0];
+
+  const getWorkerDurationLabel = (worker: StaffMember) => {
+    const fallbackMinutes = (worker.currentShiftHours || 0) * 60 + (worker.currentShiftMins || 0);
+    const startTs = worker.checkedInTime ? new Date(worker.checkedInTime).getTime() : Number.NaN;
+    const elapsedMinutes = Number.isFinite(startTs) && Date.now() > startTs
+      ? Math.floor((Date.now() - startTs) / (1000 * 60))
+      : fallbackMinutes;
+    const shiftMinutes = Math.max(fallbackMinutes, elapsedMinutes);
+    const hours = Math.floor(shiftMinutes / 60);
+    const mins = shiftMinutes % 60;
+    return `${hours}h ${mins}m`;
+  };
+
   const activeSelectedWorkerDuration = activeSelectedWorker
-    ? `${activeSelectedWorker.currentShiftHours || 0}h ${activeSelectedWorker.currentShiftMins || 0}m`
+    ? getWorkerDurationLabel(activeSelectedWorker)
     : '0h 0m';
 
   const handlePrimaryAction = () => {

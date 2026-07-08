@@ -213,9 +213,12 @@ export default function App() {
 
     try {
       if (isCurrentlyIn) {
-        const activeHours = worker.currentShiftHours || 0;
-        const activeMins = worker.currentShiftMins || 0;
-        const netAccrued = activeHours + (activeMins / 60);
+        const activeShift = shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
+        const canonicalStartIso = activeShift?.startedAt || worker.checkedInTime || nowIso;
+        const startTs = new Date(canonicalStartIso).getTime();
+        const endTs = new Date(nowIso).getTime();
+        const elapsedMs = Number.isFinite(startTs) && endTs > startTs ? endTs - startTs : 0;
+        const netAccrued = elapsedMs / (1000 * 60 * 60);
         const finalHours = worker.totalHours + netAccrued;
 
         await updateStaff(workerId, {
@@ -227,13 +230,12 @@ export default function App() {
           totalHours: finalHours
         });
 
-        const activeShift = shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
         if (activeShift) {
           const startLabel = activeShift.timespan.split(' - ')[0];
           await updateShift(activeShift.id, {
             status: 'Completed',
             timespan: `${startLabel} - ${nowStr}`,
-            durationLabel: `${(activeHours + activeMins / 60).toFixed(1)}h`,
+            durationLabel: `${netAccrued.toFixed(1)}h`,
             endedAt: nowIso,
           });
         }
@@ -261,8 +263,8 @@ export default function App() {
         await updateStaff(workerId, {
           status: 'IN',
           checkedInTime: nowIso,
-          currentShiftHours: 4,
-          currentShiftMins: 30,
+          currentShiftHours: 0,
+          currentShiftMins: 0,
           location: customLocation || worker.location || ''
         });
       } catch (staffErr) {

@@ -66,12 +66,25 @@ export default function DashboardScreen({
 
   const longShiftWorkers = useMemo(() => {
     const LONG_SHIFT_MINUTES = 8 * 60;
+    const now = Date.now();
+
     return staff
       .filter((member) => member.status === 'IN')
-      .map((member) => ({
-        ...member,
-        shiftMinutes: (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0),
-      }))
+      .map((member) => {
+        const fallbackMinutes = (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0);
+        const startTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
+        const elapsedMinutes = Number.isFinite(startTs) && now > startTs
+          ? Math.floor((now - startTs) / (1000 * 60))
+          : fallbackMinutes;
+        const shiftMinutes = Math.max(fallbackMinutes, elapsedMinutes);
+
+        return {
+          ...member,
+          shiftMinutes,
+          shiftHours: Math.floor(shiftMinutes / 60),
+          shiftRemainingMins: shiftMinutes % 60,
+        };
+      })
       .filter((member) => member.shiftMinutes >= LONG_SHIFT_MINUTES)
       .sort((a, b) => b.shiftMinutes - a.shiftMinutes);
   }, [staff]);
@@ -239,7 +252,7 @@ export default function DashboardScreen({
                 Alerta de salida pendiente
               </h4>
               <p className="text-xs text-white/70">
-                {longShiftWorkers[0].name} lleva {longShiftWorkers[0].currentShiftHours}h {longShiftWorkers[0].currentShiftMins}m en turno activo.
+                {longShiftWorkers[0].name} lleva {longShiftWorkers[0].shiftHours}h {longShiftWorkers[0].shiftRemainingMins}m en turno activo.
               </p>
             </div>
           )}
