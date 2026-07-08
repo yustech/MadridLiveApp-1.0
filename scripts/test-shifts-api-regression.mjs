@@ -102,6 +102,8 @@ async function run() {
     let overlapRangeBlocked = false;
     let contiguousRangeAllowed = false;
     let concurrentStartRaceGuarded = false;
+    let legacyLocationCreateRejected = false;
+    let legacyLocationPatchRejected = false;
 
     for (const candidateWorker of candidateWorkers) {
       for (const event of orderedEvents) {
@@ -344,6 +346,45 @@ async function run() {
       `Mensaje de bloqueo inesperado para evento futuro: ${futureRes.text}`,
     );
 
+    const legacyCreateRes = await api('/api/mysql/shifts', {
+      method: 'POST',
+      body: {
+        workerId: worker.id,
+        dateString: '2026-07-06T23:52:28.041Z',
+        timespan: '00:00 - Presente',
+        durationLabel: 'In Progress',
+        location: `Main Stage (${allowedEvent.title})`,
+        status: 'active',
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    legacyLocationCreateRejected = legacyCreateRes.status === 400;
+    assert(
+      legacyLocationCreateRejected,
+      `Payload legacy con location en alta de shift debe fallar con 400 y devolvio ${legacyCreateRes.status}: ${legacyCreateRes.text}`,
+    );
+
+    const legacyCreateErrors = Array.isArray(legacyCreateRes.json?.errors) ? legacyCreateRes.json.errors : [];
+    const legacyFields = new Set(legacyCreateErrors.map((error) => String(error?.field || '').toLowerCase()));
+    assert(
+      legacyFields.has('location') || legacyFields.has('eventtitle'),
+      `El rechazo de alta legacy no reporto field=location/eventTitle: ${legacyCreateRes.text}`,
+    );
+
+    const legacyPatchRes = await api(`/api/mysql/shifts/${createdShiftId}`, {
+      method: 'PATCH',
+      body: {
+        location: 'Legacy Zone',
+      },
+    });
+
+    legacyLocationPatchRejected = legacyPatchRes.status === 400;
+    assert(
+      legacyLocationPatchRejected,
+      `Payload legacy con location en patch de shift debe fallar con 400 y devolvio ${legacyPatchRes.status}: ${legacyPatchRes.text}`,
+    );
+
     // Validate concurrent starts with a dedicated worker: exactly one request should win, the other must be blocked.
     const raceStaffRes = await api('/api/mysql/staff', {
       method: 'POST',
@@ -419,6 +460,8 @@ async function run() {
       overlapRangeBlocked,
       contiguousRangeAllowed,
       concurrentStartRaceGuarded,
+      legacyLocationCreateRejected,
+      legacyLocationPatchRejected,
     }));
   } catch (error) {
     const durationMs = Date.now() - startedAtMs;

@@ -1,0 +1,67 @@
+name: Ops Watchdog
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  production_watchdog:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
+      ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+
+    steps:
+      - name: Probe health endpoint
+        run: |
+          set -euo pipefail
+          health=$(curl --connect-timeout 5 --max-time 10 -fsS "$BASE_URL/api/health")
+          echo "$health" | grep -q '"status":"ok"'
+
+      - name: Probe shifts endpoint contract
+        run: |
+          set -euo pipefail
+          shifts=$(curl --connect-timeout 5 --max-time 12 -fsS "$BASE_URL/api/mysql/shifts")
+          printf '%s' "$shifts" | node -e "
+            let s='';
+            process.stdin.on('data', d => s += d);
+            process.stdin.on('end', () => {
+              const data = JSON.parse(s);
+              if (!Array.isArray(data)) {
+                throw new Error('Shifts payload is not an array');
+              }
+              const hasLegacyLocation = data.some((shift) => Object.prototype.hasOwnProperty.call(shift || {}, 'location'));
+              if (hasLegacyLocation) {
+                throw new Error('Legacy location field detected in shifts payload');
+              }
+              const missingCanonicalFields = data.some((shift) => !(shift && Object.prototype.hasOwnProperty.call(shift, 'eventId') && Object.prototype.hasOwnProperty.call(shift, 'eventTitle')));
+              if (missingCanonicalFields) {
+                throw new Error('Canonical eventId/eventTitle missing in shifts payload');
+              }
+              process.stdout.write(String(data.length));
+            });
+          "
+
+      - name: Notify watchdog failure webhook
+        if: ${{ failure() && env.ALERT_WEBHOOK != '' }}
+        run: |
+          set -euo pipefail
+          payload=$(cat <<EOF2
+          {
+            "text": "OPS WATCHDOG FAILED for ${{ github.repository }} on ${{ github.ref_name }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF2
+          )
+          curl -fsS -X POST "$ALERT_WEBHOOK" -H 'Content-Type: application/json' --data "$payload"
+
+      - name: Write watchdog summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## Ops Watchdog"
+            echo ""
+            echo "- Base URL: $BASE_URL"
+            echo "- Result: ${{ job.status }}"
+            echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

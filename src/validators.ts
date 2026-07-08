@@ -550,6 +550,15 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
     sanitized.durationLabel = durationRes.sanitized;
   }
 
+  // legacy location (forbidden in shifts payload)
+  if (b.location !== undefined) {
+    errors.push({
+      field: "location",
+      message: "Legacy field location is not allowed for shifts. Use eventId/eventTitle.",
+      value: b.location,
+    });
+  }
+
   // eventTitle (required)
   const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
   if (!eventTitleRes.valid) {
