@@ -61,6 +61,40 @@ export default function DashboardScreen({
   // Dynamically calculate active staff count from local state
   const checkedInStaffCount = staff.filter(s => s.status === 'IN').length;
 
+  const getCoverageStats = (event: LiveEvent | null) => {
+    const required = event?.requiredStaff ?? event?.totalStaffNeeded ?? 0;
+    const active = event
+      ? (event.id === liveEvent?.id ? checkedInStaffCount : event.activeStaff ?? 0)
+      : 0;
+
+    const gap = required - active;
+    const coveragePct = required > 0 ? Math.round((active / required) * 100) : 100;
+
+    if (gap > 0) {
+      return {
+        label: `Faltan ${gap}`,
+        tone: 'text-amber-300 border-amber-400/30 bg-amber-500/10',
+        coveragePct,
+      };
+    }
+
+    if (gap < 0) {
+      return {
+        label: `Sobran ${Math.abs(gap)}`,
+        tone: 'text-sky-300 border-sky-400/30 bg-sky-500/10',
+        coveragePct,
+      };
+    }
+
+    return {
+      label: 'Cobertura completa',
+      tone: 'text-emerald-300 border-emerald-400/30 bg-emerald-500/10',
+      coveragePct,
+    };
+  };
+
+  const liveCoverage = getCoverageStats(liveEvent);
+
   return (
     <div id="dashboard-view" className="space-y-6">
       {/* Status Header */}
@@ -102,10 +136,15 @@ export default function DashboardScreen({
             <h2 className="text-2xl font-display font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
               {liveEvent?.title || "Sin Evento Activo"}
             </h2>
-            <p className="text-sm text-white/60 flex items-center mb-6">
+            <p className="text-sm text-white/60 flex items-center mb-3">
               <MapPin className="w-4 h-4 mr-2 text-indigo-400" />
               {liveEvent?.location || "Ubicación No Especificada"}
             </p>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-wider ${liveCoverage.tone}`}>
+              <Users className="w-3.5 h-3.5" />
+              <span>{liveCoverage.label}</span>
+              <span className="text-white/50">· {liveCoverage.coveragePct}%</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4 border-t border-white/10 pt-5 mt-auto">
@@ -216,6 +255,14 @@ export default function DashboardScreen({
                 <div className="hidden md:block text-right">
                   <p className="text-[10px] font-mono text-white/40 uppercase">Personal Requerido</p>
                   <p className="text-xs font-semibold text-white mt-1">{event.requiredStaff} Especialistas</p>
+                  {(() => {
+                    const coverage = getCoverageStats(event);
+                    return (
+                      <p className="text-[10px] font-mono mt-1 text-white/60">
+                        {coverage.label} · {coverage.coveragePct}%
+                      </p>
+                    );
+                  })()}
                 </div>
                 <ChevronRight className="w-5 h-5 text-white/40 group-hover:translate-x-1 transition-transform" />
               </div>
