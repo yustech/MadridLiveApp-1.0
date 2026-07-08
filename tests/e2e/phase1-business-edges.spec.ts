@@ -154,7 +154,8 @@ test.describe('Phase 1 - business edge coverage', () => {
             dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
             timespan: '00:00 - Presente',
             durationLabel: 'Active',
-            location: `Main Stage (${event.title})`,
+            eventId: event.id,
+            eventTitle: event.title,
             status: 'Active',
             startedAt: now.toISOString(),
             endedAt: later.toISOString(),
@@ -197,7 +198,7 @@ test.describe('Phase 1 - business edge coverage', () => {
             totalHours: 0,
             currentShiftHours: 0,
             currentShiftMins: 0,
-            location: 'Main Stage',
+            eventTitle: 'Main Stage',
           },
         });
 
@@ -222,7 +223,8 @@ test.describe('Phase 1 - business edge coverage', () => {
               dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
               timespan: '00:00 - Presente',
               durationLabel: 'Active',
-              location: `Main Stage (${event.title})`,
+              eventId: event.id,
+            eventTitle: event.title,
               status: 'Active',
               startedAt: now.toISOString(),
               endedAt: later.toISOString(),
@@ -285,7 +287,8 @@ test.describe('Phase 1 - business edge coverage', () => {
               dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
               timespan: '00:00 - Presente',
               durationLabel: 'Active',
-              location: `Main Stage (${event.title})`,
+              eventId: event.id,
+            eventTitle: event.title,
               status: 'Active',
               startedAt: now.toISOString(),
               endedAt: later.toISOString(),
