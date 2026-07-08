@@ -15,6 +15,7 @@ DEPLOY_URL="${DEPLOY_URL:-https://inmosubastas.top}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-false}"
 KEEP_RELEASES="${KEEP_RELEASES:-8}"
 DEPLOY_SERVICE_NAME="${DEPLOY_SERVICE_NAME:-madridlive-app.service}"
+DEPLOY_RESTART_STRATEGY="${DEPLOY_RESTART_STRATEGY:-auto}"
 DEPLOY_PUBLIC_FRONTEND="${DEPLOY_PUBLIC_FRONTEND:-false}"
 PUBLIC_HTML_PATH="${PUBLIC_HTML_PATH:-/home/netiadmin/web/inmosubastas.top/public_html}"
 PUBLIC_FRONTEND_BACKUP_BASE="${PUBLIC_FRONTEND_BACKUP_BASE:-/home/opsadmin/MadridLiveApp-1.0/deploy_backups_local}"
@@ -81,13 +82,34 @@ if ! scp "${SCP_OPTS[@]}" -r dist "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"; then
   exit 255
 fi
 
-echo "Restarting systemd service..."
-if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart '$DEPLOY_SERVICE_NAME' && sudo -n systemctl is-active --quiet '$DEPLOY_SERVICE_NAME'"; then
-  echo "Non-interactive sudo restart is not available. Falling back to process signal restart..."
+echo "Restarting application service..."
+remote_service_user="$(ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "systemctl show '$DEPLOY_SERVICE_NAME' -p User --value 2>/dev/null || true")"
+restart_strategy="$DEPLOY_RESTART_STRATEGY"
+
+if [[ "$restart_strategy" == "auto" ]]; then
+  if [[ -n "$remote_service_user" && "$remote_service_user" == "$DEPLOY_USER" ]]; then
+    restart_strategy="signal"
+  else
+    restart_strategy="systemd"
+  fi
+fi
+
+if [[ "$restart_strategy" == "signal" ]]; then
+  echo "Using process signal restart for ${DEPLOY_SERVICE_NAME} (service user: ${remote_service_user:-unknown})."
   if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '$PKILL_PATTERN' || true"; then
-    echo "Fallback restart command failed. Running verbose diagnostics..."
+    echo "Signal restart command failed. Running verbose diagnostics..."
     ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '$PKILL_PATTERN' || true" || true
     exit 255
+  fi
+else
+  echo "Using systemd restart for ${DEPLOY_SERVICE_NAME}."
+  if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n systemctl restart '$DEPLOY_SERVICE_NAME' && sudo -n systemctl is-active --quiet '$DEPLOY_SERVICE_NAME'"; then
+    echo "Non-interactive sudo restart is not available. Falling back to process signal restart..."
+    if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '$PKILL_PATTERN' || true"; then
+      echo "Fallback restart command failed. Running verbose diagnostics..."
+      ssh -vv "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "pkill -f '$PKILL_PATTERN' || true" || true
+      exit 255
+    fi
   fi
 fi
 

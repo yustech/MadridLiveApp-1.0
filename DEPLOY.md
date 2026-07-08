@@ -22,6 +22,7 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
 3. Un usuario de despliegue con permisos para copiar `dist/` y reiniciar el servicio.
 4. El servicio `madridlive-app.service` debe cargar variables con `EnvironmentFile=/opt/madridlive-app/.env` (drop-in de systemd).
 5. El watchdog de producción vive como `madridlive-watchdog.service` + `madridlive-watchdog.timer`, ejecutándose cada 5 minutos para validar `/api/health` y `/api/mysql/staff`.
+6. El script `scripts/deploy.sh` soporta `DEPLOY_RESTART_STRATEGY=auto|systemd|signal`. En `auto`, si `madridlive-app.service` corre bajo el mismo usuario que despliega, usa reinicio por señal (`pkill`) en vez de depender de `sudo systemctl restart`.
 
 ---
 
