@@ -113,6 +113,7 @@ export default function ScannerScreen({
 
   // Manual code entry mode
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [closeConfirmWorker, setCloseConfirmWorker] = useState<StaffMember | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [manualError, setManualError] = useState('');
   const [scanError, setScanError] = useState('');
@@ -260,6 +261,18 @@ export default function ScannerScreen({
   );
 
   const activeSelectedWorker = staff.find(w => w.id === selectedWorkerId) || staff[0];
+  const activeSelectedWorkerDuration = activeSelectedWorker
+    ? `${activeSelectedWorker.currentShiftHours || 0}h ${activeSelectedWorker.currentShiftMins || 0}m`
+    : '0h 0m';
+
+  const handlePrimaryAction = () => {
+    if (!activeSelectedWorker) return;
+    if (activeSelectedWorker.status === 'IN') {
+      setCloseConfirmWorker(activeSelectedWorker);
+      return;
+    }
+    triggerScanOperation(activeSelectedWorker.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -605,15 +618,23 @@ export default function ScannerScreen({
               </a>
             </div>
 
-            {/* EMULATION ACTION BUTTON */}
-            <div className="w-full pt-2">
+            {/* ACCIONES GUIADAS DE TURNO */}
+            <div className="w-full pt-2 space-y-2">
+              <div className="text-[10px] font-mono text-white/50 text-center">
+                Evento activo: {activeEvent?.title || 'Sin evento'}
+              </div>
+              {activeSelectedWorker.status === 'IN' && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
+                  Turno abierto · Duracion estimada: {activeSelectedWorkerDuration}
+                </div>
+              )}
               <button
-                onClick={() => triggerScanOperation(activeSelectedWorker.id)}
+                onClick={handlePrimaryAction}
                 disabled={isScanActive}
                 className="w-full h-12 bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white disabled:from-white/10 disabled:to-white/5 disabled:text-white/40 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all duration-350 cursor-pointer shadow-indigo-500/10 hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
               >
                 <QrCode className={`w-4 h-4 ${isScanActive ? 'animate-spin' : ''}`} />
-                <span>ESCANEAR ESTA CREDENCIAL (QR)</span>
+                <span>{activeSelectedWorker.status === 'IN' ? 'CERRAR TURNO GUIADO' : 'INICIO TURNO 1 CLIC'}</span>
               </button>
             </div>
 
@@ -621,6 +642,35 @@ export default function ScannerScreen({
         )}
 
       </div>
+
+      {closeConfirmWorker && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-md">
+          <div className="w-full max-w-sm bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 space-y-4 text-center">
+            <h3 className="text-lg font-display font-black text-white">Confirmar cierre de turno</h3>
+            <p className="text-xs text-white/60">
+              {closeConfirmWorker.name} lleva {closeConfirmWorker.currentShiftHours || 0}h {closeConfirmWorker.currentShiftMins || 0}m en turno activo.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setCloseConfirmWorker(null)}
+                className="h-10 rounded-xl border border-white/15 text-xs font-mono text-white/70 hover:bg-white/10"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const workerId = closeConfirmWorker.id;
+                  setCloseConfirmWorker(null);
+                  triggerScanOperation(workerId);
+                }}
+                className="h-10 rounded-xl bg-rose-500/80 hover:bg-rose-500 text-xs font-mono font-bold text-white"
+              >
+                Cerrar ahora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DETAILED SCAN SUCCESS OVERLAY DIALOG */}
       {scannedResult && (

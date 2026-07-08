@@ -61,6 +61,26 @@ export default function DashboardScreen({
 
   // Dynamically calculate active staff count from local state
   const checkedInStaffCount = staff.filter(s => s.status === 'IN').length;
+  const activeRequiredStaff = liveEvent?.requiredStaff ?? liveEvent?.totalStaffNeeded ?? 0;
+  const pendingNowCount = Math.max(activeRequiredStaff - checkedInStaffCount, 0);
+
+  const longShiftWorkers = useMemo(() => {
+    const LONG_SHIFT_MINUTES = 8 * 60;
+    return staff
+      .filter((member) => member.status === 'IN')
+      .map((member) => ({
+        ...member,
+        shiftMinutes: (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0),
+      }))
+      .filter((member) => member.shiftMinutes >= LONG_SHIFT_MINUTES)
+      .sort((a, b) => b.shiftMinutes - a.shiftMinutes);
+  }, [staff]);
+
+  const pendingNowCandidates = useMemo(() => {
+    return staff
+      .filter((member) => member.status === 'OUT')
+      .slice(0, Math.max(pendingNowCount, 3));
+  }, [staff, pendingNowCount]);
 
   const getCoverageStats = (event: LiveEvent | null) => {
     const required = event?.requiredStaff ?? event?.totalStaffNeeded ?? 0;
@@ -213,6 +233,17 @@ export default function DashboardScreen({
             </p>
           </button>
 
+          {longShiftWorkers.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-3xl p-5">
+              <h4 className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider mb-2">
+                Alerta de salida pendiente
+              </h4>
+              <p className="text-xs text-white/70">
+                {longShiftWorkers[0].name} lleva {longShiftWorkers[0].currentShiftHours}h {longShiftWorkers[0].currentShiftMins}m en turno activo.
+              </p>
+            </div>
+          )}
+
           {/* Alert Card */}
           {alerts.map(alert => (
             <div
@@ -236,6 +267,29 @@ export default function DashboardScreen({
                 No hay conciertos con deficit de personal ahora mismo.
               </p>
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">Pendientes ahora</h3>
+          <span className="text-sm font-display font-bold text-amber-300">{pendingNowCount}</span>
+        </div>
+        <p className="text-xs text-white/60">
+          Fichajes pendientes para cubrir el evento activo ({checkedInStaffCount}/{activeRequiredStaff}).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {pendingNowCount > 0 ? (
+            pendingNowCandidates.map((member) => (
+              <span key={member.id} className="text-[10px] font-mono bg-white/10 border border-white/10 rounded-full px-2.5 py-1 text-white/80">
+                {member.name}
+              </span>
+            ))
+          ) : (
+            <span className="text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1 text-emerald-300">
+              Cobertura completa ahora mismo
+            </span>
           )}
         </div>
       </div>
