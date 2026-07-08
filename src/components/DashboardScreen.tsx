@@ -8,7 +8,9 @@ import {
   QrCode, 
   Users, 
   CheckCircle2, 
-  Clock 
+  Clock,
+  Trash2,
+  History
 } from 'lucide-react';
 import { LiveEvent, EquipmentAlert, StaffMember } from '../types';
 
@@ -19,6 +21,7 @@ interface DashboardScreenProps {
   activeEventId: string;
   setActiveEventId: (id: string) => void;
   onLaunchScanner: () => void;
+  onDeletePastEvent: (eventId: string) => Promise<void>;
 }
 
 export default function DashboardScreen({
@@ -27,10 +30,14 @@ export default function DashboardScreen({
   staff,
   activeEventId,
   setActiveEventId,
-  onLaunchScanner
+  onLaunchScanner,
+  onDeletePastEvent
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
   const [showOnlyDeficit, setShowOnlyDeficit] = useState(false);
+  const [eventListTab, setEventListTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
   const monthIndex: Record<string, number> = {
     ENE: 0, JAN: 0, FEB: 1, MAR: 2, ABR: 3, APR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11, DEC: 11,
@@ -54,10 +61,22 @@ export default function DashboardScreen({
 
   // Let's filter live vs upcoming events based on activeEventId
   const liveEvent = events.find(e => e.id === activeEventId) || events[0] || null;
-  const upcomingEvents = useMemo(() => {
-    const base = liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events];
-    return base.sort((a, b) => toEventDate(a).getTime() - toEventDate(b).getTime());
+  const referenceNow = Date.now();
+  const nonLiveEvents = useMemo(() => {
+    return (liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events]);
   }, [events, liveEvent]);
+
+  const upcomingEvents = useMemo(() => {
+    return nonLiveEvents
+      .filter((event) => toEventDate(event).getTime() >= referenceNow)
+      .sort((a, b) => toEventDate(a).getTime() - toEventDate(b).getTime());
+  }, [nonLiveEvents, referenceNow]);
+
+  const pastEvents = useMemo(() => {
+    return nonLiveEvents
+      .filter((event) => toEventDate(event).getTime() < referenceNow)
+      .sort((a, b) => toEventDate(b).getTime() - toEventDate(a).getTime());
+  }, [nonLiveEvents, referenceNow]);
 
   // Dynamically calculate active staff count from local state
   const checkedInStaffCount = staff.filter(s => s.status === 'IN').length;
@@ -136,10 +155,25 @@ export default function DashboardScreen({
   }, [upcomingEvents]);
 
   const visibleUpcomingEvents = showOnlyDeficit ? deficitUpcomingEvents : upcomingEvents;
+  const visiblePastEvents = pastEvents;
+  const listedEvents = eventListTab === 'upcoming' ? visibleUpcomingEvents : visiblePastEvents;
 
   const upcomingFilterLabel = showOnlyDeficit
     ? `Mostrando deficit (${visibleUpcomingEvents.length})`
     : `Mostrando todos (${visibleUpcomingEvents.length})`;
+
+  const handleConfirmDeletePastEvent = async () => {
+    if (!deleteTargetEvent) return;
+
+    setIsDeletingEvent(true);
+    try {
+      await onDeletePastEvent(deleteTargetEvent.id);
+      setSelectedDetailEvent((current) => current?.id === deleteTargetEvent.id ? null : current);
+      setDeleteTargetEvent(null);
+    } finally {
+      setIsDeletingEvent(false);
+    }
+  };
 
   const liveCoverage = getCoverageStats(liveEvent);
 
@@ -274,10 +308,12 @@ export default function DashboardScreen({
               </div>
             </div>
           ))}
-          {visibleUpcomingEvents.length === 0 && (
+          {listedEvents.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center">
               <p className="text-xs font-mono uppercase tracking-wider text-white/50">
-                No hay conciertos con deficit de personal ahora mismo.
+                {eventListTab === 'upcoming'
+                  ? 'No hay conciertos con deficit de personal ahora mismo.'
+                  : 'No hay conciertos pasados archivados ahora mismo.'}
               </p>
             </div>
           )}
@@ -310,25 +346,51 @@ export default function DashboardScreen({
       {/* Upcoming Deployments List */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
-            PRÓXIMOS CONCIERTOS
-          </h3>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
-              {upcomingFilterLabel}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowOnlyDeficit((prev) => !prev)}
-              className="h-8 rounded-full border border-white/15 px-3 text-[10px] font-mono uppercase tracking-wider text-white/80 hover:bg-white/10 transition-colors"
-            >
-              {showOnlyDeficit ? 'Ver todos' : 'Solo deficit'}
-            </button>
+            <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
+              {eventListTab === 'upcoming' ? 'PRÓXIMOS CONCIERTOS' : 'CONCIERTOS PASADOS'}
+            </h3>
+            <div className="flex items-center rounded-full border border-white/10 bg-white/5 p-1">
+              <button
+                type="button"
+                onClick={() => setEventListTab('upcoming')}
+                className={`h-8 rounded-full px-3 text-[10px] font-mono uppercase tracking-wider transition-colors ${eventListTab === 'upcoming' ? 'bg-indigo-500/20 text-indigo-200' : 'text-white/60 hover:bg-white/10'}`}
+              >
+                Próximos
+              </button>
+              <button
+                type="button"
+                onClick={() => setEventListTab('past')}
+                className={`h-8 rounded-full px-3 text-[10px] font-mono uppercase tracking-wider transition-colors ${eventListTab === 'past' ? 'bg-indigo-500/20 text-indigo-200' : 'text-white/60 hover:bg-white/10'}`}
+              >
+                Pasados
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {eventListTab === 'upcoming' ? (
+              <>
+                <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
+                  {upcomingFilterLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyDeficit((prev) => !prev)}
+                  className="h-8 rounded-full border border-white/15 px-3 text-[10px] font-mono uppercase tracking-wider text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  {showOnlyDeficit ? 'Ver todos' : 'Solo deficit'}
+                </button>
+              </>
+            ) : (
+              <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
+                {`Mostrando archivados (${visiblePastEvents.length})`}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
-          {visibleUpcomingEvents.map(event => (
+          {listedEvents.map(event => (
             <div
               key={event.id}
               onClick={() => setSelectedDetailEvent(event)}
@@ -373,6 +435,43 @@ export default function DashboardScreen({
           ))}
         </div>
       </div>
+
+      {deleteTargetEvent && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-hud-glow">
+            <div className="flex items-center gap-3 text-left">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-300">
+                <History className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-rose-300">Eliminar concierto pasado</p>
+                <h3 className="text-lg font-display font-black text-white mt-1">{deleteTargetEvent.title}</h3>
+              </div>
+            </div>
+            <p className="text-xs text-white/60">
+              Se borrará el concierto y todos los registros horarios asociados a ese evento. Esta acción no se puede deshacer.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetEvent(null)}
+                disabled={isDeletingEvent}
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition-colors text-xs font-mono"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmDeletePastEvent()}
+                disabled={isDeletingEvent}
+                className="h-11 rounded-xl border border-rose-500/20 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 transition-colors text-xs font-mono font-bold"
+              >
+                {isDeletingEvent ? 'Borrando...' : 'Borrar todo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Event Details Modal */}
       {selectedDetailEvent && (

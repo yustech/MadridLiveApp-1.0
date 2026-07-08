@@ -734,7 +734,22 @@ export function registerMysqlApi(app: express.Express) {
   app.delete(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
     try {
       const db = getPool();
+      const [rows] = await db.query(
+        `SELECT id, title FROM events WHERE id = ? LIMIT 1`,
+        [req.params.id]
+      );
+      const eventRows = rows as Array<{ id: string; title: string }>;
+      if (eventRows.length === 0) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+
+      const eventTitle = eventRows[0].title;
+      await db.execute(
+        `DELETE FROM shifts WHERE event_id = ? OR event_title = ?`,
+        [req.params.id, eventTitle]
+      );
       await db.execute("DELETE FROM events WHERE id = ?", [req.params.id]);
+
       return res.json({ success: true });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });

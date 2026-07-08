@@ -13,7 +13,8 @@ import {
   updateShift,
   addShift,
   addStaff,
-  deleteShift
+  deleteShift,
+  deleteEvent
 } from './dbService';
 
 
@@ -284,6 +285,20 @@ export default function App() {
       await addStaff(newCrewData);
     } catch (err) {
       console.error('Failed to register crew member in the API: ', err);
+    }
+  };
+
+  const handleDeletePastEvent = async (eventId: string) => {
+    try {
+      await deleteEvent(eventId);
+      setActiveEventId((prev) => {
+        if (prev !== eventId) return prev;
+        const fallback = events.find((event) => event.id !== eventId);
+        return fallback?.id || '';
+      });
+    } catch (err) {
+      console.error('Failed to delete past event and related shifts: ', err);
+      throw err;
     }
   };
 
