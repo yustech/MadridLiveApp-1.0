@@ -762,31 +762,6 @@ export function registerMysqlApi(app: express.Express) {
       `);
       return res.json(rows);
     } catch (error: any) {
-      if (error?.code === "ER_BAD_FIELD_ERROR") {
-        try {
-          const db = getPool();
-          const [rows] = await db.query(`
-            SELECT
-              id,
-              worker_id AS workerId,
-              date_string AS dateString,
-              timespan,
-              duration_label AS durationLabel,
-              NULL AS eventId,
-              location AS eventTitle,
-              status,
-              NULL AS startedAt,
-              NULL AS endedAt,
-              NULL AS updatedAt
-            FROM shifts
-            ORDER BY id DESC
-          `);
-          return res.json(rows);
-        } catch (fallbackError: any) {
-          return res.status(500).json({ message: fallbackError.message });
-        }
-      }
-
       return res.status(500).json({ message: error.message });
     }
   });
