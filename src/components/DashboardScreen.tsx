@@ -356,14 +356,14 @@ export default function DashboardScreen({
                 onClick={() => setEventListTab('upcoming')}
                 className={`h-8 rounded-full px-3 text-[10px] font-mono uppercase tracking-wider transition-colors ${eventListTab === 'upcoming' ? 'bg-indigo-500/20 text-indigo-200' : 'text-white/60 hover:bg-white/10'}`}
               >
-                Próximos
+                {`Próximos (${visibleUpcomingEvents.length})`}
               </button>
               <button
                 type="button"
                 onClick={() => setEventListTab('past')}
                 className={`h-8 rounded-full px-3 text-[10px] font-mono uppercase tracking-wider transition-colors ${eventListTab === 'past' ? 'bg-indigo-500/20 text-indigo-200' : 'text-white/60 hover:bg-white/10'}`}
               >
-                Pasados
+                {`Pasados (${visiblePastEvents.length})`}
               </button>
             </div>
           </div>
