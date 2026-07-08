@@ -30,6 +30,7 @@ export default function DashboardScreen({
   onLaunchScanner
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
+  const [showOnlyDeficit, setShowOnlyDeficit] = useState(false);
 
   const monthIndex: Record<string, number> = {
     ENE: 0, JAN: 0, FEB: 1, MAR: 2, ABR: 3, APR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11, DEC: 11,
@@ -92,6 +93,20 @@ export default function DashboardScreen({
       coveragePct,
     };
   };
+
+  const deficitUpcomingEvents = useMemo(() => {
+    return upcomingEvents.filter((event) => {
+      const required = event.requiredStaff ?? event.totalStaffNeeded ?? 0;
+      const active = event.activeStaff ?? 0;
+      return required > active;
+    });
+  }, [upcomingEvents]);
+
+  const visibleUpcomingEvents = showOnlyDeficit ? deficitUpcomingEvents : upcomingEvents;
+
+  const upcomingFilterLabel = showOnlyDeficit
+    ? `Mostrando deficit (${visibleUpcomingEvents.length})`
+    : `Mostrando todos (${visibleUpcomingEvents.length})`;
 
   const liveCoverage = getCoverageStats(liveEvent);
 
@@ -215,17 +230,38 @@ export default function DashboardScreen({
               </div>
             </div>
           ))}
+          {visibleUpcomingEvents.length === 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center">
+              <p className="text-xs font-mono uppercase tracking-wider text-white/50">
+                No hay conciertos con deficit de personal ahora mismo.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Upcoming Deployments List */}
       <div className="space-y-4">
-        <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
-          PRÓXIMOS CONCIERTOS
-        </h3>
-        
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
+            PRÓXIMOS CONCIERTOS
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
+              {upcomingFilterLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowOnlyDeficit((prev) => !prev)}
+              className="h-8 rounded-full border border-white/15 px-3 text-[10px] font-mono uppercase tracking-wider text-white/80 hover:bg-white/10 transition-colors"
+            >
+              {showOnlyDeficit ? 'Ver todos' : 'Solo deficit'}
+            </button>
+          </div>
+        </div>
+
         <div className="flex flex-col gap-3">
-          {upcomingEvents.map(event => (
+          {visibleUpcomingEvents.map(event => (
             <div
               key={event.id}
               onClick={() => setSelectedDetailEvent(event)}
