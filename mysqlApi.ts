@@ -119,7 +119,7 @@ async function getSchemaStatus(db: any) {
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
        AND table_name IN ('shifts')
-       AND column_name IN ('updated_at', 'started_at', 'ended_at', 'event_title')`
+       AND column_name IN ('updated_at', 'started_at', 'ended_at', 'event_id', 'event_title')`
   );
 
   const found = new Set((rows as Array<{ tableName: string; columnName: string }>).map((r) => `${r.tableName}.${r.columnName}`));
