@@ -43,6 +43,19 @@ export default function DashboardScreen({
     ENE: 0, JAN: 0, FEB: 1, MAR: 2, ABR: 3, APR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11, DEC: 11,
   };
 
+  const monthNameMap: Record<string, string> = {
+    ENE: 'Enero', JAN: 'Enero', FEB: 'Febrero', MAR: 'Marzo', ABR: 'Abril', APR: 'Abril', MAY: 'Mayo', JUN: 'Junio',
+    JUL: 'Julio', AGO: 'Agosto', AUG: 'Agosto', SEP: 'Septiembre', OCT: 'Octubre', NOV: 'Noviembre', DIC: 'Diciembre', DEC: 'Diciembre',
+  };
+
+  const formatEventDate = (event: LiveEvent): string => {
+    const day = Number(event.dateDay);
+    const monthName = monthNameMap[event.dateMonth.trim().toUpperCase()] || event.dateMonth;
+    const now = new Date();
+    const year = String(now.getFullYear()).slice(-2);
+    return `${day} ${monthName} ${year}`;
+  };
+
   const toEventDate = (event: LiveEvent) => {
     const day = Number(event.dateDay);
     const month = monthIndex[event.dateMonth.trim().toUpperCase()];
@@ -218,6 +231,11 @@ export default function DashboardScreen({
             <h2 className="text-2xl font-display font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
               {liveEvent?.title || "Sin Evento Activo"}
             </h2>
+            {liveEvent && (
+              <p className="text-xs text-indigo-300 mb-1 font-mono">
+                📅 {formatEventDate(liveEvent)}
+              </p>
+            )}
             <p className="text-sm text-white/60 flex items-center mb-3">
               <MapPin className="w-4 h-4 mr-2 text-indigo-400" />
               {liveEvent?.location || "Ubicación No Especificada"}
@@ -410,6 +428,9 @@ export default function DashboardScreen({
                   <h4 className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">
                     {event.title}
                   </h4>
+                  <p className="text-[10px] text-indigo-300 font-mono mt-0.5">
+                    {formatEventDate(event)}
+                  </p>
                   <p className="text-xs text-white/60 mt-1">
                     {event.location} • Puertas: {event.doorsOpen}
                   </p>
@@ -502,7 +523,10 @@ export default function DashboardScreen({
               <h3 className="text-xl font-display font-black text-white mt-1">
                 {selectedDetailEvent.title}
               </h3>
-              <p className="text-xs text-white/60 mt-1 flex items-center">
+              <p className="text-xs text-indigo-300 mt-2 font-mono">
+                📅 {formatEventDate(selectedDetailEvent)}
+              </p>
+              <p className="text-xs text-white/60 mt-2 flex items-center">
                 <MapPin className="w-3.5 h-3.5 mr-1.5 text-indigo-400" />
                 {selectedDetailEvent.location}
               </p>
