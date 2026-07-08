@@ -322,7 +322,8 @@ test.describe('Phase 1 - business edge coverage', () => {
           dateString: now.toISOString().split('T')[0], // YYYY-MM-DD format
           timespan: '00:00 - Presente',
           durationLabel: 'Active',
-          location: `Main Stage (${futureEvent.title})`,
+          eventId: futureEvent.id,
+          eventTitle: futureEvent.title,
           status: 'Active',
           startedAt: now.toISOString(),
           endedAt: later.toISOString(),
