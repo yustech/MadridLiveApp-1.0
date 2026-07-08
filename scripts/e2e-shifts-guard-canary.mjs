@@ -119,7 +119,8 @@ async function run() {
           dateString: '2026-07-06T23:52:28.036Z',
           timespan: '00:00 - Presente',
           durationLabel: 'In Progress',
-          location: `Main Stage (${event.title})`,
+          eventId: event.id,
+          eventTitle: event.title,
           status: 'active',
           startedAt: nowIso,
         },
@@ -141,7 +142,13 @@ async function run() {
         continue;
       }
 
-      if (createAttempt.status === 409 && guardMsg.toLowerCase().includes('active shift')) {
+      if (
+        createAttempt.status === 409
+        && (
+          guardMsg.toLowerCase().includes('active shift')
+          || guardMsg.toLowerCase().includes('overlapping time range')
+        )
+      ) {
         break;
       }
 
@@ -200,7 +207,8 @@ async function run() {
             dateString: '2026-07-06T23:52:28.036Z',
             timespan: '00:00 - Presente',
             durationLabel: 'In Progress',
-            location: `Main Stage (${event.title})`,
+            eventId: event.id,
+          eventTitle: event.title,
             status: 'active',
             startedAt: new Date().toISOString(),
           },
@@ -228,7 +236,8 @@ async function run() {
         dateString: '2026-07-06T23:52:28.036Z',
         timespan: '00:00 - Presente',
         durationLabel: 'In Progress',
-        location: `Main Stage (${futureEvent.title})`,
+        eventId: futureEvent.id,
+        eventTitle: futureEvent.title,
         status: 'active',
         startedAt: new Date().toISOString(),
       },

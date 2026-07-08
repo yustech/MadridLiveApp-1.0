@@ -331,7 +331,8 @@ async function run() {
         dateString: '2026-07-06T23:52:28.041Z',
         timespan: '00:00 - Presente',
         durationLabel: 'In Progress',
-        location: `Main Stage (${futureEvent.title})`,
+        eventId: futureEvent.id,
+        eventTitle: futureEvent.title,
         status: 'active',
         startedAt: new Date().toISOString(),
       },
@@ -358,7 +359,7 @@ async function run() {
         totalHours: 0,
         currentShiftHours: 0,
         currentShiftMins: 0,
-        location: 'Main Stage',
+        eventTitle: 'Main Stage',
       },
     });
 
@@ -376,7 +377,8 @@ async function run() {
       dateString: '2026-07-06T23:52:28.041Z',
       timespan: '00:10 - Presente',
       durationLabel: 'In Progress',
-      location: `Main Stage (${allowedEvent.title})`,
+      eventId: allowedEvent.id,
+      eventTitle: allowedEvent.title,
       status: 'active',
       startedAt: raceStartedAt,
     };
