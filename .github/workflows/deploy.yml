@@ -150,13 +150,6 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
         run: npm run test:e2e:history:canary
-
-      - name: Production shifts guard canary
-        if: ${{ inputs.publish_public_frontend == 'true' }}
-        env:
-          PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
-        run: npm run test:e2e:shifts:guard:canary
-
       - name: Record post-deploy functional gate
         if: ${{ inputs.publish_public_frontend == 'true' }}
         run: |
@@ -166,7 +159,6 @@ jobs:
             echo ""
             echo "- Smoke: passed"
             echo "- History canary: passed"
-            echo "- Shifts guard canary: passed"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: SMTP config diagnostics

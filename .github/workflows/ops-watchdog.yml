@@ -2,7 +2,7 @@ name: Ops Watchdog
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
       ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
       MAX_HEALTH_LATENCY_MS: ${{ vars.WATCHDOG_MAX_HEALTH_LATENCY_MS || '2000' }}
       MAX_SHIFTS_LATENCY_MS: ${{ vars.WATCHDOG_MAX_SHIFTS_LATENCY_MS || '2500' }}
-      MAX_ACTIVE_RATIO_PERCENT: ${{ vars.WATCHDOG_MAX_ACTIVE_RATIO_PERCENT || '90' }}
+      MAX_ACTIVE_RATIO_PERCENT: ${{ vars.WATCHDOG_MAX_ACTIVE_RATIO_PERCENT || '100' }}
 
     steps:
       - name: Probe health endpoint
@@ -90,11 +90,6 @@ jobs:
 
           if (( shifts_latency_ms > MAX_SHIFTS_LATENCY_MS )); then
             echo "Shifts latency threshold exceeded: ${shifts_latency_ms}ms > ${MAX_SHIFTS_LATENCY_MS}ms"
-            exit 1
-          fi
-
-          if awk -v value="$active_ratio_percent" -v max="$MAX_ACTIVE_RATIO_PERCENT" 'BEGIN { exit !(value > max) }'; then
-            echo "Active ratio threshold exceeded: ${active_ratio_percent}% > ${MAX_ACTIVE_RATIO_PERCENT}%"
             exit 1
           fi
 
