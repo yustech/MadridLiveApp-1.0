@@ -308,7 +308,7 @@ export default function ProfileScreen({
                             {isActive ? 'Activo' : 'Completado'}
                           </p>
                           <p className="text-[10px] font-mono text-white/50 mt-0.5">
-                            {zoneTranslationMap[shift.location] || shift.location}
+                            {shift.eventTitle}
                           </p>
                         </div>
                         <ChevronRight className="w-4 h-4 text-white/30" />

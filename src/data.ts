@@ -95,7 +95,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Today, Oct 28',
     timespan: '14:00 - Present',
     durationLabel: 'Active',
-    location: 'Stage Left',
+    eventTitle: 'Electronic Music Festival',
     status: 'Active'
   },
   {
@@ -104,7 +104,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Sun, Oct 27',
     timespan: '10:00 - 22:30',
     durationLabel: '12.5h',
-    location: 'Main Stage',
+    eventTitle: 'Electronic Music Festival',
     status: 'Completed'
   },
   {
@@ -113,7 +113,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Sat, Oct 26',
     timespan: '12:00 - 02:00',
     durationLabel: '14.0h',
-    location: 'Loading Dock',
+    eventTitle: 'Electronic Music Festival',
     status: 'Completed'
   },
   {
@@ -122,7 +122,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Fri, Oct 25',
     timespan: '08:00 - 18:00',
     durationLabel: '10.0h',
-    location: 'Rigging',
+    eventTitle: 'Electronic Music Festival',
     status: 'Completed'
   },
   
@@ -133,7 +133,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Today, Oct 28',
     timespan: '14:30 - Present',
     durationLabel: 'Active',
-    location: 'Gate A Entrance',
+    eventTitle: 'Electronic Music Festival',
     status: 'Active'
   },
   {
@@ -142,7 +142,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Sun, Oct 27',
     timespan: '12:00 - 20:00',
     durationLabel: '8.0h',
-    location: 'Barricade Row 1',
+    eventTitle: 'Electronic Music Festival',
     status: 'Completed'
   },
 
@@ -153,7 +153,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Today, Oct 28',
     timespan: '09:00 - Present',
     durationLabel: 'Active',
-    location: 'Front of House',
+    eventTitle: 'Electronic Music Festival',
     status: 'Active'
   },
 
@@ -164,7 +164,7 @@ export const INITIAL_SHIFTS: Shift[] = [
     dateString: 'Yesterday, Oct 27',
     timespan: '08:00 - 20:00',
     durationLabel: '12.0h',
-    location: 'Backstage Monitors',
+    eventTitle: 'Electronic Music Festival',
     status: 'Completed'
   }
 ];

@@ -144,7 +144,7 @@ export default function DatabaseManagerScreen({
   });
 
   const [shiftData, setShiftData] = useState<Omit<Shift, 'id'>>({
-    workerId: '', dateString: '', timespan: '', durationLabel: '', location: '', status: 'Active'
+    workerId: '', dateString: '', timespan: '', durationLabel: '', eventId: '', eventTitle: '', status: 'Active'
   });
 
   const [alertData, setAlertData] = useState<Omit<EquipmentAlert, 'id'>>({
@@ -233,7 +233,7 @@ export default function DatabaseManagerScreen({
     } else if (activeTab === 'shifts') {
       const sh = record as Shift;
       setShiftData({
-        workerId: sh.workerId, dateString: sh.dateString, timespan: sh.timespan, durationLabel: sh.durationLabel, location: sh.location, status: sh.status
+        workerId: sh.workerId, dateString: sh.dateString, timespan: sh.timespan, durationLabel: sh.durationLabel, eventId: sh.eventId || '', eventTitle: sh.eventTitle, status: sh.status
       });
     } else if (activeTab === 'alerts') {
       const al = record as EquipmentAlert;
@@ -277,7 +277,7 @@ export default function DatabaseManagerScreen({
     } else if (activeTab === 'staff') {
       return staff.filter(s => s.name.toLowerCase().includes(q) || s.idCode.toLowerCase().includes(q) || s.role.toLowerCase().includes(q));
     } else if (activeTab === 'shifts') {
-      return shifts.filter(sh => sh.workerId.toLowerCase().includes(q) || sh.location.toLowerCase().includes(q) || sh.id.toLowerCase().includes(q));
+      return shifts.filter(sh => sh.workerId.toLowerCase().includes(q) || sh.eventTitle.toLowerCase().includes(q) || sh.id.toLowerCase().includes(q));
     } else if (activeTab === 'alerts') {
       return alerts.filter(al => al.message.toLowerCase().includes(q) || al.zone.toLowerCase().includes(q) || al.id.toLowerCase().includes(q));
     }
@@ -985,7 +985,7 @@ app.post('/api/auth/login', async (req, res) => {
                         <div className="text-left">
                           <h4 className="text-xs font-mono text-white/50">ID Colaborador: {item.workerId}</h4>
                           <p className="text-sm font-bold text-white mt-1">
-                            {item.location} ({item.timespan === '14:00 - Present' ? '14:00 - Presente' : item.timespan === '14:30 - Present' ? '14:30 - Presente' : item.timespan === '09:00 - Present' ? '09:00 - Presente' : item.timespan})
+                            {item.eventTitle} ({item.timespan === '14:00 - Present' ? '14:00 - Presente' : item.timespan === '14:30 - Present' ? '14:30 - Presente' : item.timespan === '09:00 - Present' ? '09:00 - Presente' : item.timespan})
                           </p>
                           <p className="text-[10px] text-indigo-300 font-mono mt-0.5">
                             Fecha: {item.dateString === 'Today' ? 'Hoy' : item.dateString === 'Yesterday' ? 'Ayer' : item.dateString} | Duración: {item.durationLabel === 'Active' ? 'Activo' : item.durationLabel}
@@ -1170,8 +1170,12 @@ app.post('/api/auth/login', async (req, res) => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-white/50 block mb-1">Zona de Trabajo</label>
-                    <input type="text" required value={shiftData.location} onChange={e => setShiftData({ ...shiftData, location: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
+                    <label className="text-[10px] text-white/50 block mb-1">Evento</label>
+                    <input type="text" required value={shiftData.eventTitle} onChange={e => setShiftData({ ...shiftData, eventTitle: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-white/50 block mb-1">ID Evento</label>
+                    <input type="text" value={shiftData.eventId || ''} onChange={e => setShiftData({ ...shiftData, eventId: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                   </div>
                   <div>
                     <label className="text-[10px] text-white/50 block mb-1">Intervalo de Turno</label>

@@ -133,17 +133,8 @@ function parseShiftDateTime(dateString: string, timespan: string, updatedAt?: st
   return baseDate.getTime();
 }
 
-function extractEventTitle(location: string): string {
-  const match = location.match(/\((.*)\)/);
-  return match ? match[1].trim() : '';
-}
-
-function splitShiftLocation(location: string): { zone: string; eventTitle: string } {
-  const match = location.match(/(.*)\s*\((.*)\)/);
-  if (!match) {
-    return { zone: location.trim(), eventTitle: 'Control General' };
-  }
-  return { zone: match[1].trim(), eventTitle: match[2].trim() };
+function getShiftEventTitle(shift: Shift): string {
+  return shift.eventTitle.trim() || 'Control General';
 }
 
 function getDayStartTs(timestamp: number): number {
@@ -291,9 +282,7 @@ export default function ShiftsScreen({
       if (selectedEventId !== 'All') {
         const event = events.find(e => e.id === selectedEventId);
         if (event) {
-          const locationText = shift.location.toLowerCase();
-          const eventTitle = event.title.toLowerCase();
-          matchesEvent = locationText.includes(eventTitle) || extractEventTitle(shift.location).toLowerCase() === eventTitle;
+          matchesEvent = shift.eventId === event.id || shift.eventTitle === event.title;
         }
       }
 
@@ -460,7 +449,7 @@ export default function ShiftsScreen({
     const escapeCsv = (value: string) => '"' + String(value).split(String.fromCharCode(10)).join(' ').replaceAll('"', '""') + '"';
 
     // Headers
-    const headers = ['ID Registro', 'Código Empleado', 'Nombre', 'Rol', 'Fecha', 'Horario', 'Ubicación / Evento', 'Duración', 'Estado'];
+    const headers = ['ID Registro', 'Código Empleado', 'Nombre', 'Rol', 'Fecha', 'Horario', 'Evento', 'Duración', 'Estado'];
     
     // Rows
     const rows = orderedShifts.map(sh => [
@@ -470,7 +459,7 @@ export default function ShiftsScreen({
       sh.workerRoleLabel,
       normalizeShiftDateLabel(sh.dateString, sh.timespan, sh.updatedAt, sh.id, sh.startedAt),
       sh.timespan,
-      sh.location,
+      sh.eventTitle,
       sh.durationLabel,
       sh.status?.toLowerCase() === 'active' ? 'ACTIVO' : 'COMPLETADO'
     ]);
@@ -806,7 +795,7 @@ export default function ShiftsScreen({
                   <tr className="bg-white/5 border-b border-white/10 text-white/40 uppercase text-[10px] tracking-wider">
                     <th className="px-6 py-4 font-semibold text-left">Especialista</th>
                     <th className="px-6 py-4 font-semibold text-left">Fecha</th>
-                    <th className="px-6 py-4 font-semibold text-left">Ubicación / Evento</th>
+                    <th className="px-6 py-4 font-semibold text-left">Evento</th>
                     <th className="px-6 py-4 font-semibold text-left">Rango de Horas</th>
                     <th className="px-6 py-4 font-semibold text-center">Duración</th>
                     <th className="px-6 py-4 font-semibold text-center">Estado</th>
@@ -815,19 +804,6 @@ export default function ShiftsScreen({
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {paginatedShifts.map(shift => {
-                    // Extract Zone and Event cleanly
-                    const isParenthesized = shift.location.includes('(');
-                    let zone = shift.location;
-                    let eventTitle = 'Control General';
-                    
-                    if (isParenthesized) {
-                      const match = shift.location.match(/(.*)\s*\((.*)\)/);
-                      if (match) {
-                        zone = match[1].trim();
-                        eventTitle = match[2].trim();
-                      }
-                    }
-
                     return (
                       <tr key={shift.id} onClick={() => handleOpenShiftDetail(shift)} className="hover:bg-white/2 transition-colors cursor-pointer">
                         {/* Worker column */}
@@ -869,16 +845,13 @@ export default function ShiftsScreen({
                           {normalizeShiftDateLabel(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt)}
                         </td>
 
-                        {/* Location / Event Column */}
+                        {/* Event Column */}
                         <td className="px-6 py-4">
                           <div className="space-y-0.5">
                             <div className="text-white/90 flex items-center gap-1 font-sans text-xs">
                               <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                              <span className="truncate max-w-[150px]">{zone}</span>
+                              <span className="truncate max-w-[150px]">{shift.eventTitle}</span>
                             </div>
-                            <span className="text-[10px] text-white/40 block tracking-tight uppercase font-mono">
-                              {eventTitle}
-                            </span>
                           </div>
                         </td>
 
@@ -950,18 +923,6 @@ export default function ShiftsScreen({
             {/* Mobile View Card List (<md) */}
             <div className="block md:hidden divide-y divide-white/5">
               {paginatedShifts.map(shift => {
-                const isParenthesized = shift.location.includes('(');
-                let zone = shift.location;
-                let eventTitle = 'Control General';
-                
-                if (isParenthesized) {
-                  const match = shift.location.match(/(.*)\s*\((.*)\)/);
-                  if (match) {
-                    zone = match[1].trim();
-                    eventTitle = match[2].trim();
-                  }
-                }
-
                 return (
                   <div key={shift.id} className="p-4 space-y-3.5 text-left hover:bg-white/1 transition-colors">
                     {/* Worker Info */}
@@ -1015,14 +976,11 @@ export default function ShiftsScreen({
                         <span className="text-white/80">{shift.timespan}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-white/30 block text-[8px] uppercase">Zona / Evento</span>
+                        <span className="text-white/30 block text-[8px] uppercase">Evento</span>
                         <div className="flex items-center gap-1.5 mt-0.5 text-white">
                           <MapPin className="w-3 h-3 text-indigo-400 shrink-0" />
-                          <span className="truncate max-w-[200px]">{zone}</span>
+                          <span className="truncate max-w-[200px]">{shift.eventTitle}</span>
                         </div>
-                        <span className="text-[8px] text-indigo-300/80 mt-0.5 block truncate">
-                          {eventTitle}
-                        </span>
                       </div>
                     </div>
 
@@ -1122,9 +1080,8 @@ export default function ShiftsScreen({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-indigo-500/10 border border-indigo-400/20 rounded-2xl p-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-300/80 block">Evento / Zona</span>
-                <p className="text-white mt-1 font-semibold break-words">{splitShiftLocation(selectedShiftDetail.location).eventTitle}</p>
-                <p className="text-xs text-white/60 mt-1 break-words">{splitShiftLocation(selectedShiftDetail.location).zone}</p>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-300/80 block">Evento</span>
+                <p className="text-white mt-1 font-semibold break-words">{selectedShiftDetail.eventTitle}</p>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Tramo horario</span>
@@ -1154,8 +1111,8 @@ export default function ShiftsScreen({
                 <p className="text-white mt-1 font-semibold">{selectedShiftDetail.timespan}</p>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Ubicación / Evento</span>
-                <p className="text-white mt-1 font-semibold break-words">{selectedShiftDetail.location}</p>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Evento</span>
+                <p className="text-white mt-1 font-semibold break-words">{selectedShiftDetail.eventTitle}</p>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Duración / Estado</span>

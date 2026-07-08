@@ -209,7 +209,7 @@ export default function App() {
 
     const isCurrentlyIn = worker.status === 'IN';
     const activeEvent = events.find(e => e.id === activeEventId) || events[0];
-    const eventSuffix = activeEvent ? ` (${activeEvent.title})` : '';
+    const eventTitle = activeEvent?.title || 'Evento activo';
 
     try {
       if (isCurrentlyIn) {
@@ -246,15 +246,13 @@ export default function App() {
         return false;
       }
 
-      const baseLoc = customLocation || worker.location || 'Control General';
-      const chosenLoc = `${baseLoc}${eventSuffix}`;
-
       const shiftId = await addShift({
         workerId: workerId,
         dateString: todayDateStr,
         timespan: `${nowStr} - Presente`,
         durationLabel: 'Active',
-        location: chosenLoc,
+        eventId: activeEvent?.id,
+        eventTitle,
         status: 'Active',
         startedAt: nowIso,
       });
@@ -265,7 +263,7 @@ export default function App() {
           checkedInTime: nowIso,
           currentShiftHours: 4,
           currentShiftMins: 30,
-          location: chosenLoc
+          location: customLocation || worker.location || ''
         });
       } catch (staffErr) {
         await deleteShift(shiftId);

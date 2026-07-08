@@ -62,14 +62,15 @@ async function main() {
     );
   }
 
+  const eventIdByTitle = new Map(INITIAL_EVENTS.map((event) => [event.title, event.id] as const));
+
   for (const sh of INITIAL_SHIFTS) {
     await db.execute(
-      `INSERT INTO shifts (id, worker_id, date_string, timespan, duration_label, location, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sh.id, sh.workerId, sh.dateString, sh.timespan, sh.durationLabel, sh.location, sh.status]
+      `INSERT INTO shifts (id, worker_id, date_string, timespan, duration_label, event_id, event_title, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sh.id, sh.workerId, sh.dateString, sh.timespan, sh.durationLabel, eventIdByTitle.get(sh.eventTitle) || null, sh.eventTitle, sh.status]
     );
   }
-
   for (const a of INITIAL_ALERTS) {
     await db.execute(
       `INSERT INTO alerts (id, message, zone, timestamp_label, severity)

@@ -20,7 +20,8 @@ export interface Shift {
   dateString: string; // e.g. 'Today, Oct 28'
   timespan: string; // e.g. '14:00 - Present'
   durationLabel: string; // e.g. 'Active', '12.5h'
-  location: string; // e.g. 'Stage Left'
+  eventId?: string;
+  eventTitle: string;
   status: 'Active' | 'Completed';
   startedAt?: string;
   endedAt?: string;

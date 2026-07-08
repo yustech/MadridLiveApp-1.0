@@ -550,12 +550,25 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
     sanitized.durationLabel = durationRes.sanitized;
   }
 
-  // location (required)
-  const locationRes = sanitizeLocation(b.location);
-  if (!locationRes.valid) {
-    errors.push(...locationRes.errors);
+  // eventTitle (required)
+  const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
+  if (!eventTitleRes.valid) {
+    errors.push(...eventTitleRes.errors);
   } else {
-    sanitized.location = locationRes.sanitized;
+    sanitized.eventTitle = eventTitleRes.sanitized;
+  }
+
+  // eventId (optional)
+  if (b.eventId !== undefined && b.eventId !== null) {
+    if (typeof b.eventId !== "string" || !b.eventId.trim()) {
+      errors.push({
+        field: "eventId",
+        message: "Expected a non-empty string",
+        value: b.eventId,
+      });
+    } else {
+      sanitized.eventId = b.eventId.trim();
+    }
   }
 
   // status (required, case-insensitive)
@@ -630,12 +643,25 @@ export function validateEventPayload(body: unknown): ValidationResult<any> {
     sanitized.title = titleRes.sanitized;
   }
 
-  // location (required)
-  const locationRes = sanitizeLocation(b.location);
-  if (!locationRes.valid) {
-    errors.push(...locationRes.errors);
+  // eventTitle (required)
+  const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
+  if (!eventTitleRes.valid) {
+    errors.push(...eventTitleRes.errors);
   } else {
-    sanitized.location = locationRes.sanitized;
+    sanitized.eventTitle = eventTitleRes.sanitized;
+  }
+
+  // eventId (optional)
+  if (b.eventId !== undefined && b.eventId !== null) {
+    if (typeof b.eventId !== "string" || !b.eventId.trim()) {
+      errors.push({
+        field: "eventId",
+        message: "Expected a non-empty string",
+        value: b.eventId,
+      });
+    } else {
+      sanitized.eventId = b.eventId.trim();
+    }
   }
 
   // dateDay (required, 1-31)

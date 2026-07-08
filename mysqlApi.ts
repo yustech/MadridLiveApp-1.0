@@ -91,7 +91,8 @@ async function initSchema() {
       date_string VARCHAR(64) NOT NULL,
       timespan VARCHAR(128) NOT NULL,
       duration_label VARCHAR(64) NOT NULL,
-      location VARCHAR(255) NOT NULL,
+      event_id VARCHAR(96) NULL,
+      event_title VARCHAR(255) NOT NULL,
       status VARCHAR(32) NOT NULL,
       started_at DATETIME NULL,
       ended_at DATETIME NULL,
@@ -118,11 +119,11 @@ async function getSchemaStatus(db: any) {
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
        AND table_name IN ('shifts')
-       AND column_name IN ('updated_at', 'started_at', 'ended_at')`
+       AND column_name IN ('updated_at', 'started_at', 'ended_at', 'event_title')`
   );
 
   const found = new Set((rows as Array<{ tableName: string; columnName: string }>).map((r) => `${r.tableName}.${r.columnName}`));
-  const required = ['shifts.updated_at', 'shifts.started_at', 'shifts.ended_at'];
+  const required = ['shifts.updated_at', 'shifts.started_at', 'shifts.ended_at', 'shifts.event_id', 'shifts.event_title'];
   const missing = required.filter((key) => !found.has(key));
 
   return {
@@ -150,6 +151,34 @@ async function applySchemaMigrations(db: any) {
        ADD COLUMN ended_at DATETIME NULL`
     );
     migrated.push('shifts.ended_at');
+  }
+
+  if (status.missing.includes('shifts.event_title')) {
+    const [legacyRows] = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'shifts'
+         AND column_name = 'location'`
+    );
+    const legacyExists = Array.isArray(legacyRows) && Number((legacyRows[0] as any)?.total || 0) > 0;
+    if (legacyExists) {
+      await db.query(
+        `ALTER TABLE shifts
+         CHANGE COLUMN location event_title VARCHAR(255) NOT NULL`
+      );
+    } else {
+      await db.query(
+        `ALTER TABLE shifts
+         ADD COLUMN event_title VARCHAR(255) NOT NULL DEFAULT ''`
+      );
+    }
+    migrated.push('shifts.event_title');
+  }
+
+  if (status.missing.includes('shifts.event_id')) {
+    await db.query(`ALTER TABLE shifts ADD COLUMN event_id VARCHAR(96) NULL`);
+    migrated.push('shifts.event_id');
   }
 
   if (status.missing.includes('shifts.updated_at')) {
@@ -260,24 +289,35 @@ function parseEventDateTime(dateDay?: string, dateMonth?: string, doorsOpen?: st
   return eventDate;
 }
 
-async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, location: unknown) {
+async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, eventId: unknown, eventTitle: unknown) {
   if (String(status || '').toLowerCase() !== 'active') {
     return;
   }
 
-  const locationStr = String(location || '');
-  if (!locationStr.includes('(') || !locationStr.includes(')')) {
+  const eventIdStr = String(eventId || '').trim();
+  const eventTitleStr = String(eventTitle || '').trim();
+  if (!eventIdStr && !eventTitleStr) {
     return;
   }
 
-  const [rows] = await db.query(
-    `SELECT id, title, date_day AS dateDay, date_month AS dateMonth, doors_open AS doorsOpen
-     FROM events
-     WHERE ? LIKE CONCAT('%(', title, ')%')
-     ORDER BY CHAR_LENGTH(title) DESC
-     LIMIT 1`,
-    [locationStr]
-  );
+  let rows: any[] = [];
+  if (eventIdStr) {
+    [rows] = await db.query(
+      `SELECT id, title, date_day AS dateDay, date_month AS dateMonth, doors_open AS doorsOpen
+       FROM events
+       WHERE id = ?
+       LIMIT 1`,
+      [eventIdStr]
+    );
+  } else {
+    [rows] = await db.query(
+      `SELECT id, title, date_day AS dateDay, date_month AS dateMonth, doors_open AS doorsOpen
+       FROM events
+       WHERE title = ?
+       LIMIT 1`,
+      [eventTitleStr]
+    );
+  }
 
   const event = rows?.[0];
   if (!event) {
@@ -543,7 +583,8 @@ export function registerMysqlApi(app: express.Express) {
       total_hours: body.totalHours,
       current_shift_hours: body.currentShiftHours,
       current_shift_mins: body.currentShiftMins,
-      location: body.location,
+      event_id: body.eventId,
+      event_title: body.eventTitle,
     };
 
     Object.keys(dbPayload).forEach((key) => {
@@ -625,7 +666,8 @@ export function registerMysqlApi(app: express.Express) {
         [
           id,
           sanitized.title,
-          sanitized.location,
+          sanitized.eventId || null,
+          sanitized.eventTitle,
           sanitized.dateDay,
           sanitized.dateMonth,
           sanitized.doorsOpen,
@@ -659,7 +701,8 @@ export function registerMysqlApi(app: express.Express) {
     const body = req.body || {};
     const dbPayload: Record<string, unknown> = {
       title: body.title,
-      location: body.location,
+      event_id: body.eventId,
+      event_title: body.eventTitle,
       date_day: body.dateDay,
       date_month: body.dateMonth,
       doors_open: body.doorsOpen,
@@ -708,7 +751,8 @@ export function registerMysqlApi(app: express.Express) {
           date_string AS dateString,
           timespan,
           duration_label AS durationLabel,
-          location,
+          event_id AS eventId,
+          event_title AS eventTitle,
           status,
           started_at AS startedAt,
           ended_at AS endedAt,
@@ -728,7 +772,8 @@ export function registerMysqlApi(app: express.Express) {
               date_string AS dateString,
               timespan,
               duration_label AS durationLabel,
-              location,
+              NULL AS eventId,
+              location AS eventTitle,
               status,
               NULL AS startedAt,
               NULL AS endedAt,
@@ -774,7 +819,7 @@ export function registerMysqlApi(app: express.Express) {
       // Serialize writes per worker to avoid races between integrity checks and insertions.
       await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [sanitized.workerId]);
 
-      await ensureShiftNotLinkedToFutureEvent(conn, sanitized.status, sanitized.location);
+      await ensureShiftNotLinkedToFutureEvent(conn, sanitized.status, sanitized.eventId, sanitized.eventTitle);
       await ensureWorkerShiftTimeIntegrity(
         conn,
         sanitized.workerId,
@@ -786,8 +831,8 @@ export function registerMysqlApi(app: express.Express) {
       await conn.execute(
         `
           INSERT INTO shifts (
-            id, worker_id, date_string, timespan, duration_label, location, status, started_at, ended_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, worker_id, date_string, timespan, duration_label, event_id, event_title, status, started_at, ended_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           id,
@@ -795,7 +840,8 @@ export function registerMysqlApi(app: express.Express) {
           sanitized.dateString,
           sanitized.timespan,
           sanitized.durationLabel,
-          sanitized.location,
+          sanitized.eventId || null,
+          sanitized.eventTitle,
           sanitized.status,
           startedAtMysql,
           endedAtMysql,
@@ -828,7 +874,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
-    const allowed = ["worker_id", "date_string", "timespan", "duration_label", "location", "status", "started_at", "ended_at"];
+    const allowed = ["worker_id", "date_string", "timespan", "duration_label", "event_id", "event_title", "status", "started_at", "ended_at"];
 
     const body = req.body || {};
     const dbPayload: Record<string, unknown> = {
@@ -836,7 +882,8 @@ export function registerMysqlApi(app: express.Express) {
       date_string: body.dateString,
       timespan: body.timespan,
       duration_label: body.durationLabel,
-      location: body.location,
+      event_id: body.eventId,
+      event_title: body.eventTitle,
       status: body.status,
       started_at: body.startedAt === undefined ? undefined : toMysqlDateTimeValue(body.startedAt),
       ended_at: body.endedAt === undefined ? undefined : toMysqlDateTimeValue(body.endedAt),
@@ -858,7 +905,7 @@ export function registerMysqlApi(app: express.Express) {
       await conn.beginTransaction();
 
       const [currentRows] = await conn.query(
-        `SELECT worker_id AS workerId, status, location, started_at AS startedAt, ended_at AS endedAt
+        `SELECT worker_id AS workerId, status, event_id AS eventId, event_title AS eventTitle, started_at AS startedAt, ended_at AS endedAt
            FROM shifts
            WHERE id = ?
            LIMIT 1
@@ -873,14 +920,15 @@ export function registerMysqlApi(app: express.Express) {
 
       const targetWorkerId = body.workerId ?? current.workerId;
       const targetStatus = body.status ?? current.status;
-      const targetLocation = body.location ?? current.location;
+      const targetEventId = body.eventId ?? current.eventId;
+      const targetEventTitle = body.eventTitle ?? current.eventTitle;
       const targetStartedAt = body.startedAt === undefined ? current.startedAt : body.startedAt;
       const targetEndedAt = body.endedAt === undefined ? current.endedAt : body.endedAt;
 
       // Serialize writes for destination worker while evaluating integrity constraints.
       await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [targetWorkerId]);
 
-      await ensureShiftNotLinkedToFutureEvent(conn, targetStatus, targetLocation);
+      await ensureShiftNotLinkedToFutureEvent(conn, targetStatus, targetEventId, targetEventTitle);
       await ensureWorkerShiftTimeIntegrity(
         conn,
         targetWorkerId,

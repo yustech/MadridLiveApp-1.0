@@ -47,20 +47,42 @@ export default function KPIScreen({
     const selectedEvent = events.find(e => e.id === selectedEventId);
     if (!selectedEvent) return shifts;
     
-    // Filter shifts whose location contains the event title in parentheses or matches location
-    return shifts.filter(s => s.location.toLowerCase().includes(selectedEvent.title.toLowerCase()));
+    // Filter shifts by their normalized event title.
+    return shifts.filter(s => s.eventTitle.toLowerCase().includes(selectedEvent.title.toLowerCase()));
   }, [shifts, events, selectedEventId]);
+
+  const activeShiftWorkerIdsByEvent = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+
+    shifts.forEach((shift) => {
+      if (shift.status?.toLowerCase() !== 'active') return;
+
+      const event = events.find((candidate) =>
+        shift.eventId === candidate.id || shift.eventTitle === candidate.title
+      );
+
+      if (!event) return;
+
+      if (!map.has(event.id)) {
+        map.set(event.id, new Set<string>());
+      }
+
+      map.get(event.id)?.add(shift.workerId);
+    });
+
+    return map;
+  }, [shifts, events]);
 
   const filteredStaff = useMemo(() => {
     const activeStaff = staff.filter((s) => s.status === 'IN');
     if (selectedEventId === 'all') return activeStaff;
 
-    const selectedEvent = events.find((e) => e.id === selectedEventId);
-    if (!selectedEvent) return activeStaff;
+    const linkedWorkerIds = activeShiftWorkerIdsByEvent.get(selectedEventId);
+    if (!linkedWorkerIds || linkedWorkerIds.size === 0) {
+      return selectedEventId === activeEventId ? activeStaff : [];
+    }
 
-    const linked = activeStaff.filter((s) =>
-      s.location.toLowerCase().includes(selectedEvent.title.toLowerCase())
-    );
+    const linked = activeStaff.filter((s) => linkedWorkerIds.has(s.id));
 
     // If the active control event has generic locations without event suffix, keep them visible there.
     if (linked.length === 0 && selectedEventId === activeEventId) {
@@ -68,7 +90,7 @@ export default function KPIScreen({
     }
 
     return linked;
-  }, [staff, events, selectedEventId, activeEventId]);
+  }, [staff, selectedEventId, activeEventId, activeShiftWorkerIdsByEvent]);
 
   // 2. STATS CALCULATIONS
   const stats = useMemo(() => {
@@ -634,7 +656,7 @@ export default function KPIScreen({
           <div className="space-y-4 pt-2">
             {events.map((ev, index) => {
               const activeStaff = staff.filter((s) => s.status === 'IN');
-              const linkedToEvent = activeStaff.filter((s) => s.location.toLowerCase().includes(ev.title.toLowerCase())).length;
+              const linkedToEvent = activeShiftWorkerIdsByEvent.get(ev.id)?.size || 0;
               const presentCount = linkedToEvent > 0 ? linkedToEvent : ev.id === activeEventId ? activeStaff.length : 0;
               const required = ev.requiredStaff || ev.totalStaffNeeded || 1;
               const percent = Math.min(100, Math.round((presentCount / required) * 100));
