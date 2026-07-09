@@ -69,6 +69,17 @@ async function resetWithApi() {
     apiJson<EquipmentAlert[]>('/alerts'),
   ]);
 
+  const normalizedSeedShifts = INITIAL_SHIFTS.map((shift, index) => {
+    const startedAt = shift.startedAt || new Date(Date.UTC(2026, 9, 20 + index, 10, 0, 0)).toISOString();
+    const endedAt = shift.status === 'Completed' ? (shift.endedAt || new Date(Date.parse(startedAt) + 2 * 60 * 60 * 1000).toISOString()) : null;
+    return {
+      ...shift,
+      dateString: shift.dateString.includes('T') ? shift.dateString : startedAt,
+      startedAt,
+      endedAt,
+    };
+  });
+
   for (const sh of shiftsNow) await deleteShift(sh.id);
   for (const al of alertsNow) await deleteAlert(al.id);
   for (const ev of eventsNow) await deleteEvent(ev.id);
@@ -83,7 +94,7 @@ async function resetWithApi() {
 
   for (const ev of INITIAL_EVENTS) {
     const { id: _oldId, ...payload } = ev;
-    await addEvent(payload);
+    await addEvent({ ...payload, eventTitle: payload.title });
   }
 
   for (const al of INITIAL_ALERTS) {
@@ -91,7 +102,7 @@ async function resetWithApi() {
     await addAlert(payload);
   }
 
-  for (const sh of INITIAL_SHIFTS) {
+  for (const sh of normalizedSeedShifts) {
     const { id: _oldId, workerId, ...payload } = sh;
     const mappedWorkerId = staffIdMap.get(workerId);
     if (!mappedWorkerId) continue;

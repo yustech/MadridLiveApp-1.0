@@ -697,11 +697,11 @@ export function registerMysqlApi(app: express.Express) {
           dateDay AS dateDay,
           dateMonth AS dateMonth,
           doorsOpen AS doorsOpen,
-          requiredStaff,
-          activeStaff,
-          totalStaffNeeded,
-          scanRate,
-          loadInPercent
+          required_staff AS requiredStaff,
+          active_staff AS activeStaff,
+          total_staff_needed AS totalStaffNeeded,
+          scan_rate AS scanRate,
+          load_in_percent AS loadInPercent
         FROM events
       `);
       return res.json(rows);
@@ -711,6 +711,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/events`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const body = req.body || {};
       
@@ -737,10 +741,9 @@ export function registerMysqlApi(app: express.Express) {
         [
           id,
           sanitized.title,
-          sanitized.eventId || null,
-          sanitized.eventTitle,
-          sanitized.dateDay,
-          sanitized.dateMonth,
+          body.location || '',
+          String(sanitized.dateDay),
+          String(sanitized.dateMonth),
           sanitized.doorsOpen,
           Number(sanitized.requiredStaff || 0),
           Number(sanitized.activeStaff || 0),
@@ -756,6 +759,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     const allowed = [
       "title",
       "location",
@@ -772,8 +779,7 @@ export function registerMysqlApi(app: express.Express) {
     const body = req.body || {};
     const dbPayload: Record<string, unknown> = {
       title: body.title,
-      event_id: body.eventId,
-      event_title: body.eventTitle,
+      location: body.location,
       dateDay: body.dateDay,
       dateMonth: body.dateMonth,
       doorsOpen: body.doorsOpen,

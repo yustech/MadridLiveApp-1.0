@@ -570,12 +570,15 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
     sanitized.workerId = workerId;
   }
 
-  // dateString (required, ISO date)
-  const dateStringRes = sanitizeDateTime(b.dateString, "dateString");
-  if (!dateStringRes.valid) {
-    errors.push(...dateStringRes.errors);
+  // dateString (required, accepts ISO or legacy human labels)
+  if (typeof b.dateString !== "string" || !b.dateString.trim()) {
+    errors.push({
+      field: "dateString",
+      message: "dateString is required",
+      value: b.dateString,
+    });
   } else {
-    sanitized.dateString = dateStringRes.sanitized;
+    sanitized.dateString = b.dateString.trim();
   }
 
   // timespan (required, enum-like)
@@ -606,12 +609,16 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
     });
   }
 
-  // eventTitle (required)
-  const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
-  if (!eventTitleRes.valid) {
-    errors.push(...eventTitleRes.errors);
+  // eventTitle (optional, defaults to title)
+  if (b.eventTitle !== undefined && b.eventTitle !== null && String(b.eventTitle).trim() !== "") {
+    const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
+    if (!eventTitleRes.valid) {
+      errors.push(...eventTitleRes.errors);
+    } else {
+      sanitized.eventTitle = eventTitleRes.sanitized;
+    }
   } else {
-    sanitized.eventTitle = eventTitleRes.sanitized;
+    sanitized.eventTitle = sanitized.title;
   }
 
   // eventId (optional)
@@ -632,7 +639,7 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
   if (!statusRes.valid) {
     errors.push(...statusRes.errors);
   } else {
-    sanitized.status = statusRes.sanitized;
+    sanitized.status = statusRes.sanitized.charAt(0).toUpperCase() + statusRes.sanitized.slice(1);
   }
 
   // startedAt (required, ISO datetime)
@@ -699,12 +706,16 @@ export function validateEventPayload(body: unknown): ValidationResult<any> {
     sanitized.title = titleRes.sanitized;
   }
 
-  // eventTitle (required)
-  const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
-  if (!eventTitleRes.valid) {
-    errors.push(...eventTitleRes.errors);
+  // eventTitle (optional, defaults to title)
+  if (b.eventTitle !== undefined && b.eventTitle !== null && String(b.eventTitle).trim() !== "") {
+    const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);
+    if (!eventTitleRes.valid) {
+      errors.push(...eventTitleRes.errors);
+    } else {
+      sanitized.eventTitle = eventTitleRes.sanitized;
+    }
   } else {
-    sanitized.eventTitle = eventTitleRes.sanitized;
+    sanitized.eventTitle = sanitized.title;
   }
 
   // eventId (optional)
@@ -728,12 +739,22 @@ export function validateEventPayload(body: unknown): ValidationResult<any> {
     sanitized.dateDay = dayRes.sanitized;
   }
 
-  // dateMonth (required, 1-12)
-  const monthRes = sanitizeNumber(b.dateMonth, "dateMonth", 1, 12);
-  if (!monthRes.valid) {
-    errors.push(...monthRes.errors);
+  // dateMonth (required, accepts numeric or month tokens like JAN/OCT/ABR)
+  if (b.dateMonth === undefined || b.dateMonth === null || String(b.dateMonth).trim() === "") {
+    errors.push({ field: "dateMonth", message: "dateMonth is required", value: b.dateMonth });
   } else {
-    sanitized.dateMonth = monthRes.sanitized;
+    const rawMonth = String(b.dateMonth).trim().toUpperCase();
+    const monthMap = { 'JAN': 'JAN', 'FEB': 'FEB', 'MAR': 'MAR', 'APR': 'APR', 'MAY': 'MAY', 'JUN': 'JUN', 'JUL': 'JUL', 'AUG': 'AUG', 'SEP': 'SEP', 'OCT': 'OCT', 'NOV': 'NOV', 'DEC': 'DEC', 'ENE': 'ENE', 'ABR': 'ABR', 'AGO': 'AGO', 'DIC': 'DIC' };
+    if (rawMonth in monthMap) {
+      sanitized.dateMonth = monthMap[rawMonth];
+    } else {
+      const monthRes = sanitizeNumber(b.dateMonth, "dateMonth", 1, 12);
+      if (!monthRes.valid) {
+        errors.push(...monthRes.errors);
+      } else {
+        sanitized.dateMonth = String(monthRes.sanitized);
+      }
+    }
   }
 
   // doorsOpen (required, max 64, time format)
