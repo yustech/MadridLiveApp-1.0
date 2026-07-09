@@ -6,6 +6,8 @@ type ApiResult = {
   text: string;
 };
 
+const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || 'crew_admin_2026_secure';
+
 const MONTH_TO_INDEX: Record<string, number> = {
   JAN: 0,
   FEB: 1,
@@ -63,6 +65,7 @@ async function api(request: import('@playwright/test').APIRequestContext, path: 
     data: options?.body,
     headers: {
       'content-type': 'application/json',
+      ...(options?.method && options.method !== 'GET' ? { 'x-admin-token': ADMIN_API_TOKEN } : {}),
     },
   });
 
@@ -189,8 +192,8 @@ test.describe('Phase 1 - business edge coverage', () => {
           body: {
             idCode: `E2E-EDGE-${Date.now()}`,
             name: 'Edge E2E Worker',
-            role: 'Lighting',
-            roleLabel: 'Iluminacion',
+            role: 'Auxiliar',
+            roleLabel: 'AUXILIAR',
             status: 'OUT',
             checkedInTime: '-',
             lastSeen: 'Ahora',

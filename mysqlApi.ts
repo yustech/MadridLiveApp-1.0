@@ -646,7 +646,7 @@ export function registerMysqlApi(app: express.Express) {
       name: body.name,
       role: body.role,
       roleLabel: body.roleLabel,
-      status: normalizedStatus,
+      status: body.status,
       checkedInTime: body.checkedInTime,
       lastSeen: body.lastSeen,
       avatar: body.avatar,
@@ -950,6 +950,7 @@ export function registerMysqlApi(app: express.Express) {
     const allowed = ["worker_id", "date_string", "timespan", "duration_label", "event_id", "event_title", "status", "started_at", "ended_at"];
 
     const body = req.body || {};
+    const normalizedStatus = body.status === undefined ? undefined : String(body.status).toLowerCase() === 'active' ? 'Active' : String(body.status).toLowerCase() === 'completed' ? 'Completed' : body.status;
     const dbPayload: Record<string, unknown> = {
       worker_id: body.workerId,
       date_string: body.dateString,

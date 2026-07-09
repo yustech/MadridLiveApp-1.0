@@ -53,7 +53,7 @@ test.describe('MadridLiveApp regression', () => {
     await expect(page.getByRole('heading', { name: /Historial de Registros/i })).toBeVisible();
 
     await page.getByRole('button', { name: /KPIs y Estadísticas/i }).click();
-    await expect(page.getByRole('heading', { name: /Métricas & KPIs/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /KPIs y Estadísticas Operativas/i })).toBeVisible();
   });
 
   test('[readonly] shows validation error for invalid manual scanner id', async ({ page }) => {
