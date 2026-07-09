@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
+import { DEFAULT_FEMALE_AVATAR, DEFAULT_MALE_AVATAR, fileToAvatarDataUrl } from '../utils/avatarUpload';
 import { 
   addEvent, updateEvent, deleteEvent,
   addStaff, updateStaff, deleteStaff,
@@ -141,7 +142,7 @@ export default function DatabaseManagerScreen({
 
   const [staffData, setStaffData] = useState<Omit<StaffMember, 'id'>>({
     idCode: '', name: '', role: 'Auxiliar', roleLabel: '', 
-    status: 'OUT', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200', email: '', phone: '', totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
+    status: 'OUT', avatar: DEFAULT_FEMALE_AVATAR, email: '', phone: '', totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
   });
 
   const [shiftData, setShiftData] = useState<Omit<Shift, 'id'>>({
@@ -155,6 +156,18 @@ export default function DatabaseManagerScreen({
   const showStatus = (text: string, isError = false) => {
     setStatusMessage({ text, isError });
     setTimeout(() => setStatusMessage(null), 4000);
+  };
+
+  const handleStaffAvatarFileChange = async (file: File | null) => {
+    if (!file) return;
+
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      setStaffData({ ...staffData, avatar: dataUrl });
+      setStatusMessage(null);
+    } catch (err: any) {
+      showStatus(err?.message || 'No se pudo cargar la imagen seleccionada.', true);
+    }
   };
 
   const handleHardReset = async () => {
@@ -201,7 +214,7 @@ export default function DatabaseManagerScreen({
     });
     setStaffData({
       idCode: 'AUX-' + Math.floor(100 + Math.random() * 900), name: '', role: 'Auxiliar', roleLabel: 'AUXILIAR', 
-      status: 'OUT', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200', email: '', phone: '',
+      status: 'OUT', avatar: DEFAULT_FEMALE_AVATAR, email: '', phone: '',
       totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
     });
     setShiftData({
@@ -1134,15 +1147,20 @@ app.post('/api/auth/login', async (req, res) => {
                       <input type="tel" value={staffData.phone || ''} onChange={e => setStaffData({ ...staffData, phone: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. +34 600 000 000" />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-white/50 block mb-1">URL Foto de Perfil *</label>
-                    <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200" />
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-white/50 block mb-1">Foto de Perfil *</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setStaffData({ ...staffData, avatar: DEFAULT_FEMALE_AVATAR })} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto mujer por defecto</button>
+                      <button type="button" onClick={() => setStaffData({ ...staffData, avatar: DEFAULT_MALE_AVATAR })} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto hombre por defecto</button>
+                    </div>
+                    <input type="file" accept="image/*" onChange={e => void handleStaffAvatarFileChange(e.target.files?.[0] || null)} className="w-full rounded-xl border border-white/10 bg-white/5 p-2.5 text-xs text-white file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500/20 file:px-3 file:py-2 file:text-xs file:font-bold file:text-indigo-200" />
+                    <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="Pega una URL o usa una foto subida desde este dispositivo" />
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
                     <img src={staffData.avatar} alt="Vista previa avatar" className="h-14 w-14 rounded-2xl object-cover border border-white/10" />
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Foto por defecto</p>
-                      <p className="text-xs text-white/70">Se usará esta imagen si no la cambias.</p>
+                      <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>
+                      <p className="text-xs text-white/70">Puedes subir una imagen del dispositivo o elegir un avatar por defecto de hombre o mujer.</p>
                     </div>
                   </div>
                   <div>

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { StaffMember } from '../types';
 import { addStaffBatch } from '../dbService';
+import { DEFAULT_FEMALE_AVATAR, DEFAULT_MALE_AVATAR, fileToAvatarDataUrl } from '../utils/avatarUpload';
 
 interface StaffScreenProps {
   staff: StaffMember[];
@@ -73,7 +74,7 @@ export default function StaffScreen({
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newStatus, setNewStatus] = useState<'IN' | 'OUT'>('OUT');
-  const [newAvatar, setNewAvatar] = useState('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200');
+  const [newAvatar, setNewAvatar] = useState(DEFAULT_FEMALE_AVATAR);
   const [formError, setFormError] = useState('');
 
   const [addMode, setAddMode] = useState<'single' | 'bulk'>('single');
@@ -132,13 +133,25 @@ export default function StaffScreen({
     setNewEmail('');
     setNewPhone('');
     setNewStatus('OUT');
-    setNewAvatar('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200');
+    setNewAvatar(DEFAULT_FEMALE_AVATAR);
     setFormError('');
     setBulkText('');
     setImportStatus('');
     setIsImporting(false);
     setAddMode('single');
     setIsAddModalOpen(false);
+  };
+
+  const handleAvatarFileChange = async (file: File | null) => {
+    if (!file) return;
+
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      setNewAvatar(dataUrl);
+      setFormError('');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'No se pudo cargar la imagen seleccionada.');
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -565,16 +578,21 @@ export default function StaffScreen({
                     <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="ej. +34 600 000 000" />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-white/50 mb-1">URL Foto de Perfil *</label>
-                  <input type="text" required value={newAvatar} onChange={e => setNewAvatar(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200" />
+                <div className="space-y-2">
+                  <label className="block text-xs text-white/50 mb-1">Foto de Perfil *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setNewAvatar(DEFAULT_FEMALE_AVATAR)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto mujer por defecto</button>
+                    <button type="button" onClick={() => setNewAvatar(DEFAULT_MALE_AVATAR)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto hombre por defecto</button>
+                  </div>
+                  <input type="file" accept="image/*" onChange={e => void handleAvatarFileChange(e.target.files?.[0] || null)} className="w-full rounded-xl border border-white/10 bg-white/5 p-2.5 text-xs text-white file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500/20 file:px-3 file:py-2 file:text-xs file:font-bold file:text-indigo-200" />
+                  <input type="text" required value={newAvatar} onChange={e => setNewAvatar(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="Pega una URL o usa una foto subida desde este dispositivo" />
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
                   <img src={newAvatar} alt="Vista previa avatar" className="h-14 w-14 rounded-2xl object-cover border border-white/10" />
                   <div>
-                    <p className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Foto por defecto</p>
-                    <p className="text-xs text-white/70">Se usará esta imagen si no la cambias.</p>
+                    <p className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>
+                    <p className="text-xs text-white/70">Puedes subir una imagen del dispositivo o elegir un avatar por defecto de hombre o mujer.</p>
                   </div>
                 </div>
 

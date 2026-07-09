@@ -227,6 +227,23 @@ async function applySchemaMigrations(db: any) {
     migrated.push('staff.phone');
   }
 
+  const [staffAvatarRows] = await db.query(
+    `SELECT DATA_TYPE AS dataType, CHARACTER_MAXIMUM_LENGTH AS maxLength
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'staff'
+         AND column_name = 'avatar'
+       LIMIT 1`
+  );
+  const staffAvatar = Array.isArray(staffAvatarRows) ? staffAvatarRows[0] as { dataType?: string; maxLength?: number | null } : null;
+  const avatarType = String(staffAvatar?.dataType || '').toLowerCase();
+  const avatarLength = Number(staffAvatar?.maxLength || 0);
+
+  if (avatarType === 'varchar' || (avatarLength > 0 && avatarLength < 65535)) {
+    await db.query(`ALTER TABLE staff MODIFY COLUMN avatar TEXT NOT NULL`);
+    migrated.push('staff.avatar_text');
+  }
+
   return { migrated };
 }
 

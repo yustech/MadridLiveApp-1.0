@@ -439,14 +439,14 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
     sanitized.status = statusRes.sanitized;
   }
 
-  // avatar (optional, URL, max 512, defaults to empty string)
+  // avatar (optional, URL or compact data URL, max 65535, defaults to empty string)
   if (b.avatar !== undefined) {
     if (typeof b.avatar === "string") {
       const avatarTrimmed = b.avatar.trim();
-      if (avatarTrimmed.length > 512) {
+      if (avatarTrimmed.length > 65535) {
         errors.push({
           field: "avatar",
-          message: "Avatar URL exceeds max length of 512 characters",
+          message: "Avatar data exceeds max length supported by storage",
         });
       } else {
         sanitized.avatar = avatarTrimmed || "";
