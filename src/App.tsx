@@ -4,7 +4,6 @@ import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
 
 
 import {
-  seedDatabaseIfEmpty,
   subscribeToEvents,
   subscribeToStaff,
   subscribeToShifts,
@@ -146,10 +145,7 @@ export default function App() {
     let unsubAlerts = () => {};
 
     const initDatabaseSync = async () => {
-      // 1. Seed database with defaults if empty
-      await seedDatabaseIfEmpty();
-
-      // 2. Real-time dynamic listeners
+      // Real-time dynamic listeners
       unsubEvents = subscribeToEvents((data) => {
         setEvents(data);
       });

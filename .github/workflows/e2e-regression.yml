@@ -20,6 +20,14 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    env:
+      ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+      ADMIN_LOGIN_EMAIL: ${{ secrets.ADMIN_LOGIN_EMAIL }}
+      ADMIN_LOGIN_PASSWORD: ${{ secrets.ADMIN_LOGIN_PASSWORD }}
+      ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET || secrets.ADMIN_API_TOKEN }}
+      PLAYWRIGHT_ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
+      PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
 
     steps:
       - name: Checkout
