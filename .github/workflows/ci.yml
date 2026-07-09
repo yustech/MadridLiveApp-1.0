@@ -86,7 +86,7 @@ jobs:
     env:
       PLAYWRIGHT_BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
       API_BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
-      REQUIRE_DELETE_STAFF_AUTH: 'true'
+      REQUIRE_DELETE_STAFF_AUTH: ${{ vars.REQUIRE_DELETE_STAFF_AUTH || 'false' }}
 
     steps:
       - name: Checkout
