@@ -10,10 +10,8 @@ function isLocalRequest(req: express.Request) {
 }
 
 function isAdminAuthorized(req: express.Request) {
-  if (isLocalRequest(req)) return true;
-
   const expectedToken = process.env.ADMIN_API_TOKEN;
-  if (!expectedToken) return true;
+  if (!expectedToken) return false;
   const providedToken = req.header("x-admin-token");
   return providedToken === expectedToken;
 }
@@ -547,6 +545,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/staff`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const body = req.body || {};
 
@@ -617,6 +619,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     const allowed = [
       "idCode",
       "name",
@@ -640,7 +646,7 @@ export function registerMysqlApi(app: express.Express) {
       name: body.name,
       role: body.role,
       roleLabel: body.roleLabel,
-      status: body.status,
+      status: normalizedStatus,
       checkedInTime: body.checkedInTime,
       lastSeen: body.lastSeen,
       avatar: body.avatar,
@@ -797,6 +803,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.delete(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const db = getPool();
       const [rows] = await db.query(
@@ -847,6 +857,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/shifts`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     let conn: any = null;
     try {
       const body = req.body || {};
@@ -929,6 +943,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     const allowed = ["worker_id", "date_string", "timespan", "duration_label", "event_id", "event_title", "status", "started_at", "ended_at"];
 
     const body = req.body || {};
@@ -939,7 +957,7 @@ export function registerMysqlApi(app: express.Express) {
       duration_label: body.durationLabel,
       event_id: body.eventId,
       event_title: body.eventTitle,
-      status: body.status,
+      status: normalizedStatus,
       started_at: body.startedAt === undefined ? undefined : toMysqlDateTimeValue(body.startedAt),
       ended_at: body.endedAt === undefined ? undefined : toMysqlDateTimeValue(body.endedAt),
     };
@@ -974,7 +992,7 @@ export function registerMysqlApi(app: express.Express) {
       }
 
       const targetWorkerId = body.workerId ?? current.workerId;
-      const targetStatus = body.status ?? current.status;
+      const targetStatus = normalizedStatus ?? current.status;
       const targetEventId = body.eventId ?? current.eventId;
       const targetEventTitle = body.eventTitle ?? current.eventTitle;
       const targetStartedAt = body.startedAt === undefined ? current.startedAt : body.startedAt;
@@ -1019,6 +1037,10 @@ export function registerMysqlApi(app: express.Express) {
     }
   });
   app.delete(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const db = getPool();
       await db.execute("DELETE FROM shifts WHERE id = ?", [req.params.id]);
@@ -1047,6 +1069,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/alerts`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const body = req.body || {};
       const id = makeId("al");
@@ -1066,6 +1092,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/alerts/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     const allowed = ["message", "zone", "timestamp_label", "severity"];
 
     const body = req.body || {};
@@ -1095,6 +1125,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.delete(`${MYSQL_PREFIX}/alerts/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const db = getPool();
       await db.execute("DELETE FROM alerts WHERE id = ?", [req.params.id]);
