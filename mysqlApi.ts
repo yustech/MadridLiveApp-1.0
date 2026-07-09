@@ -549,7 +549,7 @@ export function registerMysqlApi(app: express.Express) {
   app.post(`${MYSQL_PREFIX}/staff`, async (req, res) => {
     try {
       const body = req.body || {};
-      
+
       // Validate and sanitize input
       const validation = validateStaffPayload(body);
       if (!validation.valid) {
@@ -564,30 +564,50 @@ export function registerMysqlApi(app: express.Express) {
       const id = makeId("usr");
       const db = getPool();
 
+      const [columnRows] = await db.query(
+        `SELECT column_name AS columnName
+           FROM information_schema.columns
+           WHERE table_schema = DATABASE()
+             AND table_name = 'staff'`
+      );
+      const columns = new Set((columnRows as Array<{ columnName: string }>).map((row) => row.columnName));
+
+      const insertColumns: string[] = ["id", "name", "role", "status", "avatar", "location"];
+      const insertValues: unknown[] = [
+        id,
+        sanitized.name,
+        sanitized.role,
+        sanitized.status,
+        sanitized.avatar,
+        sanitized.location || null,
+      ];
+
+      const pushColumnValue = (columnName: string, value: unknown) => {
+        if (!columns.has(columnName)) return;
+        insertColumns.push(columnName);
+        insertValues.push(value);
+      };
+
+      pushColumnValue("idCode", sanitized.idCode);
+      pushColumnValue("id_code", sanitized.idCode);
+      pushColumnValue("roleLabel", sanitized.roleLabel);
+      pushColumnValue("role_label", sanitized.roleLabel);
+      pushColumnValue("checkedInTime", sanitized.checkedInTime || null);
+      pushColumnValue("checked_in_time", sanitized.checkedInTime || null);
+      pushColumnValue("lastSeen", sanitized.lastSeen || null);
+      pushColumnValue("last_seen", sanitized.lastSeen || null);
+      pushColumnValue("email", sanitized.email);
+      pushColumnValue("phone", sanitized.phone);
+      pushColumnValue("totalHours", sanitized.totalHours);
+      pushColumnValue("total_hours", sanitized.totalHours);
+      pushColumnValue("currentShiftHours", sanitized.currentShiftHours);
+      pushColumnValue("current_shift_hours", sanitized.currentShiftHours);
+      pushColumnValue("currentShiftMins", sanitized.currentShiftMins);
+      pushColumnValue("current_shift_mins", sanitized.currentShiftMins);
+
       await db.execute(
-        `
-          INSERT INTO staff (
-            id, idCode, name, role, roleLabel, status, checkedInTime, lastSeen,
-            avatar, email, phone, totalHours, currentShiftHours, currentShiftMins, location
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          id,
-          sanitized.idCode,
-          sanitized.name,
-          sanitized.role,
-          sanitized.roleLabel,
-          sanitized.status,
-          sanitized.checkedInTime || null,
-          sanitized.lastSeen || null,
-          sanitized.avatar,
-          sanitized.email,
-          sanitized.phone,
-          sanitized.totalHours,
-          sanitized.currentShiftHours,
-          sanitized.currentShiftMins,
-          sanitized.location || null,
-        ]
+        `INSERT INTO staff (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+        insertValues
       );
 
       return res.status(201).json({ id });

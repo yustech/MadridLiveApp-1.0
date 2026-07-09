@@ -391,8 +391,8 @@ async function run() {
       body: {
         idCode: `RACE-${Date.now()}`,
         name: 'Shift Race Probe',
-        role: 'Lighting',
-        roleLabel: 'Iluminacion',
+        role: 'Auxiliar',
+        roleLabel: 'AUXILIAR',
         status: 'OUT',
         checkedInTime: '-',
         lastSeen: 'Ahora',
