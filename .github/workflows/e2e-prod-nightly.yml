@@ -35,6 +35,17 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
+      - name: Validate admin E2E credentials
+        run: |
+          missing=0
+          for name in PLAYWRIGHT_ADMIN_API_TOKEN PLAYWRIGHT_ADMIN_EMAIL PLAYWRIGHT_ADMIN_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::${name} is required for E2E auth coverage."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: Set base URL
         run: |
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
