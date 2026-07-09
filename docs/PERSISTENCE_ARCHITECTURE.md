@@ -1,99 +1,95 @@
 # Persistencia Actual - MadridLiveApp
 
 ## Resumen Ejecutivo
-La fuente de verdad de datos de negocio es **Firebase Firestore**.
 
-La integración con **MySQL/MariaDB** existe actualmente como utilidad de diagnóstico/conectividad y como guía de migración en UI, pero **no** como capa de persistencia activa de la app.
+La fuente de verdad de datos de negocio es **MySQL/MariaDB**.
 
-## Estado de la Capa de Persistencia
+El frontend React consume el backend Express mediante `src/dbService.ts`, que centraliza polling, CRUD, seed y reset contra `/api/mysql/*`. Firestore queda fuera de la ruta activa de persistencia.
 
-### 1) Capa Activa (Producción): Firestore
-Colecciones activas:
+## Capa Activa
+
+Tablas activas:
+
 - `staff`
 - `events`
 - `shifts`
 - `alerts`
 
-Patrón de acceso:
-- Lectura en tiempo real con `onSnapshot`.
-- Escritura con `setDoc`, `updateDoc`, `deleteDoc`, `writeBatch`.
-- Auto-seed inicial si `staff` está vacía.
+Patron de acceso:
+
+- Lectura por polling desde `dbService.ts`.
+- Escritura mediante endpoints Express en `mysqlApi.ts`.
+- Validacion y saneamiento de payloads en `src/validators.ts`.
+- Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL.
 
 Archivos clave:
-- `src/firebase.ts`: inicialización de Firebase/Firestore.
-- `src/dbService.ts`: listeners + CRUD + reset/seed.
-- `src/App.tsx`: orquesta subscriptions y dispara mutaciones mediante handlers.
 
-### 2) Capa No Activa para negocio: MySQL/MariaDB
-Uso actual:
-- Endpoint backend `POST /api/test-mariadb` para comprobar conectividad, versión y acceso básico a DB.
-- No existen endpoints de negocio para CRUD sobre MySQL.
-- En UI (`DatabaseManagerScreen`) se muestran snippets SQL/Express de ejemplo para una futura migración.
+- `mysqlApi.ts`: esquema, migraciones, CRUD, validaciones de integridad y reset transaccional.
+- `src/dbService.ts`: cliente API usado por la UI.
+- `src/App.tsx`: orquesta subscriptions y mutaciones de negocio.
+- `server.ts`: auth admin, endpoint de conectividad MariaDB y registro del API MySQL.
 
-Archivos clave:
-- `server.ts`: endpoint `/api/test-mariadb`.
-- `src/components/DatabaseManagerScreen.tsx`: formulario de test + snippets.
+## Autenticacion Admin
 
-## Mapa de Operaciones por Colección
+- Browser admin: `POST /api/auth/login` crea una cookie HTTP-only firmada.
+- Scripts/CI: pueden usar `x-admin-token` con `ADMIN_API_TOKEN`.
+- El frontend no debe exponer tokens admin mediante variables `VITE_*`.
+
+Variables relevantes:
+
+- `ADMIN_LOGIN_EMAIL`
+- `ADMIN_LOGIN_PASSWORD`
+- `ADMIN_SESSION_SECRET` o `ADMIN_API_TOKEN`
+- `MYSQL_HOST`
+- `MYSQL_PORT`
+- `MYSQL_USER`
+- `MYSQL_PASSWORD`
+- `MYSQL_DATABASE`
+
+## Mapa de Operaciones por Coleccion
 
 ### staff
+
 Lectura:
-- `subscribeToStaff` (realtime).
+
+- `subscribeToStaff`.
 
 Escritura:
+
 - `addStaff`, `addStaffBatch`, `updateStaff`, `deleteStaff`.
-- Actualización de estado IN/OUT desde escáner/perfil (`updateStaff`).
+- Actualizacion de estado IN/OUT desde escaner/perfil mediante `updateStaff`.
 
 ### events
+
 Lectura:
+
 - `subscribeToEvents`.
 
 Escritura:
+
 - `addEvent`, `updateEvent`, `deleteEvent`.
 
 ### shifts
+
 Lectura:
+
 - `subscribeToShifts`.
 
 Escritura:
+
 - `addShift`, `updateShift`, `deleteShift`.
 - Se crean/cierran turnos al alternar IN/OUT de un trabajador.
+- Los payloads legacy con `location` estan bloqueados; usar `eventId/eventTitle`.
 
 ### alerts
+
 Lectura:
+
 - `subscribeToAlerts`.
 
 Escritura:
+
 - `addAlert`, `updateAlert`, `deleteAlert`.
-
-## Mapa por Pantalla (qué usa realmente)
-
-- Dashboard
-  - Consume `events`, `alerts`, `staff` desde estado sincronizado con Firestore.
-  - Sin escritura directa.
-
-- Staff
-  - Alta de personal via `addStaff` (y en flujo de alta también se crea turno inicial con `addShift` desde `App`).
-
-- Scanner
-  - Toggle IN/OUT:
-    - `updateStaff` (estado, horas, ubicación, etc.)
-    - `addShift` al entrar
-    - `updateShift` al salir
-
-- Profile
-  - Reutiliza el mismo toggle IN/OUT que Scanner.
-
-- Shifts
-  - Consulta de historial ya sincronizado desde Firestore.
-
-- KPIs
-  - Lectura de colecciones ya cargadas en memoria desde Firestore.
-
-- Database Manager
-  - CRUD manual de las 4 colecciones en Firestore.
-  - Reset completo a valores iniciales (`forceResetDatabase`).
-  - Test de conexión MariaDB vía `/api/test-mariadb`.
 
 ## Flujo de Datos Actual
 
@@ -101,24 +97,20 @@ Escritura:
 flowchart LR
   UI[React Screens] --> APP[App state + handlers]
   APP --> DBSVC[dbService.ts]
-  DBSVC <--> FS[(Firebase Firestore)]
+  DBSVC <--> API[/Express /api/mysql/*/]
+  API <--> MYSQL[(MySQL/MariaDB)]
 
-  UI --> DBM[DatabaseManagerScreen]
-  DBM --> API[/POST /api/test-mariadb/]
-  API --> MYSQL[(MySQL/MariaDB)]
-
-  note1[MySQL path is diagnostic only]
+  UI --> AUTH[/Express /api/auth/*/]
+  AUTH --> COOKIE[HTTP-only admin session]
 ```
 
 ## Implicaciones Operativas
 
-1. Los datos de negocio (personal, eventos, turnos, alertas) se guardan y leen en Firestore.
-2. Un problema en MySQL no afecta a la operación normal de la app salvo al test de conectividad de la pantalla de administración.
-3. Si se quiere migrar persistencia real a MySQL, hay que implementar:
-   - API CRUD de negocio en backend.
-   - Sustitución/abstracción de `dbService.ts`.
-   - Estrategia de migración de datos desde Firestore.
+1. Un problema en MySQL afecta a la operacion normal de la app.
+2. Las mutaciones admin requieren cookie de sesion valida o `x-admin-token` en scripts/CI.
+3. `DELETE /staff` debe permanecer protegido en CI por defecto.
+4. Cualquier cambio de esquema debe pasar por migracion controlada y validacion de `npm run test:api:shifts:regression`.
 
-## Recomendación
+## Recomendacion
 
-Mantener Firestore como fuente de verdad mientras no exista backend CRUD completo en MySQL. Si se decide migrar, hacerlo por fases con feature flag y doble escritura temporal para validar consistencia.
+Mantener MySQL como unica fuente activa. Si se reintroduce otra persistencia en el futuro, hacerlo solo con un plan explicito de doble escritura, reconciliacion y rollback.
