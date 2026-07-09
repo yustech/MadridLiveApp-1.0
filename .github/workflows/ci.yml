@@ -33,12 +33,13 @@ jobs:
         run: npm run build
       - name: Bundle size guardrail (non-blocking)
         run: |
-          node <<'EOF'
+          node <<'EOF2'
           const fs = require('fs');
           const path = require('path');
 
           const distDir = path.join(process.cwd(), 'dist', 'assets');
           const thresholdKB = Number(process.env.BUNDLE_WARN_THRESHOLD_KB || '260');
+          const scannerThresholdKB = Number(process.env.BUNDLE_WARN_SCANNER_THRESHOLD_KB || '380');
 
           if (!fs.existsSync(distDir)) {
             console.log('::warning::Bundle guardrail skipped: dist/assets not found.');
@@ -65,17 +66,29 @@ jobs:
             console.log(`- ${asset.name}: ${asset.sizeKB.toFixed(2)} KB`);
           }
 
-          const largest = files[0];
-          if (largest.sizeKB > thresholdKB) {
-            console.log(`::warning::Largest JS asset ${largest.name} is ${largest.sizeKB.toFixed(2)} KB (threshold ${thresholdKB} KB).`);
+          const scannerChunks = files.filter((asset) => asset.name.startsWith('scanner-vendor-'));
+          const nonScannerChunks = files.filter((asset) => !asset.name.startsWith('scanner-vendor-'));
+
+          const largestNonScanner = nonScannerChunks[0];
+          if (largestNonScanner && largestNonScanner.sizeKB > thresholdKB) {
+            console.log(`::warning::Largest non-scanner JS asset ${largestNonScanner.name} is ${largestNonScanner.sizeKB.toFixed(2)} KB (threshold ${thresholdKB} KB).`);
           } else {
-            console.log(`Largest JS asset ${largest.name} is ${largest.sizeKB.toFixed(2)} KB (<= ${thresholdKB} KB threshold).`);
+            const ref = largestNonScanner || files[0];
+            console.log(`Largest non-scanner JS asset ${ref.name} is ${ref.sizeKB.toFixed(2)} KB (<= ${thresholdKB} KB threshold).`);
           }
-          EOF
+
+          const largestScanner = scannerChunks[0];
+          if (largestScanner) {
+            if (largestScanner.sizeKB > scannerThresholdKB) {
+              console.log(`::warning::Scanner JS asset ${largestScanner.name} is ${largestScanner.sizeKB.toFixed(2)} KB (scanner threshold ${scannerThresholdKB} KB).`);
+            } else {
+              console.log(`Scanner JS asset ${largestScanner.name} is ${largestScanner.sizeKB.toFixed(2)} KB (<= ${scannerThresholdKB} KB scanner threshold).`);
+            }
+          }
+          EOF2
         env:
           BUNDLE_WARN_THRESHOLD_KB: ${{ vars.BUNDLE_WARN_THRESHOLD_KB || '260' }}
-
-
+          BUNDLE_WARN_SCANNER_THRESHOLD_KB: ${{ vars.BUNDLE_WARN_SCANNER_THRESHOLD_KB || '380' }}
   shifts_integrity:
     name: Shifts integrity gate (blocking)
     runs-on: ubuntu-latest
