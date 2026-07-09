@@ -68,9 +68,8 @@ function isFutureEvent(event?: LiveEvent | null): boolean {
 
 export default function App() {
   // Authentication & Security Policy State (Option B)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('ml_auth') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(() => sessionStorage.getItem('ml_auth') === 'true');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -105,21 +104,29 @@ export default function App() {
   }, [events, activeEventId]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated && !isCheckingSession) return;
 
     let cancelled = false;
     const verifySession = async () => {
       try {
         const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
         const payload = await response.json();
-        if (!cancelled && !payload?.authenticated) {
-          sessionStorage.removeItem('ml_auth');
-          setIsAuthenticated(false);
+        if (!cancelled) {
+          if (payload?.authenticated) {
+            setIsAuthenticated(true);
+          } else {
+            sessionStorage.removeItem('ml_auth');
+            setIsAuthenticated(false);
+          }
         }
       } catch {
         if (!cancelled) {
           sessionStorage.removeItem('ml_auth');
           setIsAuthenticated(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCheckingSession(false);
         }
       }
     };
@@ -129,7 +136,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isCheckingSession]);
 
   // Sync state with polling subscriptions
   useEffect(() => {
@@ -438,6 +445,19 @@ export default function App() {
       </div>
     );
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="w-full min-h-screen bg-[#0A051A] text-[#e2e2e8] flex items-center justify-center font-sans px-4">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center shadow-[0_0_50px_rgba(129,140,248,0.15)]">
+          <Lock className="w-8 h-8 text-indigo-300 animate-pulse mx-auto mb-4" />
+          <p className="text-[10px] font-mono text-indigo-300 uppercase tracking-widest">
+            Verificando sesion segura
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
