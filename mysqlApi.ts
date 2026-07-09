@@ -677,6 +677,10 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.delete(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+
     try {
       const db = getPool();
       await db.execute("DELETE FROM staff WHERE id = ?", [req.params.id]);

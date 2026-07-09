@@ -50,8 +50,8 @@ jobs:
       - name: Shifts contract guard
         run: npm run guard:shifts:contract
 
-      - name: Build
-        run: npm run build
+      - name: Typecheck + Build
+        run: npm run ci:check
 
       - name: Capture expected frontend bundle from dist
         id: expected_bundle

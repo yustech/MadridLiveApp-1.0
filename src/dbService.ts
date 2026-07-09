@@ -80,33 +80,90 @@ async function resetWithApi() {
     };
   });
 
-  for (const sh of shiftsNow) await deleteShift(sh.id);
-  for (const al of alertsNow) await deleteAlert(al.id);
-  for (const ev of eventsNow) await deleteEvent(ev.id);
-  for (const st of staffNow) await deleteStaff(st.id);
+  const clearCollections = async (
+    staffItems: StaffMember[],
+    eventItems: LiveEvent[],
+    shiftItems: Shift[],
+    alertItems: EquipmentAlert[],
+  ) => {
+    for (const sh of shiftItems) await deleteShift(sh.id);
+    for (const al of alertItems) await deleteAlert(al.id);
+    for (const ev of eventItems) await deleteEvent(ev.id);
+    for (const st of staffItems) await deleteStaff(st.id);
+  };
 
-  const staffIdMap = new Map<string, string>();
-  for (const st of INITIAL_STAFF) {
-    const { id: oldId, ...payload } = st;
-    const newId = await addStaff(payload);
-    staffIdMap.set(oldId, newId);
-  }
+  const restoreSnapshot = async () => {
+    const staffIdMap = new Map<string, string>();
 
-  for (const ev of INITIAL_EVENTS) {
-    const { id: _oldId, ...payload } = ev;
-    await addEvent(payload);
-  }
+    for (const st of staffNow) {
+      const { id: oldId, ...payload } = st;
+      const newId = await addStaff(payload);
+      staffIdMap.set(oldId, newId);
+    }
 
-  for (const al of INITIAL_ALERTS) {
-    const { id: _oldId, ...payload } = al;
-    await addAlert(payload);
-  }
+    for (const ev of eventsNow) {
+      const { id: _oldId, ...payload } = ev;
+      await addEvent(payload);
+    }
 
-  for (const sh of normalizedSeedShifts) {
-    const { id: _oldId, workerId, ...payload } = sh;
-    const mappedWorkerId = staffIdMap.get(workerId);
-    if (!mappedWorkerId) continue;
-    await addShift({ ...payload, workerId: mappedWorkerId });
+    for (const al of alertsNow) {
+      const { id: _oldId, ...payload } = al;
+      await addAlert(payload);
+    }
+
+    for (const sh of shiftsNow) {
+      const { id: _oldId, workerId, ...payload } = sh;
+      const mappedWorkerId = staffIdMap.get(workerId);
+      if (!mappedWorkerId) continue;
+      await addShift({ ...payload, workerId: mappedWorkerId });
+    }
+  };
+
+  try {
+    await clearCollections(staffNow, eventsNow, shiftsNow, alertsNow);
+
+    const staffIdMap = new Map<string, string>();
+    for (const st of INITIAL_STAFF) {
+      const { id: oldId, ...payload } = st;
+      const newId = await addStaff(payload);
+      staffIdMap.set(oldId, newId);
+    }
+
+    for (const ev of INITIAL_EVENTS) {
+      const { id: _oldId, ...payload } = ev;
+      await addEvent(payload);
+    }
+
+    for (const al of INITIAL_ALERTS) {
+      const { id: _oldId, ...payload } = al;
+      await addAlert(payload);
+    }
+
+    for (const sh of normalizedSeedShifts) {
+      const { id: _oldId, workerId, ...payload } = sh;
+      const mappedWorkerId = staffIdMap.get(workerId);
+      if (!mappedWorkerId) continue;
+      await addShift({ ...payload, workerId: mappedWorkerId });
+    }
+  } catch (error) {
+    console.error('MySQL reset failed after destructive step. Attempting rollback from snapshot.', error);
+
+    try {
+      const [staffAfter, eventsAfter, shiftsAfter, alertsAfter] = await Promise.all([
+        apiJson<StaffMember[]>('/staff'),
+        apiJson<LiveEvent[]>('/events'),
+        apiJson<Shift[]>('/shifts'),
+        apiJson<EquipmentAlert[]>('/alerts'),
+      ]);
+
+      await clearCollections(staffAfter, eventsAfter, shiftsAfter, alertsAfter);
+      await restoreSnapshot();
+      console.warn('Snapshot rollback completed after reset failure.');
+    } catch (rollbackError) {
+      console.error('Snapshot rollback failed after reset failure.', rollbackError);
+    }
+
+    throw error;
   }
 }
 

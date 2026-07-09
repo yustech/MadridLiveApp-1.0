@@ -49,7 +49,9 @@
     "ops:active-shift-remediate:apply": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/remediate-active-shift-duplicates.mjs --apply",
     "ops:weekly-integrity-report": "BASE_URL=${BASE_URL:-https://inmosubastas.top} node scripts/ops-weekly-integrity-report.mjs",
     "backfill:shift-durations:dry": "tsx scripts/backfill-shift-durations.ts",
-    "backfill:shift-durations:apply": "tsx scripts/backfill-shift-durations.ts --apply"
+    "backfill:shift-durations:apply": "tsx scripts/backfill-shift-durations.ts --apply",
+    "ci:check": "npm run lint && npm run build",
+    "deploy:verified": "npm run ci:check && npm run deploy"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

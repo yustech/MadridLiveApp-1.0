@@ -50,6 +50,27 @@ async function api(path, options = {}) {
   return { status: response.status, json, text };
 }
 
+async function apiNoAuth(path, options = {}) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "content-type": "application/json",
+      ...(options.headers || {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const text = await response.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  return { status: response.status, json, text };
+}
+
 function toIsoAtOffset(baseValue, offsetMs) {
   const base = new Date(String(baseValue));
   if (Number.isNaN(base.getTime())) {
@@ -106,6 +127,7 @@ async function run() {
     let concurrentStartRaceGuarded = false;
     let legacyLocationCreateRejected = false;
     let legacyLocationPatchRejected = false;
+    let deleteStaffAuthEnforced = false;
 
     for (const candidateWorker of candidateWorkers) {
       for (const event of orderedEvents) {
@@ -164,6 +186,26 @@ async function run() {
     assert(allowedEvent, 'No se encontró evento permitido para validar alta/cierre.');
     assert(createdShiftIds.length > 0, 'No se recibió id del turno creado.');
     const createdShiftId = createdShiftIds[0];
+
+    const authProbeStaffId = "auth-probe-" + Date.now();
+    const deleteWithoutAuthRes = await apiNoAuth("/api/mysql/staff/" + authProbeStaffId, {
+      method: "DELETE",
+    });
+
+    deleteStaffAuthEnforced = deleteWithoutAuthRes.status === 401;
+    assert(
+      deleteStaffAuthEnforced,
+      "DELETE /staff sin token debe devolver 401 y devolvio " + deleteWithoutAuthRes.status + ": " + deleteWithoutAuthRes.text,
+    );
+
+    const deleteWithAuthRes = await api("/api/mysql/staff/" + authProbeStaffId, {
+      method: "DELETE",
+    });
+
+    assert(
+      deleteWithAuthRes.status !== 401,
+      "DELETE /staff con token admin no deberia devolver 401.",
+    );
 
     const duplicateActiveRes = await api('/api/mysql/shifts', {
       method: 'POST',
@@ -464,6 +506,7 @@ async function run() {
       concurrentStartRaceGuarded,
       legacyLocationCreateRejected,
       legacyLocationPatchRejected,
+      deleteStaffAuthEnforced,
     }));
   } catch (error) {
     const durationMs = Date.now() - startedAtMs;
