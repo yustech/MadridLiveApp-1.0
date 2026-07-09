@@ -12,17 +12,12 @@ function normalizeStaffAvatar(worker: StaffMember): StaffMember {
   };
 }
 
-function adminHeaders() {
-  const token = import.meta.env.VITE_ADMIN_API_TOKEN;
-  return token ? { 'x-admin-token': token } : {};
-}
-
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${MYSQL_API_BASE}${path}`, {
     ...init,
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      ...adminHeaders(),
       ...(init?.headers || {}),
     },
   });

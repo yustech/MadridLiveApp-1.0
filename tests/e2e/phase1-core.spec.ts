@@ -1,34 +1,39 @@
 import { expect, test } from '@playwright/test';
 
+const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || '';
+
 function isMysqlUnconfiguredMessage(payload: string) {
   return payload.toLowerCase().includes('mysql is not configured');
 }
 
-async function loginWithDemo(page: import('@playwright/test').Page) {
+async function loginWithAdmin(page: import('@playwright/test').Page) {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'PLAYWRIGHT_ADMIN_EMAIL and PLAYWRIGHT_ADMIN_PASSWORD are required for login UI tests.');
+
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
   if (alreadyInside) return;
 
-  await page.getByRole('button', { name: /Rellenar Credenciales Demo/i }).click();
+  await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
+  await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
   await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
 }
 
 test.describe('Phase 1 - core functional flows', () => {
   test('[readonly] login, lock terminal, and login again', async ({ page }) => {
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByRole('button', { name: /BLOQUEAR TERMINAL/i }).click();
     await expect(page.getByText(/TERMINAL DE ACCESO/i)).toBeVisible();
 
-    await page.getByRole('button', { name: /Rellenar Credenciales Demo/i }).click();
-    await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
+    await loginWithAdmin(page);
     await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
   });
 
   test('[readonly] core navigation modules render stable anchors', async ({ page }) => {
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByRole('button', { name: /Plantilla/i }).click();
     await expect(page.getByRole('heading', { name: /Plantilla de Personal/i })).toBeVisible();
@@ -53,7 +58,7 @@ test.describe('Phase 1 - core functional flows', () => {
       'MySQL is not configured in this runner; skipping profile-navigation check that depends on roster data.'
     );
 
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByTitle(/Ver perfil de Javier Rodríguez/i).click();
     await expect(page.getByRole('heading', { name: /Perfil del Colaborador/i })).toBeVisible();
@@ -63,7 +68,7 @@ test.describe('Phase 1 - core functional flows', () => {
   });
 
   test('[readonly] scanner manual entry rejects unknown ids', async ({ page }) => {
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
     await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();

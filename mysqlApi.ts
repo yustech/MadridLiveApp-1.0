@@ -14,6 +14,10 @@ import {
 
 const MYSQL_PREFIX = "/api/mysql";
 
+interface MysqlApiOptions {
+  isAdminAuthorized?: (req: express.Request) => boolean;
+}
+
 function isLocalRequest(req: express.Request) {
   const remoteAddress = req.socket.remoteAddress || '';
   return remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
@@ -627,7 +631,11 @@ async function ensureWorkerShiftTimeIntegrity(
     throw new Error('Shift conflict: overlapping time range for worker.');
   }
 }
-export function registerMysqlApi(app: express.Express) {
+export function registerMysqlApi(app: express.Express, options: MysqlApiOptions = {}) {
+  const isAuthorized = (req: express.Request) => options.isAdminAuthorized
+    ? options.isAdminAuthorized(req)
+    : isAdminAuthorized(req);
+
   app.get(`${MYSQL_PREFIX}/status`, async (_req, res) => {
     if (!isMysqlConfigured()) {
       return res.status(503).json({
@@ -670,7 +678,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/schema-migrate`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -691,7 +699,7 @@ export function registerMysqlApi(app: express.Express) {
 
 
   app.post(`${MYSQL_PREFIX}/init`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: "Unauthorized." });
     }
 
@@ -704,7 +712,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/reset-initial`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: "Unauthorized." });
     }
 
@@ -752,7 +760,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/staff`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -781,7 +789,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -828,7 +836,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.delete(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -866,7 +874,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/events`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -914,7 +922,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -973,7 +981,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.delete(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -1027,7 +1035,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/shifts`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -1113,7 +1121,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -1217,7 +1225,7 @@ export function registerMysqlApi(app: express.Express) {
     }
   });
   app.delete(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -1249,7 +1257,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.post(`${MYSQL_PREFIX}/alerts`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -1274,7 +1282,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.patch(`${MYSQL_PREFIX}/alerts/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -1316,7 +1324,7 @@ export function registerMysqlApi(app: express.Express) {
   });
 
   app.delete(`${MYSQL_PREFIX}/alerts/:id`, async (req, res) => {
-    if (!isAdminAuthorized(req)) {
+    if (!isAuthorized(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
 

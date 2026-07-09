@@ -43,6 +43,15 @@ interface DatabaseManagerScreenProps {
 }
 
 type CollectionTab = 'events' | 'staff' | 'shifts' | 'alerts' | 'security';
+type ConfirmIntent = 'danger' | 'warning';
+
+interface ConfirmAction {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  intent: ConfirmIntent;
+  onConfirm: () => Promise<void>;
+}
 
 const tabLabelMap: Record<CollectionTab, string> = {
   staff: 'Colaboradores',
@@ -72,11 +81,11 @@ export default function DatabaseManagerScreen({
   const [securitySubTab, setSecuritySubTab] = useState<'credentials' | 'schema' | 'bridge'>('credentials');
   const [copiedText, setCopiedText] = useState(false);
   const [mariadbConfig, setMariadbConfig] = useState({
-    host: '82.223.139.217',
+    host: '',
     port: '3306',
-    user: 'prod_crew_admin',
-    name: 'madrid_live_production',
-    password: 'MEMBER_PASS_CREW_2026'
+    user: '',
+    name: '',
+    password: ''
   });
   const [userCredentials, setUserCredentials] = useState([
     { email: 'admin@madridlive.com', role: 'admin', label: 'Super Administrador', lastLogin: 'Hoy, 09:42' },
@@ -92,17 +101,15 @@ export default function DatabaseManagerScreen({
     advice?: string;
   } | null>(null);
 
-  const adminApiToken = import.meta.env.VITE_ADMIN_API_TOKEN;
-
   const testMariaDBConnection = async () => {
     setIsTestingConnection(true);
     setConnectionTestResult(null);
     try {
       const response = await fetch('/api/test-mariadb', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          ...(adminApiToken ? { 'x-admin-token': adminApiToken } : {}),
         },
         body: JSON.stringify(mariadbConfig)
       });
@@ -128,6 +135,8 @@ export default function DatabaseManagerScreen({
   // Status message
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Edit / Add modal states
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -170,10 +179,18 @@ export default function DatabaseManagerScreen({
     }
   };
 
-  const handleHardReset = async () => {
-    if (!window.confirm('¿Realmente deseas restablecer toda la base de datos a sus valores iniciales por defecto? Se sobrescribirán todos los cambios actuales.')) {
-      return;
+  const runConfirmAction = async () => {
+    if (!confirmAction) return;
+    setIsConfirming(true);
+    try {
+      await confirmAction.onConfirm();
+      setConfirmAction(null);
+    } finally {
+      setIsConfirming(false);
     }
+  };
+
+  const runHardReset = async () => {
     setIsResetting(true);
     try {
       await forceResetDatabase();
@@ -185,21 +202,41 @@ export default function DatabaseManagerScreen({
     }
   };
 
+  const handleHardReset = () => {
+    setConfirmAction({
+      title: 'Restablecer base de datos',
+      message: 'Se reemplazarán eventos, colaboradores, turnos y alertas por el dataset inicial. Esta acción requiere permisos admin y no debe ejecutarse durante una operación real.',
+      confirmLabel: 'Restablecer BD',
+      intent: 'warning',
+      onConfirm: runHardReset,
+    });
+  };
+
   // --- DELETE HANDLER ---
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar este registro (${id})? Esto se aplicará de forma directa y permanente en la base de datos MySQL.`)) {
-      return;
-    }
+  const runDelete = async (id: string, collection: CollectionTab) => {
     try {
-      if (activeTab === 'events') await deleteEvent(id);
-      else if (activeTab === 'staff') await deleteStaff(id);
-      else if (activeTab === 'shifts') await deleteShift(id);
-      else if (activeTab === 'alerts') await deleteAlert(id);
+      if (collection === 'events') await deleteEvent(id);
+      else if (collection === 'staff') await deleteStaff(id);
+      else if (collection === 'shifts') await deleteShift(id);
+      else if (collection === 'alerts') await deleteAlert(id);
       
       showStatus(`Registro ${id} eliminado correctamente.`);
     } catch (err: any) {
       showStatus(`Error al eliminar el registro: ${err.message || err}`, true);
     }
+  };
+
+  const handleDelete = (id: string) => {
+    const collection = activeTab;
+    if (collection === 'security') return;
+
+    setConfirmAction({
+      title: 'Eliminar registro',
+      message: `Se eliminará el registro ${id} de ${tabLabelMap[collection].toLowerCase()}. Esta acción se aplica directamente sobre MySQL.`,
+      confirmLabel: 'Eliminar',
+      intent: 'danger',
+      onConfirm: () => runDelete(id, collection),
+    });
   };
 
   // --- OPEN FORM FOR ADD ---
@@ -217,8 +254,17 @@ export default function DatabaseManagerScreen({
       status: 'OUT', avatar: DEFAULT_FEMALE_AVATAR, email: '', phone: '',
       totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
     });
+    const defaultEvent = events[0];
+    const nowIso = new Date().toISOString();
     setShiftData({
-      workerId: staff.length > 0 ? staff[0].id : '', dateString: 'Hoy', timespan: '18:00 - Presente', durationLabel: 'Activo', location: 'Escenario Principal', status: 'Active'
+      workerId: staff.length > 0 ? staff[0].id : '',
+      dateString: nowIso,
+      timespan: '18:00 - Presente',
+      durationLabel: 'Active',
+      eventId: defaultEvent?.id || '',
+      eventTitle: defaultEvent?.title || '',
+      status: 'Active',
+      startedAt: nowIso,
     });
     setAlertData({
       message: 'Nueva sugerencia de alerta', zone: 'Zona A', timestamp: '12:00', severity: 'warning'
@@ -669,9 +715,9 @@ CREATE TABLE IF NOT EXISTS supervisors (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Inserción de credencial inicial por defecto (CREW2026)
+-- Inserción de credencial inicial con hash provisionado por entorno
 INSERT INTO supervisors (email, password_hash, name, role) 
-VALUES ('admin@madridlive.com', 'bcrypt_hash_of_CREW2026', 'Administrador General', 'admin')
+VALUES ('admin@madridlive.com', 'ADMIN_PASSWORD_HASH', 'Administrador General', 'admin')
 ON DUPLICATE KEY UPDATE email=email;
 
 -- 2. Tabla de Plantilla (Staff)
@@ -740,9 +786,9 @@ CREATE TABLE IF NOT EXISTS supervisors (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Inserción inicial de credencial de emergencia (Contraseña: CREW2026)
+-- Inserción inicial de credencial con hash provisionado por entorno
 INSERT INTO supervisors (email, password_hash, name, role) 
-VALUES ('admin@madridlive.com', 'bcrypt_hash_of_CREW2026', 'Administrador General', 'admin')
+VALUES ('admin@madridlive.com', 'ADMIN_PASSWORD_HASH', 'Administrador General', 'admin')
 ON DUPLICATE KEY UPDATE email=email;
 
 -- 2. Tabla de Plantilla (Staff)
@@ -845,7 +891,7 @@ app.post('/api/auth/login', async (req, res) => {
     
     // Comparar con bcrypt hash de forma asíncrona en producción:
     // const passwordMatch = await bcrypt.compare(password, supervisor.password_hash);
-    const passwordMatch = (password === 'CREW2026'); // Validador de desarrollo rápido
+    const passwordMatch = (password === process.env.ADMIN_LOGIN_PASSWORD); // Validador simplificado: usar hash en producción
     
     if (!passwordMatch) {
       return res.status(401).json({ error: 'Clave de seguridad inválida.' });
@@ -923,7 +969,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
     const user = rows[0];
-    const match = (password === 'CREW2026'); // Clave maestra demo
+    const match = (password === process.env.ADMIN_LOGIN_PASSWORD); // Validar contra secreto de entorno
     
     if (!match) return res.status(401).json({ error: 'Contraseña inválida.' });
     
@@ -1261,6 +1307,50 @@ app.post('/api/auth/login', async (req, res) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#120e2a] p-6 shadow-2xl">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border mb-4 ${
+              confirmAction.intent === 'danger'
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}>
+              <AlertCircle className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-display font-bold text-white">
+              {confirmAction.title}
+            </h3>
+            <p className="mt-2 text-sm text-white/60 leading-relaxed">
+              {confirmAction.message}
+            </p>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                disabled={isConfirming}
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-mono font-bold text-white/70 hover:bg-white/10 disabled:opacity-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isConfirming}
+                onClick={() => void runConfirmAction()}
+                className={`flex-1 h-11 rounded-xl text-xs font-mono font-bold text-white transition-all disabled:opacity-50 cursor-pointer ${
+                  confirmAction.intent === 'danger'
+                    ? 'bg-rose-500 hover:bg-rose-400'
+                    : 'bg-amber-500 hover:bg-amber-400'
+                }`}
+              >
+                {isConfirming ? 'Procesando...' : confirmAction.confirmLabel}
+              </button>
+            </div>
           </div>
         </div>
       )}

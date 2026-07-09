@@ -1,6 +1,6 @@
 const BASE_URL = process.env.API_BASE_URL || 'http://127.0.0.1:3000';
 const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || 'crew_admin_2026_secure';
-const REQUIRE_DELETE_STAFF_AUTH = String(process.env.REQUIRE_DELETE_STAFF_AUTH || 'false').toLowerCase() === 'true';
+const REQUIRE_DELETE_STAFF_AUTH = String(process.env.REQUIRE_DELETE_STAFF_AUTH || 'true').toLowerCase() === 'true';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

@@ -71,7 +71,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('ml_auth') === 'true';
   });
-  const [loginEmail, setLoginEmail] = useState('admin@madridlive.com');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -103,6 +103,33 @@ export default function App() {
       setActiveEventId(events[0].id);
     }
   }, [events, activeEventId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let cancelled = false;
+    const verifySession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
+        const payload = await response.json();
+        if (!cancelled && !payload?.authenticated) {
+          sessionStorage.removeItem('ml_auth');
+          setIsAuthenticated(false);
+        }
+      } catch {
+        if (!cancelled) {
+          sessionStorage.removeItem('ml_auth');
+          setIsAuthenticated(false);
+        }
+      }
+    };
+
+    void verifySession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   // Sync state with polling subscriptions
   useEffect(() => {
@@ -176,27 +203,51 @@ export default function App() {
   };
 
   // Login handler
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setIsAuthenticating(true);
-    setLoginError('');
+    setLoginError("");
 
-    setTimeout(() => {
-      if (loginEmail.trim().toLowerCase() === 'admin@madridlive.com' && loginPassword === 'CREW2026') {
-        sessionStorage.setItem('ml_auth', 'true');
-        setIsAuthenticated(true);
-      } else {
-        setLoginError('ACCESO DENEGADO: Credenciales de seguridad inválidas.');
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.message || "Credenciales no validas o autenticacion no configurada.");
       }
+
+      sessionStorage.setItem("ml_auth", "true");
+      setIsAuthenticated(true);
+      setLoginPassword("");
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "No se pudo autenticar contra el servidor.");
+    } finally {
       setIsAuthenticating(false);
-    }, 800);
+    }
   };
 
   // Logout handler
-  const handleLogout = () => {
-    sessionStorage.removeItem('ml_auth');
+  const handleLogout = async () => {
+    sessionStorage.removeItem("ml_auth");
     setIsAuthenticated(false);
-    setLoginPassword('');
+    setLoginPassword("");
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch {
+      // Local logout already cleared UI state.
+    }
   };
 
   // Check worker toggle IN/OUT
@@ -476,32 +527,19 @@ export default function App() {
             </button>
           </form>
 
-          {/* Quick Demo Assist */}
           <div className="mt-8 pt-6 border-t border-white/5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono text-white/30 uppercase tracking-wider">
-                Políticas de Seguridad Activas
+                Politicas de Seguridad Activas
               </span>
               <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] rounded-full uppercase">
-                Estable / OK
+                Server Auth
               </span>
             </div>
-            
             <div className="bg-[#120f26]/30 border border-white/5 rounded-xl p-3 text-left">
-              <p className="text-[10px] font-mono text-white/60 leading-relaxed mb-2">
-                💡 <strong className="text-indigo-300">DEMO PASSKEY:</strong> Usa el botón inferior para autocompletar la clave maestra predefinida para producciones.
+              <p className="text-[10px] font-mono text-white/60 leading-relaxed">
+                La autenticacion se valida en el servidor mediante sesion HTTP-only. Configura las credenciales admin en el entorno del backend.
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginEmail('admin@madridlive.com');
-                  setLoginPassword('CREW2026');
-                  setLoginError('');
-                }}
-                className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-400/30 text-indigo-200 font-mono text-[10px] font-semibold rounded-lg transition-all cursor-pointer"
-              >
-                Rellenar Credenciales Demo
-              </button>
             </div>
           </div>
 
