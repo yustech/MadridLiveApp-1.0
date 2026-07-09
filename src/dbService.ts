@@ -94,7 +94,7 @@ async function resetWithApi() {
 
   for (const ev of INITIAL_EVENTS) {
     const { id: _oldId, ...payload } = ev;
-    await addEvent({ ...payload, eventTitle: payload.title });
+    await addEvent(payload);
   }
 
   for (const al of INITIAL_ALERTS) {
