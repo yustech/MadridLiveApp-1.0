@@ -371,6 +371,7 @@ export function sanitizeDateTime(value: unknown, fieldName: string): ValidationR
 export function validateStaffPayload(body: unknown): ValidationResult<any> {
   const errors: ValidationError[] = [];
   const sanitized: any = {};
+  const allowedRoles = ["Auxiliar", "Auxiliar Plus", "Coordinación"];
 
   if (typeof body !== "object" || body === null) {
     return {
@@ -398,11 +399,14 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
   }
 
   // role (required)
-  const roleRes = sanitizeRole(b.role);
-  if (!roleRes.valid) {
-    errors.push(...roleRes.errors);
+  if (typeof b.role !== "string" || !allowedRoles.includes(b.role.trim())) {
+    errors.push({
+      field: "role",
+      message: "Role must be one of: Auxiliar, Auxiliar Plus, Coordinación",
+      value: b.role,
+    });
   } else {
-    sanitized.role = roleRes.sanitized;
+    sanitized.role = b.role.trim();
   }
 
   // roleLabel (required, max 128)
@@ -469,6 +473,49 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
     }
   } else {
     sanitized.location = null;
+  }
+
+  if (b.email !== undefined && b.email !== null && String(b.email).trim() !== "") {
+    const emailRes = sanitizeString(b.email, "email", 255);
+    if (!emailRes.valid) {
+      errors.push(...emailRes.errors);
+    } else {
+      sanitized.email = emailRes.sanitized;
+    }
+  } else {
+    sanitized.email = null;
+  }
+
+  if (b.phone !== undefined && b.phone !== null && String(b.phone).trim() !== "") {
+    const phoneRes = sanitizeString(b.phone, "phone", 32);
+    if (!phoneRes.valid) {
+      errors.push(...phoneRes.errors);
+    } else {
+      sanitized.phone = phoneRes.sanitized;
+    }
+  } else {
+    sanitized.phone = null;
+  }
+
+  const totalHoursValue = Number(b.totalHours ?? 0);
+  if (!Number.isFinite(totalHoursValue) || totalHoursValue < 0) {
+    errors.push({ field: "totalHours", message: "totalHours must be a number >= 0", value: b.totalHours });
+  } else {
+    sanitized.totalHours = totalHoursValue;
+  }
+
+  const shiftHoursValue = Number(b.currentShiftHours ?? 0);
+  if (!Number.isInteger(shiftHoursValue) || shiftHoursValue < 0) {
+    errors.push({ field: "currentShiftHours", message: "currentShiftHours must be an integer >= 0", value: b.currentShiftHours });
+  } else {
+    sanitized.currentShiftHours = shiftHoursValue;
+  }
+
+  const shiftMinsValue = Number(b.currentShiftMins ?? 0);
+  if (!Number.isInteger(shiftMinsValue) || shiftMinsValue < 0) {
+    errors.push({ field: "currentShiftMins", message: "currentShiftMins must be an integer >= 0", value: b.currentShiftMins });
+  } else {
+    sanitized.currentShiftMins = shiftMinsValue;
   }
 
   // Force null for system-managed fields

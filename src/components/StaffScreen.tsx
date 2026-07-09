@@ -15,7 +15,7 @@ import { addStaffBatch } from '../dbService';
 interface StaffScreenProps {
   staff: StaffMember[];
   onSelectWorker: (worker: StaffMember) => void;
-  onAddWorker: (worker: Omit<StaffMember, 'id'>) => void;
+  onAddWorker: (worker: Omit<StaffMember, 'id'>) => Promise<void> | void;
 }
 
 const roleLabelMap: Record<string, string> = {
@@ -69,6 +69,12 @@ export default function StaffScreen({
 
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState<'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('Auxiliar');
+  const [newIdCode, setNewIdCode] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newStatus, setNewStatus] = useState<'IN' | 'OUT'>('OUT');
+  const [newAvatar, setNewAvatar] = useState('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200');
+  const [formError, setFormError] = useState('');
 
   const [addMode, setAddMode] = useState<'single' | 'bulk'>('single');
   const [bulkText, setBulkText] = useState('');
@@ -122,6 +128,12 @@ export default function StaffScreen({
   const resetAndCloseAddModal = () => {
     setNewName('');
     setNewRole('Auxiliar');
+    setNewIdCode('');
+    setNewEmail('');
+    setNewPhone('');
+    setNewStatus('OUT');
+    setNewAvatar('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200');
+    setFormError('');
     setBulkText('');
     setImportStatus('');
     setIsImporting(false);
@@ -129,33 +141,45 @@ export default function StaffScreen({
     setIsAddModalOpen(false);
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newName.trim()) return;
+    setFormError('');
 
-    const avatars = [
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    ];
-    const selectAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+    if (!newName.trim()) {
+      setFormError('El nombre es requerido');
+      return;
+    }
+    if (!newIdCode.trim()) {
+      setFormError('El código ID es requerido');
+      return;
+    }
+    if (!newAvatar.trim()) {
+      setFormError('La URL de avatar es requerida');
+      return;
+    }
 
-    onAddWorker({
-      name: newName.trim(),
-      idCode: `${newRole.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
-      role: newRole,
-      roleLabel: newRole.toUpperCase(),
-      status: 'OUT',
-      checkedInTime: '',
-      lastSeen: new Date().toISOString(),
-      avatar: selectAvatar,
-      totalHours: 0,
-      currentShiftHours: 0,
-      currentShiftMins: 0,
-    });
-
-    resetAndCloseAddModal();
+    try {
+      await onAddWorker({
+        name: newName.trim(),
+        idCode: newIdCode.trim(),
+        role: newRole,
+        roleLabel: `${newRole.toUpperCase()} PERSONNEL`,
+        status: newStatus,
+        checkedInTime: '',
+        lastSeen: new Date().toISOString(),
+        avatar: newAvatar.trim(),
+        email: newEmail.trim(),
+        phone: newPhone.trim(),
+        totalHours: 0,
+        currentShiftHours: 0,
+        currentShiftMins: 0,
+        location: '',
+      });
+      resetAndCloseAddModal();
+    } catch (err) {
+      console.error('Error adding staff:', err);
+      setFormError(err instanceof Error ? err.message : 'Error al agregar colaborador');
+    }
   };
 
   const handleBulkSubmit = async (e: FormEvent) => {
@@ -503,38 +527,77 @@ export default function StaffScreen({
                 </div>
               </form>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4 text-sm font-mono text-left">
+              <form onSubmit={handleSubmit} className="space-y-3 text-sm font-mono text-left max-h-[600px] overflow-y-auto pr-2">
                 <div>
-                  <label className="block text-xs text-white/50 mb-1">Nombre Completo</label>
+                  <label className="block text-xs text-white/50 mb-1">Nombre Completo *</label>
                   <input
                     type="text"
                     required
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder="ej. Carlos de Diego"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">Código ID *</label>
+                    <input type="text" required value={newIdCode} onChange={e => setNewIdCode(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="ej. AUX-042" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">Rol *</label>
+                    <select required value={newRole} onChange={e => setNewRole(e.target.value as any)} className="w-full bg-[#1c1836] border border-white/10 rounded-xl p-2.5 text-white text-xs">
+                      <option value="Auxiliar">Auxiliar</option>
+                      <option value="Auxiliar Plus">Auxiliar Plus</option>
+                      <option value="Coordinación">Coordinación</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">Email</label>
+                    <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="ej. carlos@madrid.live" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/50 block mb-1">Teléfono</label>
+                    <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="ej. +34 600 000 000" />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-xs text-white/50 mb-1">Rol Estándar</label>
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value as 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación')}
-                    className="w-full bg-[#120f26] border border-white/10 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-indigo-400"
-                  >
-                    <option value="Auxiliar">Auxiliar</option>
-                    <option value="Auxiliar Plus">Auxiliar Plus</option>
-                    <option value="Coordinación">Coordinación</option>
+                  <label className="block text-xs text-white/50 mb-1">URL Foto de Perfil *</label>
+                  <input type="text" required value={newAvatar} onChange={e => setNewAvatar(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200" />
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
+                  <img src={newAvatar} alt="Vista previa avatar" className="h-14 w-14 rounded-2xl object-cover border border-white/10" />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Foto por defecto</p>
+                    <p className="text-xs text-white/70">Se usará esta imagen si no la cambias.</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-white/50 block mb-1">Estado *</label>
+                  <select required value={newStatus} onChange={e => setNewStatus(e.target.value as any)} className="w-full bg-[#1c1836] border border-white/10 rounded-xl p-2.5 text-white text-xs">
+                    <option value="IN">DENTRO (En el recinto)</option>
+                    <option value="OUT">FUERA (Salida registrada)</option>
                   </select>
                 </div>
+
+                {formError && (
+                  <div className="p-2.5 bg-red-500/10 border border-red-400/30 rounded-xl">
+                    <p className="text-xs text-red-300 font-bold">{formError}</p>
+                  </div>
+                )}
 
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full h-12 bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-bold uppercase rounded-xl text-xs transition-colors cursor-pointer shadow-lg"
+                    className="w-full h-10 bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-bold uppercase rounded-xl text-xs transition-colors cursor-pointer shadow-lg"
                   >
-                    Agregar colaborador
+                    Crear Colaborador
                   </button>
                 </div>
               </form>

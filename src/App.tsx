@@ -285,6 +285,7 @@ export default function App() {
       await addStaff(newCrewData);
     } catch (err) {
       console.error('Failed to register crew member in the API: ', err);
+      throw err;
     }
   };
 

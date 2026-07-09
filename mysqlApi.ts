@@ -51,17 +51,19 @@ async function initSchema() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS staff (
       id VARCHAR(96) PRIMARY KEY,
-      id_code VARCHAR(96) NOT NULL,
+      idCode VARCHAR(96) NOT NULL,
       name VARCHAR(255) NOT NULL,
       role VARCHAR(64) NOT NULL,
-      role_label VARCHAR(96) NOT NULL,
+      roleLabel VARCHAR(96) NOT NULL,
       status VARCHAR(16) NOT NULL,
-      checked_in_time VARCHAR(32) NULL,
-      last_seen VARCHAR(128) NULL,
+      checkedInTime VARCHAR(32) NULL,
+      lastSeen VARCHAR(128) NULL,
       avatar TEXT NOT NULL,
-      total_hours DECIMAL(10,2) NOT NULL DEFAULT 0,
-      current_shift_hours INT NOT NULL DEFAULT 0,
-      current_shift_mins INT NOT NULL DEFAULT 0,
+      email VARCHAR(255) NULL,
+      phone VARCHAR(32) NULL,
+      totalHours DECIMAL(10,2) NOT NULL DEFAULT 0,
+      currentShiftHours INT NOT NULL DEFAULT 0,
+      currentShiftMins INT NOT NULL DEFAULT 0,
       location VARCHAR(255) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -72,9 +74,9 @@ async function initSchema() {
       id VARCHAR(96) PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       location VARCHAR(255) NOT NULL,
-      date_day VARCHAR(8) NOT NULL,
-      date_month VARCHAR(16) NOT NULL,
-      doors_open VARCHAR(32) NOT NULL,
+      dateDay VARCHAR(8) NOT NULL,
+      dateMonth VARCHAR(16) NOT NULL,
+      doorsOpen VARCHAR(32) NOT NULL,
       required_staff INT NOT NULL,
       active_staff INT NOT NULL,
       total_staff_needed INT NOT NULL,
@@ -206,6 +208,25 @@ async function applySchemaMigrations(db: any) {
     migrated.push('staff.location_nullable');
   }
 
+  const [staffColumnsRows] = await db.query(
+    `SELECT column_name AS columnName
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'staff'
+         AND column_name IN ('email', 'phone')`
+  );
+  const staffColumns = new Set((staffColumnsRows as Array<{ columnName: string }>).map((row) => row.columnName));
+
+  if (!staffColumns.has('email')) {
+    await db.query(`ALTER TABLE staff ADD COLUMN email VARCHAR(255) NULL AFTER avatar`);
+    migrated.push('staff.email');
+  }
+
+  if (!staffColumns.has('phone')) {
+    await db.query(`ALTER TABLE staff ADD COLUMN phone VARCHAR(32) NULL AFTER email`);
+    migrated.push('staff.phone');
+  }
+
   return { migrated };
 }
 
@@ -303,7 +324,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
   let rows: any[] = [];
   if (eventIdStr) {
     [rows] = await db.query(
-      `SELECT id, title, date_day AS dateDay, date_month AS dateMonth, doors_open AS doorsOpen
+      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, doorsOpen AS doorsOpen
        FROM events
        WHERE id = ?
        LIMIT 1`,
@@ -311,7 +332,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
     );
   } else {
     [rows] = await db.query(
-      `SELECT id, title, date_day AS dateDay, date_month AS dateMonth, doors_open AS doorsOpen
+      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, doorsOpen AS doorsOpen
        FROM events
        WHERE title = ?
        LIMIT 1`,
@@ -329,7 +350,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
     return;
   }
 
-  // Allow check-ins for events happening today, even if doors_open is later.
+  // Allow check-ins for events happening today, even if doorsOpen is later.
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const eventDayStart = new Date(
@@ -479,17 +500,19 @@ export function registerMysqlApi(app: express.Express) {
       const [rows] = await db.query(`
         SELECT
           st.id,
-          st.id_code AS idCode,
+          st.idCode AS idCode,
           st.name,
           st.role,
-          st.role_label AS roleLabel,
+          st.roleLabel AS roleLabel,
           CASE WHEN active.worker_id IS NOT NULL THEN 'IN' ELSE 'OUT' END AS status,
-          CASE WHEN active.worker_id IS NOT NULL THEN st.checked_in_time ELSE '' END AS checkedInTime,
-          st.last_seen AS lastSeen,
+          CASE WHEN active.worker_id IS NOT NULL THEN st.checkedInTime ELSE '' END AS checkedInTime,
+          st.lastSeen AS lastSeen,
           st.avatar,
-          CAST(st.total_hours AS DOUBLE) AS totalHours,
-          CASE WHEN active.worker_id IS NOT NULL THEN st.current_shift_hours ELSE 0 END AS currentShiftHours,
-          CASE WHEN active.worker_id IS NOT NULL THEN st.current_shift_mins ELSE 0 END AS currentShiftMins,
+          COALESCE(st.email, '') AS email,
+          COALESCE(st.phone, '') AS phone,
+          CAST(st.totalHours AS DOUBLE) AS totalHours,
+          CASE WHEN active.worker_id IS NOT NULL THEN st.currentShiftHours ELSE 0 END AS currentShiftHours,
+          CASE WHEN active.worker_id IS NOT NULL THEN st.currentShiftMins ELSE 0 END AS currentShiftMins,
           COALESCE(st.location, '') AS location
         FROM staff st
         LEFT JOIN (
@@ -527,9 +550,9 @@ export function registerMysqlApi(app: express.Express) {
       await db.execute(
         `
           INSERT INTO staff (
-            id, id_code, name, role, role_label, status, checked_in_time, last_seen,
-            avatar, total_hours, current_shift_hours, current_shift_mins, location
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, idCode, name, role, roleLabel, status, checkedInTime, lastSeen,
+            avatar, email, phone, totalHours, currentShiftHours, currentShiftMins, location
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           id,
@@ -541,9 +564,11 @@ export function registerMysqlApi(app: express.Express) {
           sanitized.checkedInTime || null,
           sanitized.lastSeen || null,
           sanitized.avatar,
-          Number(0),
-          Number(0),
-          Number(0),
+          sanitized.email,
+          sanitized.phone,
+          sanitized.totalHours,
+          sanitized.currentShiftHours,
+          sanitized.currentShiftMins,
           sanitized.location || null,
         ]
       );
@@ -556,35 +581,38 @@ export function registerMysqlApi(app: express.Express) {
 
   app.patch(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
     const allowed = [
-      "id_code",
+      "idCode",
       "name",
       "role",
-      "role_label",
+      "roleLabel",
       "status",
-      "checked_in_time",
-      "last_seen",
+      "checkedInTime",
+      "lastSeen",
       "avatar",
-      "total_hours",
-      "current_shift_hours",
-      "current_shift_mins",
+      "email",
+      "phone",
+      "totalHours",
+      "currentShiftHours",
+      "currentShiftMins",
       "location",
     ];
 
     const body = req.body || {};
     const dbPayload: Record<string, unknown> = {
-      id_code: body.idCode,
+      idCode: body.idCode,
       name: body.name,
       role: body.role,
-      role_label: body.roleLabel,
+      roleLabel: body.roleLabel,
       status: body.status,
-      checked_in_time: body.checkedInTime,
-      last_seen: body.lastSeen,
+      checkedInTime: body.checkedInTime,
+      lastSeen: body.lastSeen,
       avatar: body.avatar,
-      total_hours: body.totalHours,
-      current_shift_hours: body.currentShiftHours,
-      current_shift_mins: body.currentShiftMins,
-      event_id: body.eventId,
-      event_title: body.eventTitle,
+      email: body.email,
+      phone: body.phone,
+      totalHours: body.totalHours,
+      currentShiftHours: body.currentShiftHours,
+      currentShiftMins: body.currentShiftMins,
+      location: body.location,
     };
 
     Object.keys(dbPayload).forEach((key) => {
@@ -623,14 +651,14 @@ export function registerMysqlApi(app: express.Express) {
           id,
           title,
           location,
-          date_day AS dateDay,
-          date_month AS dateMonth,
-          doors_open AS doorsOpen,
-          required_staff AS requiredStaff,
-          active_staff AS activeStaff,
-          total_staff_needed AS totalStaffNeeded,
-          scan_rate AS scanRate,
-          load_in_percent AS loadInPercent
+          dateDay AS dateDay,
+          dateMonth AS dateMonth,
+          doorsOpen AS doorsOpen,
+          requiredStaff,
+          activeStaff,
+          totalStaffNeeded,
+          scanRate,
+          loadInPercent
         FROM events
       `);
       return res.json(rows);
@@ -659,7 +687,7 @@ export function registerMysqlApi(app: express.Express) {
       await db.execute(
         `
           INSERT INTO events (
-            id, title, location, date_day, date_month, doors_open,
+            id, title, location, dateDay, dateMonth, doorsOpen,
             required_staff, active_staff, total_staff_needed, scan_rate, load_in_percent
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
@@ -688,9 +716,9 @@ export function registerMysqlApi(app: express.Express) {
     const allowed = [
       "title",
       "location",
-      "date_day",
-      "date_month",
-      "doors_open",
+      "dateDay",
+      "dateMonth",
+      "doorsOpen",
       "required_staff",
       "active_staff",
       "total_staff_needed",
@@ -703,9 +731,9 @@ export function registerMysqlApi(app: express.Express) {
       title: body.title,
       event_id: body.eventId,
       event_title: body.eventTitle,
-      date_day: body.dateDay,
-      date_month: body.dateMonth,
-      doors_open: body.doorsOpen,
+      dateDay: body.dateDay,
+      dateMonth: body.dateMonth,
+      doorsOpen: body.doorsOpen,
       required_staff: body.requiredStaff,
       active_staff: body.activeStaff,
       total_staff_needed: body.totalStaffNeeded,

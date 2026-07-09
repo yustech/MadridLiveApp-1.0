@@ -8,6 +8,8 @@ export interface StaffMember {
   checkedInTime?: string; // e.g. '14:30'
   lastSeen?: string; // e.g. 'Yesterday', '3 days ago'
   avatar: string;
+  email?: string;
+  phone?: string;
   totalHours: number;
   currentShiftHours: number;
   currentShiftMins: number;

@@ -141,7 +141,7 @@ export default function DatabaseManagerScreen({
 
   const [staffData, setStaffData] = useState<Omit<StaffMember, 'id'>>({
     idCode: '', name: '', role: 'Auxiliar', roleLabel: '', 
-    status: 'OUT', avatar: '', totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
+    status: 'OUT', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200', email: '', phone: '', totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
   });
 
   const [shiftData, setShiftData] = useState<Omit<Shift, 'id'>>({
@@ -201,8 +201,8 @@ export default function DatabaseManagerScreen({
     });
     setStaffData({
       idCode: 'AUX-' + Math.floor(100 + Math.random() * 900), name: '', role: 'Auxiliar', roleLabel: 'AUXILIAR', 
-      status: 'OUT', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-      totalHours: 12, currentShiftHours: 0, currentShiftMins: 0, location: 'Escenario Principal'
+      status: 'OUT', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200', email: '', phone: '',
+      totalHours: 0, currentShiftHours: 0, currentShiftMins: 0, location: ''
     });
     setShiftData({
       workerId: staff.length > 0 ? staff[0].id : '', dateString: 'Hoy', timespan: '18:00 - Presente', durationLabel: 'Activo', location: 'Escenario Principal', status: 'Active'
@@ -229,7 +229,7 @@ export default function DatabaseManagerScreen({
       const s = record as StaffMember;
       setStaffData({
         idCode: s.idCode, name: s.name, role: s.role, roleLabel: s.roleLabel, 
-        status: s.status, avatar: s.avatar, totalHours: s.totalHours, currentShiftHours: s.currentShiftHours, currentShiftMins: s.currentShiftMins, location: s.location
+        status: s.status, avatar: s.avatar, email: s.email || '', phone: s.phone || '', totalHours: s.totalHours, currentShiftHours: s.currentShiftHours, currentShiftMins: s.currentShiftMins, location: s.location || ''
       });
     } else if (activeTab === 'shifts') {
       const sh = record as Shift;
@@ -1107,53 +1107,50 @@ app.post('/api/auth/login', async (req, res) => {
               {activeTab === 'staff' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="text-[10px] text-white/50 block mb-1">Nombre Completo</label>
-                    <input type="text" required value={staffData.name} onChange={e => setStaffData({ ...staffData, name: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Código ID</label>
-                      <input type="text" required value={staffData.idCode} onChange={e => setStaffData({ ...staffData, idCode: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. AUX-042" />
-                    </div>
+                    <label className="text-[10px] text-white/50 block mb-1">Nombre Completo *</label>
+                    <input type="text" required value={staffData.name} onChange={e => setStaffData({ ...staffData, name: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. Carlos de Diego" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Área / Sector</label>
+                      <label className="text-[10px] text-white/50 block mb-1">Código ID *</label>
+                      <input type="text" required value={staffData.idCode} onChange={e => setStaffData({ ...staffData, idCode: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. AUX-042" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/50 block mb-1">Rol *</label>
                       <select required value={staffData.role} onChange={e => setStaffData({ ...staffData, role: e.target.value as any })} className="w-full bg-[#1c1836] border border-white/10 rounded-xl p-2.5 text-white">
                         {['Auxiliar', 'Auxiliar Plus', 'Coordinación'].map(r => (
                           <option key={r} value={r}>{sectorTranslationMap[r] || r}</option>
                         ))}
                       </select>
                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Estado de Presencia</label>
-                      <select required value={staffData.status} onChange={e => setStaffData({ ...staffData, status: e.target.value as any })} className="w-full bg-[#1c1836] border border-white/10 rounded-xl p-2.5 text-white">
-                        <option value="IN">DENTRO (En el recinto)</option>
-                        <option value="OUT">FUERA (Salida registrada)</option>
-                      </select>
+                      <label className="text-[10px] text-white/50 block mb-1">Email</label>
+                      <input type="email" value={staffData.email || ''} onChange={e => setStaffData({ ...staffData, email: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. carlos@madrid.live" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/50 block mb-1">Teléfono</label>
+                      <input type="tel" value={staffData.phone || ''} onChange={e => setStaffData({ ...staffData, phone: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. +34 600 000 000" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] text-white/50 block mb-1">Ubicación de Trabajo</label>
-                    <input type="text" required value={staffData.location} onChange={e => setStaffData({ ...staffData, location: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
+                    <label className="text-[10px] text-white/50 block mb-1">URL Foto de Perfil *</label>
+                    <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200" />
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
+                    <img src={staffData.avatar} alt="Vista previa avatar" className="h-14 w-14 rounded-2xl object-cover border border-white/10" />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Foto por defecto</p>
+                      <p className="text-xs text-white/70">Se usará esta imagen si no la cambias.</p>
+                    </div>
                   </div>
                   <div>
-                    <label className="text-[10px] text-white/50 block mb-1">URL Foto de Perfil</label>
-                    <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Horas Totales</label>
-                      <input type="number" step="0.1" required value={staffData.totalHours} onChange={e => setStaffData({ ...staffData, totalHours: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Horas Turno</label>
-                      <input type="number" required value={staffData.currentShiftHours} onChange={e => setStaffData({ ...staffData, currentShiftHours: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/50 block mb-1">Mins Turno</label>
-                      <input type="number" required value={staffData.currentShiftMins} onChange={e => setStaffData({ ...staffData, currentShiftMins: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                    </div>
+                    <label className="text-[10px] text-white/50 block mb-1">Estado *</label>
+                    <select required value={staffData.status} onChange={e => setStaffData({ ...staffData, status: e.target.value as any })} className="w-full bg-[#1c1836] border border-white/10 rounded-xl p-2.5 text-white">
+                      <option value="IN">DENTRO (En el recinto)</option>
+                      <option value="OUT">FUERA (Salida registrada)</option>
+                    </select>
                   </div>
                 </div>
               )}
