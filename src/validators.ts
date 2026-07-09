@@ -17,6 +17,59 @@ export interface ValidationResult<T> {
   sanitized?: T;
 }
 
+type SanitizedPayload = Record<string, unknown>;
+
+function validateStringField(
+  value: unknown,
+  fieldName: string,
+  maxLength: number,
+  options: { allowEmpty?: boolean } = {}
+): ValidationResult<string> {
+  if (options.allowEmpty && typeof value === "string" && value.trim().length === 0) {
+    return { valid: true, errors: [], sanitized: "" };
+  }
+
+  return sanitizeString(value, fieldName, maxLength);
+}
+
+function validateNullableStringField(
+  value: unknown,
+  fieldName: string,
+  maxLength: number
+): ValidationResult<string | null> {
+  if (value === null) {
+    return { valid: true, errors: [], sanitized: null };
+  }
+
+  if (typeof value === "string" && value.trim().length === 0) {
+    return { valid: true, errors: [], sanitized: null };
+  }
+
+  return sanitizeString(value, fieldName, maxLength);
+}
+
+function validateOptionalNumberField(
+  value: unknown,
+  fieldName: string,
+  min?: number,
+  max?: number,
+  integerOnly = false
+): ValidationResult<number> {
+  const result = sanitizeNumber(value, fieldName, min, max);
+  if (!result.valid || result.sanitized === undefined) {
+    return result;
+  }
+
+  if (integerOnly && !Number.isInteger(result.sanitized)) {
+    return {
+      valid: false,
+      errors: [{ field: fieldName, message: "Expected an integer", value }],
+    };
+  }
+
+  return result;
+}
+
 /**
  * Sanitize generic string: trim, enforce max length, block control characters
  */
@@ -530,6 +583,141 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
 }
 
 /**
+ * Validate partial staff update payload.
+ */
+export function validateStaffPatchPayload(body: unknown): ValidationResult<SanitizedPayload> {
+  const errors: ValidationError[] = [];
+  const sanitized: SanitizedPayload = {};
+  const allowedRoles = ["Auxiliar", "Auxiliar Plus", "Coordinación"];
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as Record<string, unknown>;
+
+  if (b.idCode !== undefined) {
+    const result = sanitizeIdCode(b.idCode);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.idCode = result.sanitized;
+  }
+
+  if (b.name !== undefined) {
+    const result = sanitizeName(b.name);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.name = result.sanitized;
+  }
+
+  if (b.role !== undefined) {
+    const role = typeof b.role === "string" ? b.role.trim() : "";
+    if (!allowedRoles.includes(role)) {
+      errors.push({
+        field: "role",
+        message: "Role must be one of: Auxiliar, Auxiliar Plus, Coordinación",
+        value: b.role,
+      });
+    } else {
+      sanitized.role = role;
+    }
+  }
+
+  if (b.roleLabel !== undefined) {
+    const result = validateStringField(b.roleLabel, "roleLabel", 128);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.roleLabel = result.sanitized;
+  }
+
+  if (b.status !== undefined) {
+    const status = typeof b.status === "string" ? b.status.trim().toUpperCase() : "";
+    if (!["IN", "OUT", "ACTIVE", "INACTIVE"].includes(status)) {
+      errors.push({
+        field: "status",
+        message: "Status must be one of: IN, OUT, active, inactive",
+        value: b.status,
+      });
+    } else {
+      sanitized.status = status === "ACTIVE" || status === "INACTIVE" ? status.toLowerCase() : status;
+    }
+  }
+
+  if (b.checkedInTime !== undefined) {
+    const result = validateNullableStringField(b.checkedInTime, "checkedInTime", 32);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.checkedInTime = result.sanitized;
+  }
+
+  if (b.lastSeen !== undefined) {
+    const result = validateNullableStringField(b.lastSeen, "lastSeen", 128);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.lastSeen = result.sanitized;
+  }
+
+  if (b.avatar !== undefined) {
+    if (typeof b.avatar === "string") {
+      const avatar = b.avatar.trim();
+      if (avatar.length > 65535) {
+        errors.push({ field: "avatar", message: "Avatar data exceeds max length supported by storage" });
+      } else {
+        sanitized.avatar = avatar;
+      }
+    } else if (b.avatar === null) {
+      sanitized.avatar = "";
+    } else {
+      errors.push({ field: "avatar", message: `Expected string or null, got ${typeof b.avatar}` });
+    }
+  }
+
+  if (b.email !== undefined) {
+    const result = validateNullableStringField(b.email, "email", 255);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.email = result.sanitized;
+  }
+
+  if (b.phone !== undefined) {
+    const result = validateNullableStringField(b.phone, "phone", 32);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.phone = result.sanitized;
+  }
+
+  if (b.totalHours !== undefined) {
+    const result = validateOptionalNumberField(b.totalHours, "totalHours", 0);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.totalHours = result.sanitized;
+  }
+
+  if (b.currentShiftHours !== undefined) {
+    const result = validateOptionalNumberField(b.currentShiftHours, "currentShiftHours", 0, undefined, true);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.currentShiftHours = result.sanitized;
+  }
+
+  if (b.currentShiftMins !== undefined) {
+    const result = validateOptionalNumberField(b.currentShiftMins, "currentShiftMins", 0, undefined, true);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.currentShiftMins = result.sanitized;
+  }
+
+  if (b.location !== undefined) {
+    if (b.location === null || (typeof b.location === "string" && b.location.trim() === "")) {
+      sanitized.location = null;
+    } else {
+      const result = sanitizeLocation(b.location);
+      if (!result.valid) errors.push(...result.errors);
+      else sanitized.location = result.sanitized;
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
  * Validate shift creation payload
  */
 export function validateShiftPayload(body: unknown): ValidationResult<any> {
@@ -683,6 +871,128 @@ export function validateShiftPayload(body: unknown): ValidationResult<any> {
 }
 
 /**
+ * Validate partial shift update payload.
+ */
+export function validateShiftPatchPayload(body: unknown): ValidationResult<SanitizedPayload> {
+  const errors: ValidationError[] = [];
+  const sanitized: SanitizedPayload = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as Record<string, unknown>;
+
+  if (b.location !== undefined) {
+    errors.push({
+      field: "location",
+      message: "Legacy field location is not allowed for shifts. Use eventId/eventTitle.",
+      value: b.location,
+    });
+  }
+
+  if (b.workerId !== undefined) {
+    const workerIdVal = String(b.workerId || "").trim();
+    if (workerIdVal.startsWith("usr_")) {
+      sanitized.workerId = workerIdVal;
+    } else if (/^\d+$/.test(workerIdVal) && Number(workerIdVal) >= 1) {
+      sanitized.workerId = Number(workerIdVal);
+    } else {
+      errors.push({
+        field: "workerId",
+        message: "Expected a number >= 1 or string like 'usr_102'",
+        value: b.workerId,
+      });
+    }
+  }
+
+  if (b.dateString !== undefined) {
+    const result = validateStringField(b.dateString, "dateString", 64);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.dateString = result.sanitized;
+  }
+
+  if (b.timespan !== undefined) {
+    const result = validateStringField(b.timespan, "timespan", 128);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.timespan = result.sanitized;
+  }
+
+  if (b.durationLabel !== undefined) {
+    const result = validateStringField(b.durationLabel, "durationLabel", 128);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.durationLabel = result.sanitized;
+  }
+
+  if (b.eventTitle !== undefined) {
+    const result = validateStringField(b.eventTitle, "eventTitle", 255);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.eventTitle = result.sanitized;
+  }
+
+  if (b.eventId !== undefined) {
+    if (b.eventId === null || (typeof b.eventId === "string" && b.eventId.trim() === "")) {
+      sanitized.eventId = null;
+    } else if (typeof b.eventId === "string") {
+      sanitized.eventId = b.eventId.trim();
+    } else {
+      errors.push({ field: "eventId", message: "Expected a non-empty string or null", value: b.eventId });
+    }
+  }
+
+  if (b.status !== undefined) {
+    const statusRes = sanitizeStatus(b.status, "status", ["active", "completed", "cancelled"]);
+    if (!statusRes.valid) {
+      errors.push(...statusRes.errors);
+    } else {
+      sanitized.status = statusRes.sanitized.charAt(0).toUpperCase() + statusRes.sanitized.slice(1);
+    }
+  }
+
+  if (b.startedAt !== undefined) {
+    if (b.startedAt === null || b.startedAt === "") {
+      sanitized.startedAt = null;
+    } else {
+      const result = sanitizeDateTime(b.startedAt, "startedAt");
+      if (!result.valid) errors.push(...result.errors);
+      else sanitized.startedAt = result.sanitized;
+    }
+  }
+
+  if (b.endedAt !== undefined) {
+    if (b.endedAt === null || b.endedAt === "") {
+      sanitized.endedAt = null;
+    } else {
+      const result = sanitizeDateTime(b.endedAt, "endedAt");
+      if (!result.valid) errors.push(...result.errors);
+      else sanitized.endedAt = result.sanitized;
+    }
+  }
+
+  const startedAt = sanitized.startedAt ?? b.startedAt;
+  const endedAt = sanitized.endedAt ?? b.endedAt;
+  if (startedAt && endedAt) {
+    const startTime = new Date(String(startedAt)).getTime();
+    const endTime = new Date(String(endedAt)).getTime();
+    if (Number.isFinite(startTime) && Number.isFinite(endTime) && endTime <= startTime) {
+      errors.push({
+        field: "endedAt",
+        message: "End time must be after start time",
+      });
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
  * Validate event creation payload
  */
 export function validateEventPayload(body: unknown): ValidationResult<any> {
@@ -813,6 +1123,185 @@ export function validateEventPayload(body: unknown): ValidationResult<any> {
     } else {
       sanitized.loadInPercent = loadRes.sanitized;
     }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
+ * Validate partial event update payload.
+ */
+export function validateEventPatchPayload(body: unknown): ValidationResult<SanitizedPayload> {
+  const errors: ValidationError[] = [];
+  const sanitized: SanitizedPayload = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as Record<string, unknown>;
+
+  if (b.title !== undefined) {
+    const result = validateStringField(b.title, "title", 256);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.title = result.sanitized;
+  }
+
+  if (b.location !== undefined) {
+    const result = validateStringField(b.location, "location", 255, { allowEmpty: true });
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.location = result.sanitized;
+  }
+
+  if (b.dateDay !== undefined) {
+    const result = sanitizeNumber(b.dateDay, "dateDay", 1, 31);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.dateDay = String(result.sanitized);
+  }
+
+  if (b.dateMonth !== undefined) {
+    if (b.dateMonth === null || String(b.dateMonth).trim() === "") {
+      errors.push({ field: "dateMonth", message: "dateMonth is required", value: b.dateMonth });
+    } else {
+      const rawMonth = String(b.dateMonth).trim().toUpperCase();
+      const monthMap = { JAN: "JAN", FEB: "FEB", MAR: "MAR", APR: "APR", MAY: "MAY", JUN: "JUN", JUL: "JUL", AUG: "AUG", SEP: "SEP", OCT: "OCT", NOV: "NOV", DEC: "DEC", ENE: "ENE", ABR: "ABR", AGO: "AGO", DIC: "DIC" };
+      if (rawMonth in monthMap) {
+        sanitized.dateMonth = monthMap[rawMonth as keyof typeof monthMap];
+      } else {
+        const result = sanitizeNumber(b.dateMonth, "dateMonth", 1, 12);
+        if (!result.valid) errors.push(...result.errors);
+        else sanitized.dateMonth = String(result.sanitized);
+      }
+    }
+  }
+
+  if (b.doorsOpen !== undefined) {
+    const result = validateStringField(b.doorsOpen, "doorsOpen", 64);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.doorsOpen = result.sanitized;
+  }
+
+  if (b.requiredStaff !== undefined) {
+    const result = sanitizeNumber(b.requiredStaff, "requiredStaff", 0);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.requiredStaff = result.sanitized;
+  }
+
+  if (b.activeStaff !== undefined) {
+    const result = sanitizeNumber(b.activeStaff, "activeStaff", 0);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.activeStaff = result.sanitized;
+  }
+
+  if (b.totalStaffNeeded !== undefined) {
+    const result = sanitizeNumber(b.totalStaffNeeded, "totalStaffNeeded", 0);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.totalStaffNeeded = result.sanitized;
+  }
+
+  if (b.scanRate !== undefined) {
+    const result = sanitizeNumber(b.scanRate, "scanRate", 0, 100);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.scanRate = result.sanitized;
+  }
+
+  if (b.loadInPercent !== undefined) {
+    const result = sanitizeNumber(b.loadInPercent, "loadInPercent", 0, 100);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.loadInPercent = result.sanitized;
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
+ * Validate alert creation payload.
+ */
+export function validateAlertPayload(body: unknown): ValidationResult<SanitizedPayload> {
+  const errors: ValidationError[] = [];
+  const sanitized: SanitizedPayload = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as Record<string, unknown>;
+
+  const messageRes = validateStringField(b.message, "message", 2000);
+  if (!messageRes.valid) errors.push(...messageRes.errors);
+  else sanitized.message = messageRes.sanitized;
+
+  const zoneRes = validateStringField(b.zone, "zone", 128);
+  if (!zoneRes.valid) errors.push(...zoneRes.errors);
+  else sanitized.zone = zoneRes.sanitized;
+
+  const timestampRes = validateStringField(b.timestamp, "timestamp", 64);
+  if (!timestampRes.valid) errors.push(...timestampRes.errors);
+  else sanitized.timestamp = timestampRes.sanitized;
+
+  const severityRes = sanitizeStatus(b.severity, "severity", ["warning", "error", "info"]);
+  if (!severityRes.valid) errors.push(...severityRes.errors);
+  else sanitized.severity = severityRes.sanitized;
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitized,
+  };
+}
+
+/**
+ * Validate partial alert update payload.
+ */
+export function validateAlertPatchPayload(body: unknown): ValidationResult<SanitizedPayload> {
+  const errors: ValidationError[] = [];
+  const sanitized: SanitizedPayload = {};
+
+  if (typeof body !== "object" || body === null) {
+    return {
+      valid: false,
+      errors: [{ field: "payload", message: "Expected object payload" }],
+    };
+  }
+
+  const b = body as Record<string, unknown>;
+
+  if (b.message !== undefined) {
+    const result = validateStringField(b.message, "message", 2000);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.message = result.sanitized;
+  }
+
+  if (b.zone !== undefined) {
+    const result = validateStringField(b.zone, "zone", 128);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.zone = result.sanitized;
+  }
+
+  if (b.timestamp !== undefined) {
+    const result = validateStringField(b.timestamp, "timestamp", 64);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.timestamp = result.sanitized;
+  }
+
+  if (b.severity !== undefined) {
+    const result = sanitizeStatus(b.severity, "severity", ["warning", "error", "info"]);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.severity = result.sanitized;
   }
 
   return {

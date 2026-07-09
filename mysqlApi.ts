@@ -1,6 +1,16 @@
 import express from "express";
 import mysql from "mysql2/promise";
-import { validateStaffPayload, validateShiftPayload, validateEventPayload } from "./src/validators";
+import { INITIAL_ALERTS, INITIAL_EVENTS, INITIAL_SHIFTS, INITIAL_STAFF } from "./src/data";
+import {
+  validateAlertPatchPayload,
+  validateAlertPayload,
+  validateEventPatchPayload,
+  validateEventPayload,
+  validateShiftPatchPayload,
+  validateShiftPayload,
+  validateStaffPatchPayload,
+  validateStaffPayload,
+} from "./src/validators";
 
 const MYSQL_PREFIX = "/api/mysql";
 
@@ -275,6 +285,190 @@ function buildUpdateClause(payload: Record<string, unknown>, allowedFields: stri
   return { clause, values };
 }
 
+async function getTableColumns(db: any, tableName: string) {
+  const [columnRows] = await db.query(
+    `SELECT column_name AS columnName
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = ?`,
+    [tableName]
+  );
+  return new Set((columnRows as Array<{ columnName: string }>).map((row) => row.columnName));
+}
+
+async function insertStaffRecord(db: any, id: string, sanitized: Record<string, any>) {
+  const columns = await getTableColumns(db, 'staff');
+
+  const insertColumns: string[] = ["id", "name", "role", "status", "avatar", "location"];
+  const insertValues: unknown[] = [
+    id,
+    sanitized.name,
+    sanitized.role,
+    sanitized.status,
+    sanitized.avatar,
+    sanitized.location || null,
+  ];
+
+  const pushColumnValue = (columnName: string, value: unknown) => {
+    if (!columns.has(columnName)) return;
+    insertColumns.push(columnName);
+    insertValues.push(value);
+  };
+
+  pushColumnValue("idCode", sanitized.idCode);
+  pushColumnValue("id_code", sanitized.idCode);
+  pushColumnValue("roleLabel", sanitized.roleLabel);
+  pushColumnValue("role_label", sanitized.roleLabel);
+  pushColumnValue("checkedInTime", sanitized.checkedInTime || null);
+  pushColumnValue("checked_in_time", sanitized.checkedInTime || null);
+  pushColumnValue("lastSeen", sanitized.lastSeen || null);
+  pushColumnValue("last_seen", sanitized.lastSeen || null);
+  pushColumnValue("email", sanitized.email);
+  pushColumnValue("phone", sanitized.phone);
+  pushColumnValue("totalHours", sanitized.totalHours);
+  pushColumnValue("total_hours", sanitized.totalHours);
+  pushColumnValue("currentShiftHours", sanitized.currentShiftHours);
+  pushColumnValue("current_shift_hours", sanitized.currentShiftHours);
+  pushColumnValue("currentShiftMins", sanitized.currentShiftMins);
+  pushColumnValue("current_shift_mins", sanitized.currentShiftMins);
+
+  await db.execute(
+    `INSERT INTO staff (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+    insertValues
+  );
+}
+
+async function insertEventRecord(db: any, id: string, sanitized: Record<string, any>, location: unknown) {
+  await db.execute(
+    `
+      INSERT INTO events (
+        id, title, location, dateDay, dateMonth, doorsOpen,
+        required_staff, active_staff, total_staff_needed, scan_rate, load_in_percent
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      id,
+      sanitized.title,
+      typeof location === 'string' ? location.trim() : '',
+      String(sanitized.dateDay),
+      String(sanitized.dateMonth),
+      sanitized.doorsOpen,
+      Number(sanitized.requiredStaff || 0),
+      Number(sanitized.activeStaff || 0),
+      Number(sanitized.totalStaffNeeded || 0),
+      Number(sanitized.scanRate || 0),
+      Number(sanitized.loadInPercent || 0),
+    ]
+  );
+}
+
+async function insertShiftRecord(db: any, id: string, sanitized: Record<string, any>) {
+  await db.execute(
+    `
+      INSERT INTO shifts (
+        id, worker_id, date_string, timespan, duration_label, event_id, event_title, status, started_at, ended_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      id,
+      String(sanitized.workerId),
+      sanitized.dateString,
+      sanitized.timespan,
+      sanitized.durationLabel,
+      sanitized.eventId || null,
+      sanitized.eventTitle,
+      sanitized.status,
+      toMysqlDateTimeValue(sanitized.startedAt),
+      toMysqlDateTimeValue(sanitized.endedAt),
+    ]
+  );
+}
+
+async function insertAlertRecord(db: any, id: string, sanitized: Record<string, any>) {
+  await db.execute(
+    `
+      INSERT INTO alerts (
+        id, message, zone, timestamp_label, severity
+      ) VALUES (?, ?, ?, ?, ?)
+    `,
+    [id, sanitized.message, sanitized.zone, sanitized.timestamp, sanitized.severity]
+  );
+}
+
+function normalizeInitialShiftForSeed(shift: (typeof INITIAL_SHIFTS)[number], index: number) {
+  const startedAt = shift.startedAt || new Date(Date.UTC(2026, 9, 20 + index, 10, 0, 0)).toISOString();
+  const endedAt = shift.status === 'Completed'
+    ? (shift.endedAt || new Date(Date.parse(startedAt) + 2 * 60 * 60 * 1000).toISOString())
+    : null;
+  const event = INITIAL_EVENTS.find((candidate) => candidate.title === shift.eventTitle);
+
+  return {
+    ...shift,
+    dateString: shift.dateString.includes('T') ? shift.dateString : startedAt,
+    eventId: shift.eventId || event?.id,
+    startedAt,
+    endedAt,
+  };
+}
+
+async function resetInitialData() {
+  await initSchema();
+
+  const db = getPool();
+  const conn = await db.getConnection();
+
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM shifts');
+    await conn.query('DELETE FROM alerts');
+    await conn.query('DELETE FROM events');
+    await conn.query('DELETE FROM staff');
+
+    for (const staff of INITIAL_STAFF) {
+      const validation = validateStaffPayload(staff);
+      if (!validation.valid) {
+        throw new Error(`Initial staff seed failed validation: ${validation.errors.map((error) => error.field).join(', ')}`);
+      }
+      await insertStaffRecord(conn, staff.id, validation.sanitized!);
+    }
+
+    for (const event of INITIAL_EVENTS) {
+      const validation = validateEventPayload(event);
+      if (!validation.valid) {
+        throw new Error(`Initial event seed failed validation: ${validation.errors.map((error) => error.field).join(', ')}`);
+      }
+      await insertEventRecord(conn, event.id, validation.sanitized!, event.location);
+    }
+
+    for (const alert of INITIAL_ALERTS) {
+      const validation = validateAlertPayload(alert);
+      if (!validation.valid) {
+        throw new Error(`Initial alert seed failed validation: ${validation.errors.map((error) => error.field).join(', ')}`);
+      }
+      await insertAlertRecord(conn, alert.id, validation.sanitized!);
+    }
+
+    for (const shift of INITIAL_SHIFTS.map(normalizeInitialShiftForSeed)) {
+      const validation = validateShiftPayload(shift);
+      if (!validation.valid) {
+        throw new Error(`Initial shift seed failed validation: ${validation.errors.map((error) => error.field).join(', ')}`);
+      }
+      await insertShiftRecord(conn, shift.id, validation.sanitized!);
+    }
+
+    await conn.commit();
+  } catch (error) {
+    try {
+      await conn.rollback();
+    } catch {
+      // Keep the original reset failure.
+    }
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 const MONTH_INDEX: Record<string, number> = {
   ENE: 0,
   JAN: 0,
@@ -509,6 +703,19 @@ export function registerMysqlApi(app: express.Express) {
     }
   });
 
+  app.post(`${MYSQL_PREFIX}/reset-initial`, async (req, res) => {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, message: "Unauthorized." });
+    }
+
+    try {
+      await resetInitialData();
+      return res.json({ success: true, message: "MySQL data reset to initial dataset." });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   app.get(`${MYSQL_PREFIX}/staff`, async (_req, res) => {
     try {
       const db = getPool();
@@ -565,52 +772,7 @@ export function registerMysqlApi(app: express.Express) {
       const sanitized = validation.sanitized!;
       const id = makeId("usr");
       const db = getPool();
-
-      const [columnRows] = await db.query(
-        `SELECT column_name AS columnName
-           FROM information_schema.columns
-           WHERE table_schema = DATABASE()
-             AND table_name = 'staff'`
-      );
-      const columns = new Set((columnRows as Array<{ columnName: string }>).map((row) => row.columnName));
-
-      const insertColumns: string[] = ["id", "name", "role", "status", "avatar", "location"];
-      const insertValues: unknown[] = [
-        id,
-        sanitized.name,
-        sanitized.role,
-        sanitized.status,
-        sanitized.avatar,
-        sanitized.location || null,
-      ];
-
-      const pushColumnValue = (columnName: string, value: unknown) => {
-        if (!columns.has(columnName)) return;
-        insertColumns.push(columnName);
-        insertValues.push(value);
-      };
-
-      pushColumnValue("idCode", sanitized.idCode);
-      pushColumnValue("id_code", sanitized.idCode);
-      pushColumnValue("roleLabel", sanitized.roleLabel);
-      pushColumnValue("role_label", sanitized.roleLabel);
-      pushColumnValue("checkedInTime", sanitized.checkedInTime || null);
-      pushColumnValue("checked_in_time", sanitized.checkedInTime || null);
-      pushColumnValue("lastSeen", sanitized.lastSeen || null);
-      pushColumnValue("last_seen", sanitized.lastSeen || null);
-      pushColumnValue("email", sanitized.email);
-      pushColumnValue("phone", sanitized.phone);
-      pushColumnValue("totalHours", sanitized.totalHours);
-      pushColumnValue("total_hours", sanitized.totalHours);
-      pushColumnValue("currentShiftHours", sanitized.currentShiftHours);
-      pushColumnValue("current_shift_hours", sanitized.currentShiftHours);
-      pushColumnValue("currentShiftMins", sanitized.currentShiftMins);
-      pushColumnValue("current_shift_mins", sanitized.currentShiftMins);
-
-      await db.execute(
-        `INSERT INTO staff (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
-        insertValues
-      );
+      await insertStaffRecord(db, id, sanitized);
 
       return res.status(201).json({ id });
     } catch (error: any) {
@@ -640,27 +802,16 @@ export function registerMysqlApi(app: express.Express) {
       "location",
     ];
 
-    const body = req.body || {};
-    const dbPayload: Record<string, unknown> = {
-      idCode: body.idCode,
-      name: body.name,
-      role: body.role,
-      roleLabel: body.roleLabel,
-      status: body.status,
-      checkedInTime: body.checkedInTime,
-      lastSeen: body.lastSeen,
-      avatar: body.avatar,
-      email: body.email,
-      phone: body.phone,
-      totalHours: body.totalHours,
-      currentShiftHours: body.currentShiftHours,
-      currentShiftMins: body.currentShiftMins,
-      location: body.location,
-    };
+    const validation = validateStaffPatchPayload(req.body || {});
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Input validation failed",
+        errors: validation.errors,
+      });
+    }
 
-    Object.keys(dbPayload).forEach((key) => {
-      if (dbPayload[key] === undefined) delete dbPayload[key];
-    });
+    const dbPayload = validation.sanitized || {};
 
     const { clause, values } = buildUpdateClause(dbPayload, allowed);
     if (!clause) {
@@ -780,18 +931,27 @@ export function registerMysqlApi(app: express.Express) {
       "load_in_percent",
     ];
 
-    const body = req.body || {};
+    const validation = validateEventPatchPayload(req.body || {});
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Input validation failed",
+        errors: validation.errors,
+      });
+    }
+
+    const sanitized = validation.sanitized || {};
     const dbPayload: Record<string, unknown> = {
-      title: body.title,
-      location: body.location,
-      dateDay: body.dateDay,
-      dateMonth: body.dateMonth,
-      doorsOpen: body.doorsOpen,
-      required_staff: body.requiredStaff,
-      active_staff: body.activeStaff,
-      total_staff_needed: body.totalStaffNeeded,
-      scan_rate: body.scanRate,
-      load_in_percent: body.loadInPercent,
+      title: sanitized.title,
+      location: sanitized.location,
+      dateDay: sanitized.dateDay,
+      dateMonth: sanitized.dateMonth,
+      doorsOpen: sanitized.doorsOpen,
+      required_staff: sanitized.requiredStaff,
+      active_staff: sanitized.activeStaff,
+      total_staff_needed: sanitized.totalStaffNeeded,
+      scan_rate: sanitized.scanRate,
+      load_in_percent: sanitized.loadInPercent,
     };
 
     Object.keys(dbPayload).forEach((key) => {
@@ -959,18 +1119,27 @@ export function registerMysqlApi(app: express.Express) {
 
     const allowed = ["worker_id", "date_string", "timespan", "duration_label", "event_id", "event_title", "status", "started_at", "ended_at"];
 
-    const body = req.body || {};
-    const normalizedStatus = body.status === undefined ? undefined : String(body.status).toLowerCase() === 'active' ? 'Active' : String(body.status).toLowerCase() === 'completed' ? 'Completed' : body.status;
+    const validation = validateShiftPatchPayload(req.body || {});
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Input validation failed",
+        errors: validation.errors,
+      });
+    }
+
+    const sanitized = validation.sanitized || {};
+    const hasSanitizedField = (key: string) => Object.prototype.hasOwnProperty.call(sanitized, key);
     const dbPayload: Record<string, unknown> = {
-      worker_id: body.workerId,
-      date_string: body.dateString,
-      timespan: body.timespan,
-      duration_label: body.durationLabel,
-      event_id: body.eventId,
-      event_title: body.eventTitle,
-      status: normalizedStatus,
-      started_at: body.startedAt === undefined ? undefined : toMysqlDateTimeValue(body.startedAt),
-      ended_at: body.endedAt === undefined ? undefined : toMysqlDateTimeValue(body.endedAt),
+      worker_id: sanitized.workerId,
+      date_string: sanitized.dateString,
+      timespan: sanitized.timespan,
+      duration_label: sanitized.durationLabel,
+      event_id: hasSanitizedField('eventId') ? sanitized.eventId : undefined,
+      event_title: sanitized.eventTitle,
+      status: sanitized.status,
+      started_at: hasSanitizedField('startedAt') ? toMysqlDateTimeValue(sanitized.startedAt) : undefined,
+      ended_at: hasSanitizedField('endedAt') ? toMysqlDateTimeValue(sanitized.endedAt) : undefined,
     };
 
     Object.keys(dbPayload).forEach((key) => {
@@ -1002,12 +1171,12 @@ export function registerMysqlApi(app: express.Express) {
         return res.status(404).json({ message: "Shift not found." });
       }
 
-      const targetWorkerId = body.workerId ?? current.workerId;
-      const targetStatus = normalizedStatus ?? current.status;
-      const targetEventId = body.eventId ?? current.eventId;
-      const targetEventTitle = body.eventTitle ?? current.eventTitle;
-      const targetStartedAt = body.startedAt === undefined ? current.startedAt : body.startedAt;
-      const targetEndedAt = body.endedAt === undefined ? current.endedAt : body.endedAt;
+      const targetWorkerId = hasSanitizedField('workerId') ? sanitized.workerId : current.workerId;
+      const targetStatus = hasSanitizedField('status') ? sanitized.status : current.status;
+      const targetEventId = hasSanitizedField('eventId') ? sanitized.eventId : current.eventId;
+      const targetEventTitle = hasSanitizedField('eventTitle') ? sanitized.eventTitle : current.eventTitle;
+      const targetStartedAt = hasSanitizedField('startedAt') ? sanitized.startedAt : current.startedAt;
+      const targetEndedAt = hasSanitizedField('endedAt') ? sanitized.endedAt : current.endedAt;
 
       // Serialize writes for destination worker while evaluating integrity constraints.
       await conn.query(`SELECT id FROM staff WHERE id = ? LIMIT 1 FOR UPDATE`, [targetWorkerId]);
@@ -1085,17 +1254,19 @@ export function registerMysqlApi(app: express.Express) {
     }
 
     try {
-      const body = req.body || {};
+      const validation = validateAlertPayload(req.body || {});
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "Input validation failed",
+          errors: validation.errors,
+        });
+      }
+
+      const sanitized = validation.sanitized!;
       const id = makeId("al");
       const db = getPool();
-      await db.execute(
-        `
-          INSERT INTO alerts (
-            id, message, zone, timestamp_label, severity
-          ) VALUES (?, ?, ?, ?, ?)
-        `,
-        [id, body.message, body.zone, body.timestamp, body.severity]
-      );
+      await insertAlertRecord(db, id, sanitized);
       return res.status(201).json({ id });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -1109,12 +1280,21 @@ export function registerMysqlApi(app: express.Express) {
 
     const allowed = ["message", "zone", "timestamp_label", "severity"];
 
-    const body = req.body || {};
+    const validation = validateAlertPatchPayload(req.body || {});
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Input validation failed",
+        errors: validation.errors,
+      });
+    }
+
+    const sanitized = validation.sanitized || {};
     const dbPayload: Record<string, unknown> = {
-      message: body.message,
-      zone: body.zone,
-      timestamp_label: body.timestamp,
-      severity: body.severity,
+      message: sanitized.message,
+      zone: sanitized.zone,
+      timestamp_label: sanitized.timestamp,
+      severity: sanitized.severity,
     };
 
     Object.keys(dbPayload).forEach((key) => {
