@@ -2,6 +2,11 @@
 
 Aplicación de control de accesos, personal y escaneo QR para producciones en vivo.
 
+## PR Safety Checklist
+
+- Antes de abrir o mergear una PR, sigue [docs/pr-checklist.md](docs/pr-checklist.md).
+- Esta checklist es la referencia para cambios hechos manualmente o con Codex.
+
 ## Run Locally
 
 **Prerequisites:** Node.js 20+
