@@ -122,8 +122,10 @@ export function sanitizeString(
   return { valid: true, errors, sanitized };
 }
 
+export const STAFF_ID_CODE_MAX_LENGTH = 20;
+
 /**
- * Sanitize ID code: alphanumeric, dashes, underscores only; max 96 chars
+ * Sanitize ID code: alphanumeric, dashes, underscores only; max 20 chars
  */
 export function sanitizeIdCode(value: unknown): ValidationResult<string> {
   const errors: ValidationError[] = [];
@@ -148,10 +150,10 @@ export function sanitizeIdCode(value: unknown): ValidationResult<string> {
     return { valid: false, errors };
   }
 
-  if (sanitized.length > 96) {
+  if (sanitized.length > STAFF_ID_CODE_MAX_LENGTH) {
     errors.push({
       field: "idCode",
-      message: "ID code exceeds max length of 96 characters",
+      message: `ID code exceeds max length of ${STAFF_ID_CODE_MAX_LENGTH} characters`,
       value,
     });
     return { valid: false, errors };

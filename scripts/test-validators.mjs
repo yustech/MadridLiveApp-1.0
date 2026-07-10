@@ -8,7 +8,7 @@ class ValidatorTestSuite {
   }
 
   getUniqueId(prefix = 'TEST') {
-    return `${prefix}-${++this.uniqueCounter}`;
+    return `${prefix}-${++this.uniqueCounter}`.slice(0, 20);
   }
 
   async test(name, fn) {
