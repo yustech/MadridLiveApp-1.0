@@ -1,4 +1,4 @@
-import { useMemo, useState, FormEvent } from 'react';
+import { useEffect, useMemo, useState, FormEvent } from 'react';
 import {
   Search,
   CheckCircle2,
@@ -12,19 +12,13 @@ import {
 import { StaffMember } from '../types';
 import { addStaffBatch } from '../dbService';
 import { DEFAULT_FEMALE_AVATAR, DEFAULT_MALE_AVATAR, fileToAvatarDataUrl } from '../utils/avatarUpload';
+import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
 
 interface StaffScreenProps {
   staff: StaffMember[];
   onSelectWorker: (worker: StaffMember) => void;
   onAddWorker: (worker: Omit<StaffMember, 'id'>) => Promise<void> | void;
 }
-
-const roleLabelMap: Record<string, string> = {
-  All: 'Todos los Roles',
-  Auxiliar: 'Auxiliar',
-  'Auxiliar Plus': 'Auxiliar Plus',
-  Coordinación: 'Coordinación',
-};
 
 type SortMode = 'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst';
 
@@ -60,7 +54,7 @@ export default function StaffScreen({
   onAddWorker,
 }: StaffScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'All' | 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('All');
+  const [activeTab, setActiveTab] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedQrWorker, setSelectedQrWorker] = useState<StaffMember | null>(null);
 
@@ -84,6 +78,26 @@ export default function StaffScreen({
   const [importStatus, setImportStatus] = useState('');
 
   const checkedInCount = staff.filter((s) => s.status === 'IN').length;
+  const roleFilters = useMemo(() => getDynamicRoleFilters(staff), [staff]);
+
+  useEffect(() => {
+    if (!roleFilters.includes(activeTab)) {
+      setActiveTab('All');
+    }
+  }, [activeTab, roleFilters]);
+
+  useEffect(() => {
+    if (!isAddModalOpen) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        resetAndCloseAddModal();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isAddModalOpen]);
 
   const filteredStaff = useMemo(() => {
     return staff.filter((worker) => {
@@ -291,7 +305,7 @@ export default function StaffScreen({
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">
-        {(['All', 'Auxiliar', 'Auxiliar Plus', 'Coordinación'] as const).map((tab) => (
+        {roleFilters.map((tab) => (
           <button
             key={tab}
             onClick={() => {
@@ -304,7 +318,7 @@ export default function StaffScreen({
                 : 'bg-white/5 border-transparent text-white/60 hover:bg-white/10 hover:text-white'
             }`}
           >
-            {roleLabelMap[tab] || tab}
+            {getRoleDisplayName(tab)}
           </button>
         ))}
       </div>
@@ -393,7 +407,7 @@ export default function StaffScreen({
 
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-[10px] font-mono font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-indigo-400/10">
-                        {roleLabelMap[worker.role] || worker.role}
+                        {getRoleDisplayName(worker.role)}
                       </span>
                       <span className="text-[10px] font-mono text-white/50">ID: {worker.idCode}</span>
                     </div>
@@ -463,11 +477,29 @@ export default function StaffScreen({
       </button>
 
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
-          <div className={`bg-[#120f26]/90 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 w-full ${addMode === 'bulk' ? 'max-w-lg' : 'max-w-sm'} space-y-4 shadow-2xl transition-all duration-300`}>
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 px-4 py-4 md:items-center md:py-8 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              resetAndCloseAddModal();
+            }
+          }}
+        >
+          <div
+            className={`bg-[#120f26]/95 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 w-full ${addMode === 'bulk' ? 'max-w-lg' : 'max-w-md'} max-h-[calc(100vh-2rem)] overflow-y-auto space-y-4 shadow-2xl transition-all duration-300`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="staff-add-modal-title"
+          >
             <div className="flex justify-between items-center pb-2 border-b border-white/10">
-              <h3 className="text-lg font-display font-bold text-white">Registrar Colaborador</h3>
-              <button onClick={resetAndCloseAddModal} className="text-white/60 hover:text-white">
+              <h3 id="staff-add-modal-title" className="text-lg font-display font-bold text-white">Registrar Colaborador</h3>
+              <button
+                type="button"
+                onClick={resetAndCloseAddModal}
+                className="text-white/60 hover:text-white rounded-lg p-1 hover:bg-white/10"
+                aria-label="Cerrar registro de colaborador"
+                title="Cerrar"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -529,18 +561,28 @@ export default function StaffScreen({
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="sticky bottom-0 -mx-1 bg-[#120f26]/95 pt-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={resetAndCloseAddModal}
+                      disabled={isImporting}
+                      className="h-12 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 text-xs font-mono font-bold uppercase disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
                   <button
                     type="submit"
                     disabled={isImporting}
-                    className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold uppercase rounded-xl text-xs transition-colors cursor-pointer shadow-lg disabled:opacity-50"
+                    className="h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold uppercase rounded-xl text-xs transition-colors cursor-pointer shadow-lg disabled:opacity-50"
                   >
                     {isImporting ? 'Cargando...' : 'Importar colaboradores'}
                   </button>
+                  </div>
                 </div>
               </form>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-3 text-sm font-mono text-left max-h-[600px] overflow-y-auto pr-2">
+              <form onSubmit={handleSubmit} className="space-y-3 text-sm font-mono text-left">
                 <div>
                   <label className="block text-xs text-white/50 mb-1">Nombre Completo *</label>
                   <input
@@ -610,13 +652,22 @@ export default function StaffScreen({
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="sticky bottom-0 -mx-1 bg-[#120f26]/95 pt-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={resetAndCloseAddModal}
+                      className="h-11 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 text-xs font-mono font-bold uppercase"
+                    >
+                      Cancelar
+                    </button>
                   <button
                     type="submit"
-                    className="w-full h-10 bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-bold uppercase rounded-xl text-xs transition-colors cursor-pointer shadow-lg"
+                    className="h-11 bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-bold uppercase rounded-xl text-xs transition-colors cursor-pointer shadow-lg"
                   >
                     Crear Colaborador
                   </button>
+                  </div>
                 </div>
               </form>
             )}

@@ -9,11 +9,19 @@ import {
   QrCode,
   ArrowRight,
   Camera,
+  Calendar,
   Search,
   Users,
   Tv
 } from 'lucide-react';
 import { StaffMember, LiveEvent } from '../types';
+import {
+  formatEventDate,
+  getEventStatusLabel,
+  getEventStatusTone,
+  getEventTemporalState,
+  sortEventsByDate,
+} from '../utils/events';
 
 interface ScannerScreenProps {
   staff: StaffMember[];
@@ -63,6 +71,9 @@ export default function ScannerScreen({
   onNavigateToWorker
 }: ScannerScreenProps) {
   const activeEvent = events.find(e => e.id === activeEventId) || events[0] || null;
+  const activeEventState = getEventTemporalState(activeEvent);
+  const isActiveEventOperable = activeEventState === 'today';
+  const orderedEvents = sortEventsByDate(events);
   const [flashlightOn, setFlashlightOn] = useState(false);
   const [cameraMode, setCameraMode] = useState<'back' | 'front'>('back');
   
@@ -207,6 +218,17 @@ export default function ScannerScreen({
     const targetWorker = staff.find(s => s.id === workerId);
     if (!targetWorker) return;
 
+    if (targetWorker.status !== 'IN' && !isActiveEventOperable) {
+      setScanError(
+        activeEventState === 'past'
+          ? 'Este evento ya está pasado. Cambia a un evento de hoy para iniciar turnos.'
+          : activeEventState === 'future'
+            ? 'Este evento todavía es futuro. No se pueden iniciar turnos antes del día del evento.'
+            : 'Selecciona un evento con fecha válida para iniciar turnos.'
+      );
+      return;
+    }
+
     setIsScanActive(true);
     setManualError('');
     setScanError('');
@@ -218,7 +240,7 @@ export default function ScannerScreen({
       const success = await onScanWorkerToggle(workerId, 'Lector Puerta Principal');
       if (!success) {
         setScannedResult(null);
-        setScanError('No se puede fichar personal en conciertos con fecha futura.');
+        setScanError('No se pudo registrar el turno para el evento seleccionado.');
         setIsScanActive(false);
         return;
       }
@@ -301,6 +323,17 @@ export default function ScannerScreen({
           <p className="text-xs text-white/50">
             {activeEvent?.location || "—"} • Apertura de Puertas: {activeEvent?.doorsOpen || "—"} hs
           </p>
+          {activeEvent && (
+            <div className={`mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-wider ${getEventStatusTone(activeEvent)}`}>
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{getEventStatusLabel(activeEvent)} · {formatEventDate(activeEvent)}</span>
+            </div>
+          )}
+          {!isActiveEventOperable && activeEvent && (
+            <p className="mt-2 text-[11px] font-mono text-amber-300">
+              Entradas bloqueadas: solo se inician turnos en eventos de hoy.
+            </p>
+          )}
         </div>
         <div className="shrink-0 flex flex-col items-start md:items-end">
           <label className="block text-[10px] font-mono text-white/40 uppercase mb-1">
@@ -311,9 +344,9 @@ export default function ScannerScreen({
             onChange={(e) => setActiveEventId(e.target.value)}
             className="bg-[#120f26] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-indigo-400 w-full md:w-64 cursor-pointer"
           >
-            {events.map((ev) => (
+            {orderedEvents.map((ev) => (
               <option key={ev.id} value={ev.id} className="bg-[#0A051A] text-white">
-                {ev.title} ({ev.dateDay} {ev.dateMonth})
+                {getEventStatusLabel(ev)} · {ev.title} · {formatEventDate(ev)} · {ev.location}
               </option>
             ))}
           </select>
@@ -636,6 +669,11 @@ export default function ScannerScreen({
               <div className="text-[10px] font-mono text-white/50 text-center">
                 Evento activo: {activeEvent?.title || 'Sin evento'}
               </div>
+              {!isActiveEventOperable && activeSelectedWorker.status !== 'IN' && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
+                  Inicio bloqueado para evento {getEventStatusLabel(activeEvent).toLowerCase()}. Selecciona un evento de hoy.
+                </div>
+              )}
               {activeSelectedWorker.status === 'IN' && (
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
                   Turno abierto · Duracion estimada: {activeSelectedWorkerDuration}
@@ -643,7 +681,7 @@ export default function ScannerScreen({
               )}
               <button
                 onClick={handlePrimaryAction}
-                disabled={isScanActive}
+                disabled={isScanActive || (activeSelectedWorker.status !== 'IN' && !isActiveEventOperable)}
                 className="w-full h-12 bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white disabled:from-white/10 disabled:to-white/5 disabled:text-white/40 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all duration-350 cursor-pointer shadow-indigo-500/10 hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
               >
                 <QrCode className={`w-4 h-4 ${isScanActive ? 'animate-spin' : ''}`} />

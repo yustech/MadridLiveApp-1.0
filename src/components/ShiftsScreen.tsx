@@ -18,6 +18,7 @@ import {
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
 import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
+import { getDynamicRoleFilters, getRoleBucket, getRoleDisplayName } from '../utils/roles';
 
 interface EnrichedShift extends Shift {
   workerName: string;
@@ -25,6 +26,15 @@ interface EnrichedShift extends Shift {
   workerRole: StaffMember['role'];
   workerRoleLabel: string;
   workerAvatar: string;
+}
+
+function getRoleBadgeTone(role: string): string {
+  const bucket = getRoleBucket(role);
+
+  if (bucket === 'Coordinación') return 'bg-purple-500/15 border border-purple-400/20 text-purple-300';
+  if (bucket === 'Auxiliar Plus') return 'bg-indigo-500/15 border border-indigo-400/20 text-indigo-300';
+  if (bucket === 'Auxiliar') return 'bg-white/5 border border-white/5 text-white/60';
+  return 'bg-amber-500/10 border border-amber-400/20 text-amber-300';
 }
 
 const MONTH_INDEX: Record<string, number> = {
@@ -192,7 +202,7 @@ export default function ShiftsScreen({
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'All' | 'Active' | 'Completed'>('All');
-  const [selectedRole, setSelectedRole] = useState<'All' | 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación'>('All');
+  const [selectedRole, setSelectedRole] = useState<string>('All');
   const [selectedTimeScope, setSelectedTimeScope] = useState<'All' | 'Today' | 'Last7d'>('All');
   const [sortMode, setSortMode] = useState<'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst'>('Newest');
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
@@ -215,6 +225,14 @@ export default function ShiftsScreen({
       onSelectWorker(worker);
     }
   };
+
+  const roleFilters = useMemo(() => getDynamicRoleFilters(staff), [staff]);
+
+  useEffect(() => {
+    if (!roleFilters.includes(selectedRole)) {
+      setSelectedRole('All');
+    }
+  }, [roleFilters, selectedRole]);
 
   const openDatePicker = (inputId: 'custom-date-from' | 'custom-date-to') => {
     const input = document.getElementById(inputId) as HTMLInputElement | null;
@@ -605,10 +623,11 @@ export default function ShiftsScreen({
               onChange={(e) => setSelectedRole(e.target.value as any)}
               className="w-full bg-[#120f26] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-400 cursor-pointer"
             >
-              <option value="All">Todos los Roles</option>
-              <option value="Auxiliar">Auxiliares</option>
-              <option value="Auxiliar Plus">Auxiliares Plus</option>
-              <option value="Coordinación">Coordinación</option>
+              {roleFilters.map((role) => (
+                <option key={role} value={role}>
+                  {getRoleDisplayName(role)}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -827,14 +846,8 @@ export default function ShiftsScreen({
                                 <span className="text-[10px] font-mono text-indigo-300 font-bold">
                                   {shift.workerIdCode}
                                 </span>
-                                <span className={`text-[8px] px-1.5 py-0.2 rounded font-bold uppercase ${
-                                  shift.workerRole === 'Coordinación'
-                                    ? 'bg-purple-500/15 border border-purple-400/20 text-purple-300'
-                                    : shift.workerRole === 'Auxiliar Plus'
-                                    ? 'bg-indigo-500/15 border border-indigo-400/20 text-indigo-300'
-                                    : 'bg-white/5 border border-white/5 text-white/50'
-                                }`}>
-                                  {shift.workerRoleLabel}
+                                <span className={`text-[8px] px-1.5 py-0.2 rounded font-bold uppercase ${getRoleBadgeTone(shift.workerRole)}`}>
+                                  {getRoleDisplayName(shift.workerRole)}
                                 </span>
                               </div>
                             </div>
@@ -946,8 +959,8 @@ export default function ShiftsScreen({
                             <span className="text-[9px] font-mono text-indigo-300 font-bold">
                               {shift.workerIdCode}
                             </span>
-                            <span className="text-[8px] font-mono text-white/50 bg-white/5 border border-white/5 px-1 py-0.2 rounded font-bold uppercase">
-                              {shift.workerRoleLabel}
+                            <span className={`text-[8px] font-mono px-1 py-0.2 rounded font-bold uppercase ${getRoleBadgeTone(shift.workerRole)}`}>
+                              {getRoleDisplayName(shift.workerRole)}
                             </span>
                           </div>
                         </div>

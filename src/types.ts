@@ -1,8 +1,10 @@
+export type StaffRole = 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación' | (string & {});
+
 export interface StaffMember {
   id: string; // e.g. 'usr_842'
   idCode: string; // e.g. 'SEC-042', 'MAD-L-842'
   name: string;
-  role: 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación';
+  role: StaffRole;
   roleLabel: string; // e.g. "AUXILIAR", "AUXILIAR PLUS", "COORDINACIÓN"
   status: 'IN' | 'OUT';
   checkedInTime?: string; // e.g. '14:30'
