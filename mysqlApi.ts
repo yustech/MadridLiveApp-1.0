@@ -343,27 +343,75 @@ async function insertStaffRecord(db: any, id: string, sanitized: Record<string, 
 }
 
 async function insertEventRecord(db: any, id: string, sanitized: Record<string, any>, location: unknown) {
+  const columns = await getTableColumns(db, 'events');
+  const eventLocation = typeof location === 'string' ? location.trim() : '';
+  const requiredStaff = Number(sanitized.requiredStaff || 0);
+  const activeStaff = Number(sanitized.activeStaff || 0);
+  const totalStaffNeeded = Number(sanitized.totalStaffNeeded || 0);
+  const scanRate = Number(sanitized.scanRate || 0);
+  const loadInPercent = Number(sanitized.loadInPercent || 0);
+
+  const insertColumns: string[] = ['id', 'title', 'location'];
+  const insertValues: unknown[] = [id, sanitized.title, eventLocation];
+
+  const pushColumnValue = (columnName: string, value: unknown) => {
+    if (!columns.has(columnName)) return;
+    insertColumns.push(columnName);
+    insertValues.push(value);
+  };
+
+  pushColumnValue('dateDay', String(sanitized.dateDay));
+  pushColumnValue('date_day', String(sanitized.dateDay));
+  pushColumnValue('dateMonth', String(sanitized.dateMonth));
+  pushColumnValue('date_month', String(sanitized.dateMonth));
+  pushColumnValue('doorsOpen', sanitized.doorsOpen);
+  pushColumnValue('doors_open', sanitized.doorsOpen);
+  pushColumnValue('requiredStaff', requiredStaff);
+  pushColumnValue('required_staff', requiredStaff);
+  pushColumnValue('activeStaff', activeStaff);
+  pushColumnValue('active_staff', activeStaff);
+  pushColumnValue('totalStaffNeeded', totalStaffNeeded);
+  pushColumnValue('total_staff_needed', totalStaffNeeded);
+  pushColumnValue('scanRate', scanRate);
+  pushColumnValue('scan_rate', scanRate);
+  pushColumnValue('loadInPercent', loadInPercent);
+  pushColumnValue('load_in_percent', loadInPercent);
+
   await db.execute(
-    `
-      INSERT INTO events (
-        id, title, location, dateDay, dateMonth, doorsOpen,
-        required_staff, active_staff, total_staff_needed, scan_rate, load_in_percent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      id,
-      sanitized.title,
-      typeof location === 'string' ? location.trim() : '',
-      String(sanitized.dateDay),
-      String(sanitized.dateMonth),
-      sanitized.doorsOpen,
-      Number(sanitized.requiredStaff || 0),
-      Number(sanitized.activeStaff || 0),
-      Number(sanitized.totalStaffNeeded || 0),
-      Number(sanitized.scanRate || 0),
-      Number(sanitized.loadInPercent || 0),
-    ]
+    `INSERT INTO events (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+    insertValues
   );
+}
+
+async function buildEventUpdatePayload(db: any, sanitized: Record<string, any>) {
+  const columns = await getTableColumns(db, 'events');
+  const dbPayload: Record<string, unknown> = {};
+
+  const setColumnValue = (columnName: string, value: unknown) => {
+    if (value === undefined || !columns.has(columnName)) return;
+    dbPayload[columnName] = value;
+  };
+
+  setColumnValue('title', sanitized.title);
+  setColumnValue('location', sanitized.location);
+  setColumnValue('dateDay', sanitized.dateDay);
+  setColumnValue('date_day', sanitized.dateDay);
+  setColumnValue('dateMonth', sanitized.dateMonth);
+  setColumnValue('date_month', sanitized.dateMonth);
+  setColumnValue('doorsOpen', sanitized.doorsOpen);
+  setColumnValue('doors_open', sanitized.doorsOpen);
+  setColumnValue('requiredStaff', sanitized.requiredStaff);
+  setColumnValue('required_staff', sanitized.requiredStaff);
+  setColumnValue('activeStaff', sanitized.activeStaff);
+  setColumnValue('active_staff', sanitized.activeStaff);
+  setColumnValue('totalStaffNeeded', sanitized.totalStaffNeeded);
+  setColumnValue('total_staff_needed', sanitized.totalStaffNeeded);
+  setColumnValue('scanRate', sanitized.scanRate);
+  setColumnValue('scan_rate', sanitized.scanRate);
+  setColumnValue('loadInPercent', sanitized.loadInPercent);
+  setColumnValue('load_in_percent', sanitized.loadInPercent);
+
+  return dbPayload;
 }
 
 async function insertShiftRecord(db: any, id: string, sanitized: Record<string, any>) {
@@ -894,27 +942,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
       const sanitized = validation.sanitized!;
       const id = makeId("ev");
       const db = getPool();
-      await db.execute(
-        `
-          INSERT INTO events (
-            id, title, location, dateDay, dateMonth, doorsOpen,
-            required_staff, active_staff, total_staff_needed, scan_rate, load_in_percent
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          id,
-          sanitized.title,
-          body.location || '',
-          String(sanitized.dateDay),
-          String(sanitized.dateMonth),
-          sanitized.doorsOpen,
-          Number(sanitized.requiredStaff || 0),
-          Number(sanitized.activeStaff || 0),
-          Number(sanitized.totalStaffNeeded || 0),
-          Number(sanitized.scanRate || 0),
-          Number(sanitized.loadInPercent || 0),
-        ]
-      );
+      await insertEventRecord(db, id, sanitized, body.location);
       return res.status(201).json({ id });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -930,12 +958,20 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
       "title",
       "location",
       "dateDay",
+      "date_day",
       "dateMonth",
+      "date_month",
       "doorsOpen",
+      "doors_open",
+      "requiredStaff",
       "required_staff",
+      "activeStaff",
       "active_staff",
+      "totalStaffNeeded",
       "total_staff_needed",
+      "scanRate",
       "scan_rate",
+      "loadInPercent",
       "load_in_percent",
     ];
 
@@ -948,31 +984,14 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
       });
     }
 
-    const sanitized = validation.sanitized || {};
-    const dbPayload: Record<string, unknown> = {
-      title: sanitized.title,
-      location: sanitized.location,
-      dateDay: sanitized.dateDay,
-      dateMonth: sanitized.dateMonth,
-      doorsOpen: sanitized.doorsOpen,
-      required_staff: sanitized.requiredStaff,
-      active_staff: sanitized.activeStaff,
-      total_staff_needed: sanitized.totalStaffNeeded,
-      scan_rate: sanitized.scanRate,
-      load_in_percent: sanitized.loadInPercent,
-    };
-
-    Object.keys(dbPayload).forEach((key) => {
-      if (dbPayload[key] === undefined) delete dbPayload[key];
-    });
-
-    const { clause, values } = buildUpdateClause(dbPayload, allowed);
-    if (!clause) {
-      return res.status(400).json({ message: "No valid fields to update." });
-    }
-
     try {
       const db = getPool();
+      const dbPayload = await buildEventUpdatePayload(db, validation.sanitized || {});
+      const { clause, values } = buildUpdateClause(dbPayload, allowed);
+      if (!clause) {
+        return res.status(400).json({ message: "No valid fields to update." });
+      }
+
       await db.execute(`UPDATE events SET ${clause} WHERE id = ?`, [...values, req.params.id]);
       return res.json({ success: true });
     } catch (error: any) {
