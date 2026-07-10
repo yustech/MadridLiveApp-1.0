@@ -6,7 +6,9 @@ type ApiResult = {
   text: string;
 };
 
-const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || 'crew_admin_2026_secure';
+const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN || '';
+const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || '';
 
 const MONTH_TO_INDEX: Record<string, number> = {
   JAN: 0,
@@ -84,19 +86,24 @@ async function api(request: import('@playwright/test').APIRequestContext, path: 
   };
 }
 
-async function loginWithDemo(page: import('@playwright/test').Page) {
+async function loginWithAdmin(page: import('@playwright/test').Page) {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'PLAYWRIGHT_ADMIN_EMAIL and PLAYWRIGHT_ADMIN_PASSWORD are required for login UI tests.');
+
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
   if (alreadyInside) return;
 
-  await page.getByRole('button', { name: /Rellenar Credenciales Demo/i }).click();
+  await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
+  await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
   await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
 }
 
 test.describe('Phase 1 - business edge coverage', () => {
   test('[readonly] shifts API allows current events and blocks future events', async ({ request }) => {
+    test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for admin API mutation checks.');
+
     const createdShiftIds: string[] = [];
     const createdStaffIds: string[] = [];
 
@@ -346,7 +353,7 @@ test.describe('Phase 1 - business edge coverage', () => {
   });
 
   test('[readonly] scanner module remains usable after page refresh', async ({ page }) => {
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
     await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();

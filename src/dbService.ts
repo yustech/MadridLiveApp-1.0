@@ -1,5 +1,4 @@
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from './types';
-import { INITIAL_EVENTS, INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_ALERTS } from './data';
 
 const MYSQL_API_BASE = import.meta.env.VITE_MYSQL_API_BASE || '/api/mysql';
 const POLL_MS = 3000;
@@ -13,17 +12,12 @@ function normalizeStaffAvatar(worker: StaffMember): StaffMember {
   };
 }
 
-function adminHeaders() {
-  const token = import.meta.env.VITE_ADMIN_API_TOKEN;
-  return token ? { 'x-admin-token': token } : {};
-}
-
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${MYSQL_API_BASE}${path}`, {
     ...init,
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      ...adminHeaders(),
       ...(init?.headers || {}),
     },
   });
@@ -62,109 +56,7 @@ function createPollingSubscription<T>(path: string, callback: (items: T[]) => vo
 }
 
 async function resetWithApi() {
-  const [staffNow, eventsNow, shiftsNow, alertsNow] = await Promise.all([
-    apiJson<StaffMember[]>('/staff'),
-    apiJson<LiveEvent[]>('/events'),
-    apiJson<Shift[]>('/shifts'),
-    apiJson<EquipmentAlert[]>('/alerts'),
-  ]);
-
-  const normalizedSeedShifts = INITIAL_SHIFTS.map((shift, index) => {
-    const startedAt = shift.startedAt || new Date(Date.UTC(2026, 9, 20 + index, 10, 0, 0)).toISOString();
-    const endedAt = shift.status === 'Completed' ? (shift.endedAt || new Date(Date.parse(startedAt) + 2 * 60 * 60 * 1000).toISOString()) : null;
-    return {
-      ...shift,
-      dateString: shift.dateString.includes('T') ? shift.dateString : startedAt,
-      startedAt,
-      endedAt,
-    };
-  });
-
-  const clearCollections = async (
-    staffItems: StaffMember[],
-    eventItems: LiveEvent[],
-    shiftItems: Shift[],
-    alertItems: EquipmentAlert[],
-  ) => {
-    for (const sh of shiftItems) await deleteShift(sh.id);
-    for (const al of alertItems) await deleteAlert(al.id);
-    for (const ev of eventItems) await deleteEvent(ev.id);
-    for (const st of staffItems) await deleteStaff(st.id);
-  };
-
-  const restoreSnapshot = async () => {
-    const staffIdMap = new Map<string, string>();
-
-    for (const st of staffNow) {
-      const { id: oldId, ...payload } = st;
-      const newId = await addStaff(payload);
-      staffIdMap.set(oldId, newId);
-    }
-
-    for (const ev of eventsNow) {
-      const { id: _oldId, ...payload } = ev;
-      await addEvent(payload);
-    }
-
-    for (const al of alertsNow) {
-      const { id: _oldId, ...payload } = al;
-      await addAlert(payload);
-    }
-
-    for (const sh of shiftsNow) {
-      const { id: _oldId, workerId, ...payload } = sh;
-      const mappedWorkerId = staffIdMap.get(workerId);
-      if (!mappedWorkerId) continue;
-      await addShift({ ...payload, workerId: mappedWorkerId });
-    }
-  };
-
-  try {
-    await clearCollections(staffNow, eventsNow, shiftsNow, alertsNow);
-
-    const staffIdMap = new Map<string, string>();
-    for (const st of INITIAL_STAFF) {
-      const { id: oldId, ...payload } = st;
-      const newId = await addStaff(payload);
-      staffIdMap.set(oldId, newId);
-    }
-
-    for (const ev of INITIAL_EVENTS) {
-      const { id: _oldId, ...payload } = ev;
-      await addEvent(payload);
-    }
-
-    for (const al of INITIAL_ALERTS) {
-      const { id: _oldId, ...payload } = al;
-      await addAlert(payload);
-    }
-
-    for (const sh of normalizedSeedShifts) {
-      const { id: _oldId, workerId, ...payload } = sh;
-      const mappedWorkerId = staffIdMap.get(workerId);
-      if (!mappedWorkerId) continue;
-      await addShift({ ...payload, workerId: mappedWorkerId });
-    }
-  } catch (error) {
-    console.error('MySQL reset failed after destructive step. Attempting rollback from snapshot.', error);
-
-    try {
-      const [staffAfter, eventsAfter, shiftsAfter, alertsAfter] = await Promise.all([
-        apiJson<StaffMember[]>('/staff'),
-        apiJson<LiveEvent[]>('/events'),
-        apiJson<Shift[]>('/shifts'),
-        apiJson<EquipmentAlert[]>('/alerts'),
-      ]);
-
-      await clearCollections(staffAfter, eventsAfter, shiftsAfter, alertsAfter);
-      await restoreSnapshot();
-      console.warn('Snapshot rollback completed after reset failure.');
-    } catch (rollbackError) {
-      console.error('Snapshot rollback failed after reset failure.', rollbackError);
-    }
-
-    throw error;
-  }
+  await apiJson('/reset-initial', { method: 'POST' });
 }
 
 // --- REAL-TIME-LIKE LISTENERS (polling) ---

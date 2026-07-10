@@ -2,6 +2,8 @@ import { chromium } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://inmosubastas.top';
 const RUN_STARTED_AT_MS = Date.now();
+const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.ADMIN_LOGIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || '';
 
 const MONTH_TO_INDEX = {
   jan: 0,
@@ -126,13 +128,11 @@ async function run() {
   try {
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
 
-    const demoBtn = page.getByRole('button', { name: /Rellenar Credenciales Demo/i });
-    if (await demoBtn.count()) {
-      await demoBtn.click();
-    }
-
     const authBtn = page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i });
     if (await authBtn.count()) {
+      assert(ADMIN_EMAIL && ADMIN_PASSWORD, 'Credenciales admin no configuradas para autenticar el canario.');
+      await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
+      await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
       await authBtn.click();
     }
 

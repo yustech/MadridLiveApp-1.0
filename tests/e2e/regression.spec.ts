@@ -1,12 +1,18 @@
 import { expect, test } from '@playwright/test';
 
-async function loginWithDemo(page: import('@playwright/test').Page) {
+const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || '';
+
+async function loginWithAdmin(page: import('@playwright/test').Page) {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'PLAYWRIGHT_ADMIN_EMAIL and PLAYWRIGHT_ADMIN_PASSWORD are required for login UI tests.');
+
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
   if (alreadyInside) return;
 
-  await page.getByRole('button', { name: /Rellenar Credenciales Demo/i }).click();
+  await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
+  await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
   await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
 }
@@ -35,13 +41,14 @@ test.describe('MadridLiveApp regression', () => {
 
   test('[readonly] denies invalid login', async ({ page }) => {
     await page.goto('/');
+    await page.locator('input[type="email"]').fill('invalid-admin@example.com');
     await page.locator('input[placeholder="••••••••"]').first().fill('BADPASS');
     await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
-    await expect(page.getByText(/ACCESO DENEGADO/i)).toBeVisible();
+    await expect(page.getByText(/Invalid credentials.|Credenciales no validas/i)).toBeVisible();
   });
 
   test('[readonly] navigates across core modules after login', async ({ page }) => {
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
     await expect(page.getByRole('button', { name: /Ingreso Manual de ID/i })).toBeVisible();
@@ -57,7 +64,7 @@ test.describe('MadridLiveApp regression', () => {
   });
 
   test('[readonly] shows validation error for invalid manual scanner id', async ({ page }) => {
-    await loginWithDemo(page);
+    await loginWithAdmin(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
     await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();

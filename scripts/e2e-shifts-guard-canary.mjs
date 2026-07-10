@@ -1,5 +1,6 @@
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://inmosubastas.top';
 const RUN_STARTED_AT_MS = Date.now();
+const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN || '';
 
 function assert(condition, message) {
   if (!condition) {
@@ -44,12 +45,20 @@ function isFutureGuardMessage(textOrJsonMessage) {
 }
 
 async function api(path, options = {}) {
+  const method = options.method || 'GET';
+  const headers = {
+    'content-type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (method !== 'GET') {
+    assert(ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for admin mutation checks.');
+    headers['x-admin-token'] = ADMIN_API_TOKEN;
+  }
+
   const response = await fetch(`${BASE_URL}${path}`, {
-    method: options.method || 'GET',
-    headers: {
-      'content-type': 'application/json',
-      ...(options.headers || {}),
-    },
+    method,
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 

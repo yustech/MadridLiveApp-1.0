@@ -39,9 +39,10 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 
 ## Admin API protection
 
-- If you set `ADMIN_API_TOKEN`, calls to `/api/test-mariadb` must include the `x-admin-token` header with the same value.
-- This helps protect the database connectivity test endpoint in production.
-- If you also protect the endpoint from the frontend admin UI, set `VITE_ADMIN_API_TOKEN` so the panel sends `x-admin-token` automatically.
+- Browser admin login is validated server-side through `/api/auth/login` and an HTTP-only signed session cookie.
+- Configure `ADMIN_LOGIN_EMAIL`, `ADMIN_LOGIN_PASSWORD`, and either `ADMIN_SESSION_SECRET` or `ADMIN_API_TOKEN` in the backend environment.
+- Mutating `/api/mysql/*` endpoints accept a valid admin session cookie from the browser or `x-admin-token` for scripts/CI.
+- Do not expose admin tokens as `VITE_*` variables; the frontend does not send `x-admin-token`.
 - GitHub Actions deploy now enforces public health checks (`REQUIRE_PUBLIC_HEALTH=true`) and fails if the public endpoint is not reachable.
 - For manual runs, you can still set `REQUIRE_PUBLIC_HEALTH=false` to continue when only local health passes.
 
@@ -60,6 +61,7 @@ E2E regresión disponible con Playwright:
    - `PLAYWRIGHT_BASE_URL=https://inmosubastas.top npm run test:e2e:readonly`
 3. Staging full:
    - `PLAYWRIGHT_BASE_URL=https://staging.inmosubastas.top npm run test:e2e`
+4. Login UI tests require `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD`; admin API mutation checks require `PLAYWRIGHT_ADMIN_API_TOKEN` or `ADMIN_API_TOKEN`.
 
 Workflows:
 

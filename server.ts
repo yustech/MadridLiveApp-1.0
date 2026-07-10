@@ -1,4 +1,5 @@
 import fs from "fs";
+import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
 import path from "path";
@@ -10,6 +11,8 @@ dotenv.config();
 
 const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
+const AUTH_COOKIE_NAME = "ml_admin_session";
+const AUTH_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const dbTestRateLimits = new Map<string, { count: number; windowStart: number }>();
 const historyFilterTelemetry = new Map<string, number>();
 
@@ -31,14 +34,91 @@ function isRateLimited(ip: string) {
   return entry.count > DB_TEST_MAX_REQUESTS;
 }
 
-function isDbTestAuthorized(req: express.Request) {
-  const expectedToken = process.env.ADMIN_API_TOKEN;
-  if (!expectedToken) {
-    return true;
+function getCookieValue(req: express.Request, name: string) {
+  const cookieHeader = req.headers.cookie || "";
+  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
+  const prefix = `${name}=`;
+  const match = cookies.find((cookie) => cookie.startsWith(prefix));
+  return match ? decodeURIComponent(match.slice(prefix.length)) : "";
+}
+
+function getSessionSecret() {
+  return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_API_TOKEN || "";
+}
+
+function timingSafeEqualString(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function signSessionPayload(email: string, expiresAt: number) {
+  const secret = getSessionSecret();
+  if (!secret) return "";
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`${email}.${expiresAt}`)
+    .digest("base64url");
+}
+
+function buildSessionValue(email: string, expiresAt: number) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const signature = signSessionPayload(normalizedEmail, expiresAt);
+  if (!signature) return "";
+  return `${Buffer.from(normalizedEmail).toString("base64url")}.${expiresAt}.${signature}`;
+}
+
+function verifyAdminSession(req: express.Request) {
+  const rawSession = getCookieValue(req, AUTH_COOKIE_NAME);
+  if (!rawSession) return false;
+
+  const [encodedEmail, expiresAtRaw, signature] = rawSession.split(".");
+  const expiresAt = Number(expiresAtRaw);
+  if (!encodedEmail || !Number.isFinite(expiresAt) || !signature || expiresAt <= Date.now()) {
+    return false;
   }
+
+  let email = "";
+  try {
+    email = Buffer.from(encodedEmail, "base64url").toString("utf8").trim().toLowerCase();
+  } catch {
+    return false;
+  }
+
+  const expectedSignature = signSessionPayload(email, expiresAt);
+  return Boolean(expectedSignature) && timingSafeEqualString(signature, expectedSignature);
+}
+
+function buildSessionCookie(value: string, maxAgeSeconds: number) {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${AUTH_COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secure}`;
+}
+
+function clearSessionCookie() {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${AUTH_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`;
+}
+
+function isAdminTokenAuthorized(req: express.Request) {
+  const expectedToken = process.env.ADMIN_API_TOKEN;
+  if (!expectedToken) return false;
 
   const providedToken = req.header("x-admin-token");
   return providedToken === expectedToken;
+}
+
+function isDbTestAuthorized(req: express.Request) {
+  const expectedToken = process.env.ADMIN_API_TOKEN;
+  if (!expectedToken) {
+    return verifyAdminSession(req);
+  }
+
+  return isAdminTokenAuthorized(req) || verifyAdminSession(req);
+}
+
+function isAdminRequestAuthorized(req: express.Request) {
+  return isAdminTokenAuthorized(req) || verifyAdminSession(req);
 }
 
 function isValidHost(host: string) {
@@ -79,8 +159,57 @@ async function startServer() {
   // Middleware to parse JSON
   app.use(express.json());
 
-  // Phase 1 migration: MySQL business CRUD API (kept in parallel with Firestore frontend)
-  registerMysqlApi(app);
+  app.post("/api/auth/login", (req, res) => {
+    const configuredEmail = process.env.ADMIN_LOGIN_EMAIL?.trim().toLowerCase();
+    const configuredPassword = process.env.ADMIN_LOGIN_PASSWORD || "";
+    const sessionSecret = getSessionSecret();
+
+    if (!configuredEmail || !configuredPassword || !sessionSecret) {
+      return res.status(503).json({
+        success: false,
+        message: "Admin authentication is not configured.",
+      });
+    }
+
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
+    const emailMatches = timingSafeEqualString(email, configuredEmail);
+    const passwordMatches = timingSafeEqualString(password, configuredPassword);
+
+    if (!emailMatches || !passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials.",
+      });
+    }
+
+    const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
+    const sessionValue = buildSessionValue(email, expiresAt);
+    if (!sessionValue) {
+      return res.status(503).json({
+        success: false,
+        message: "Admin session signing is not configured.",
+      });
+    }
+
+    res.setHeader("Set-Cookie", buildSessionCookie(sessionValue, Math.floor(AUTH_SESSION_TTL_MS / 1000)));
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ success: true, expiresAt });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ authenticated: verifyAdminSession(req) });
+  });
+
+  app.post("/api/auth/logout", (_req, res) => {
+    res.setHeader("Set-Cookie", clearSessionCookie());
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ success: true });
+  });
+
+  // MySQL business CRUD API. Browser admin uses signed cookies; scripts/CI can still use x-admin-token.
+  registerMysqlApi(app, { isAdminAuthorized: isAdminRequestAuthorized });
 
   // API Route: Test MariaDB Connection
   app.post("/api/test-mariadb", async (req, res) => {

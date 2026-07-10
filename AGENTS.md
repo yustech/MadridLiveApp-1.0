@@ -9,8 +9,8 @@ Este archivo sirve como referencia e instrucciones persistentes para cualquier a
 Esta aplicación es un **Sistema de Acreditación, Control de Acceso y Gestión de Personal en Tiempo Real** diseñado específicamente para producciones de eventos en vivo, festivales y operaciones técnicas. Permite el escaneo simulado por código QR, control de horas de entrada/salida por zonas, visualización de KPIs interactivos, y exportación de datos de asistencia.
 
 ### Tecnologías Clave:
-- **Framework:** React 18 con TypeScript y Vite.
-- **Base de Datos / Persistencia:** Firebase Firestore (módulo `dbService.ts` para sincronización en tiempo real y persistencia duradera).
+- **Framework:** React 19 con TypeScript y Vite.
+- **Base de Datos / Persistencia:** MySQL/MariaDB mediante el backend Express (`mysqlApi.ts`) y el módulo `dbService.ts` para polling, CRUD, seed y reset.
 - **Estilos:** Tailwind CSS de alta densidad con un tema futurista cyberpunk/HUD de producción.
 - **Iconos:** Únicamente `lucide-react`.
 - **Gráficos:** SVG interactivo puro personalizado (para asegurar un rendimiento impecable y consistencia visual con el tema oscuro).
@@ -66,5 +66,5 @@ El sistema se divide en las siguientes vistas modulares que se controlan mediant
 
 - **Regla del Linter:** Mantén el código estrictamente tipado. Evita usar `any` si es posible. No utilices importaciones destructuradas de tipos (`import type` con enums).
 - **Evitar bucles de renderizado:** Al usar `useEffect`, asegura que las dependencias sean tipos primitivos estables. No incluyas objetos, arrays o funciones sin memoizar (`useMemo`, `useCallback`).
-- **Persistencia en Firestore:** Los datos no se simulan; se guardan directamente en las colecciones `staff`, `shifts`, `events` y `alerts` a través de los helpers de `dbService.ts`. Al registrar un turno (`shift`), asegúrate de que esté enlazado con el id de staff correspondiente para que se refleje correctamente tanto en el historial global como en el perfil individual del trabajador.
+- **Persistencia en MySQL:** Los datos no se simulan; se guardan directamente en las tablas `staff`, `shifts`, `events` y `alerts` a través de los helpers de `dbService.ts` y los endpoints `/api/mysql/*`. Al registrar un turno (`shift`), asegúrate de que esté enlazado con el id de staff correspondiente y con `eventId/eventTitle` para que se refleje correctamente tanto en el historial global como en el perfil individual del trabajador.
 - **Portabilidad:** Todas las dependencias deben instalarse mediante la configuración del archivo `package.json` utilizando las herramientas del sistema de AI Studio.
