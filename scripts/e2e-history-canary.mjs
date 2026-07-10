@@ -177,6 +177,16 @@ async function run() {
     const rowCountRange = await page.locator('table tbody tr').count();
     assert(rowCountRange >= 0 && rowCountRange <= rowCountInitial, `Rango personalizado no afectó como se esperaba (${rowCountRange} vs ${rowCountInitial}).`);
 
+    const clearFilters = page.getByRole('button', { name: /Limpiar todos los filtros/i }).first();
+    if (await clearFilters.count()) {
+      await clearFilters.click({ force: true });
+    } else {
+      await page.getByRole('button', { name: 'Todo' }).first().click({ force: true });
+    }
+    await page.waitForTimeout(700);
+    const rowCountAfterReset = await page.locator('table tbody tr').count();
+    assert(rowCountAfterReset > 0, 'No se restauraron filas tras limpiar filtros antes de validar paginación.');
+
     const paginationText = (await page.locator('text=/Página\\s+\\d+\\s+de\\s+\\d+/i').first().textContent() || '').trim();
     assert(Boolean(paginationText), 'No se encontró texto de paginación.');
 
@@ -187,6 +197,7 @@ async function run() {
       duration_ms: Date.now() - RUN_STARTED_AT_MS,
       rowCountInitial,
       rowCountRange,
+      rowCountAfterReset,
       uniqueDatesAfterToday,
       paginationText,
     }));
