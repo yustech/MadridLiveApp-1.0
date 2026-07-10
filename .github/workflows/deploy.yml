@@ -149,6 +149,8 @@ jobs:
         if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+          PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
+          PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
         run: npm run test:e2e:history:canary
       - name: Record post-deploy functional gate
         if: ${{ inputs.publish_public_frontend == 'true' }}
