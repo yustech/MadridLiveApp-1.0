@@ -99,7 +99,7 @@ jobs:
     env:
       PLAYWRIGHT_BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
       API_BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
-      ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+      ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
       REQUIRE_DELETE_STAFF_AUTH: ${{ vars.REQUIRE_DELETE_STAFF_AUTH || 'true' }}
 
     steps:
