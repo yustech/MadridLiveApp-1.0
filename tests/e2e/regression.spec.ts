@@ -41,9 +41,10 @@ test.describe('MadridLiveApp regression', () => {
 
   test('[readonly] denies invalid login', async ({ page }) => {
     await page.goto('/');
+    await page.locator('input[type="email"]').fill('invalid-admin@example.com');
     await page.locator('input[placeholder="••••••••"]').first().fill('BADPASS');
     await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
-    await expect(page.getByText(/ACCESO DENEGADO/i)).toBeVisible();
+    await expect(page.getByText(/Invalid credentials.|Credenciales no validas/i)).toBeVisible();
   });
 
   test('[readonly] navigates across core modules after login', async ({ page }) => {
