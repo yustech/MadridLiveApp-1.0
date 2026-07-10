@@ -197,7 +197,7 @@ test.describe('Phase 1 - business edge coverage', () => {
         const raceStaffRes = await api(request, '/api/mysql/staff', {
           method: 'POST',
           body: {
-            idCode: `E2E-EDGE-${Date.now()}`,
+            idCode: `E2EEDGE${Date.now()}`.slice(0, 20),
             name: 'Edge E2E Worker',
             role: 'Auxiliar',
             roleLabel: 'AUXILIAR',

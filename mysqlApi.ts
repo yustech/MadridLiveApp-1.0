@@ -63,7 +63,7 @@ async function initSchema() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS staff (
       id VARCHAR(96) PRIMARY KEY,
-      idCode VARCHAR(96) NOT NULL,
+      idCode VARCHAR(20) NOT NULL,
       name VARCHAR(255) NOT NULL,
       role VARCHAR(64) NOT NULL,
       roleLabel VARCHAR(96) NOT NULL,
