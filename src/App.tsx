@@ -99,6 +99,8 @@ export default function App() {
   useEffect(() => {
     if (events.length > 0 && !activeEventId) {
       setActiveEventId(events[0].id);
+    } else if (events.length === 0 && activeEventId) {
+      setActiveEventId('');
     }
   }, [events, activeEventId]);
 
@@ -144,6 +146,15 @@ export default function App() {
     let unsubShifts = () => {};
     let unsubAlerts = () => {};
 
+    if (!isAuthenticated) {
+      setEvents([]);
+      setStaff([]);
+      setShifts([]);
+      setAlerts([]);
+      setSelectedWorker(null);
+      return () => {};
+    }
+
     const initDatabaseSync = async () => {
       // Real-time dynamic listeners
       unsubEvents = subscribeToEvents((data) => {
@@ -180,7 +191,7 @@ export default function App() {
       unsubShifts();
       unsubAlerts();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // System time helper
   const getCurrentTimeStr = () => {

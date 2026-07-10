@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 077
 
 ENV_FILE="${ENV_FILE:-/opt/madridlive-app/.env}"
+APP_DIR="${APP_DIR:-/opt/madridlive-app}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/madridlive-app/backups}"
 KEEP_DAILY="${KEEP_DAILY:-14}"
+INCLUDE_ENV_SNAPSHOT="${INCLUDE_ENV_SNAPSHOT:-false}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -12,6 +15,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 # Read KEY=value safely without sourcing the full file.
 get_env() {
@@ -64,15 +68,20 @@ LOG_FILE="$BACKUP_DIR/backup-${STAMP}.log"
     exit 1
   fi
 
-  tar -czf "$ENV_SNAPSHOT" -C /opt/madridlive-app .env dist/build-info.json 2>/dev/null || tar -czf "$ENV_SNAPSHOT" -C /opt/madridlive-app .env
+  if [[ "$INCLUDE_ENV_SNAPSHOT" == "true" ]]; then
+    tar -czf "$ENV_SNAPSHOT" -C "$APP_DIR" .env dist/build-info.json 2>/dev/null || tar -czf "$ENV_SNAPSHOT" -C "$APP_DIR" .env
 
-  if [[ ! -s "$ENV_SNAPSHOT" ]]; then
-    echo "[backup] env snapshot is empty: $ENV_SNAPSHOT" >&2
-    exit 1
+    if [[ ! -s "$ENV_SNAPSHOT" ]]; then
+      echo "[backup] env snapshot is empty: $ENV_SNAPSHOT" >&2
+      exit 1
+    fi
+
+    echo "[backup] created $(basename "$ENV_SNAPSHOT")"
+  else
+    echo "[backup] env snapshot skipped; set INCLUDE_ENV_SNAPSHOT=true to create one locally."
   fi
 
   echo "[backup] created $(basename "$DB_DUMP")"
-  echo "[backup] created $(basename "$ENV_SNAPSHOT")"
 
   # Retention by newest-first count.
   ls -1t "$BACKUP_DIR"/db-*.sql.gz 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f

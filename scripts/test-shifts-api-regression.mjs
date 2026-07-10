@@ -1,9 +1,19 @@
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '/opt/madridlive-app/.env', quiet: true });
+dotenv.config({ quiet: true });
+
 const BASE_URL = process.env.API_BASE_URL || 'http://127.0.0.1:3000';
-const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || 'crew_admin_2026_secure';
+const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || '';
 const REQUIRE_DELETE_STAFF_AUTH = String(process.env.REQUIRE_DELETE_STAFF_AUTH || 'true').toLowerCase() === 'true';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function requireAdminApiToken() {
+  assert(ADMIN_API_TOKEN, 'ADMIN_API_TOKEN is required for shifts API regression mutations.');
+  return ADMIN_API_TOKEN;
 }
 
 const MONTH_TO_INDEX = {
@@ -34,7 +44,7 @@ async function api(path, options = {}) {
     method: options.method || 'GET',
     headers: {
       'content-type': 'application/json',
-      ...(options.method && options.method !== 'GET' ? { 'x-admin-token': ADMIN_API_TOKEN } : {}),
+      ...(options.method && options.method !== 'GET' ? { 'x-admin-token': requireAdminApiToken() } : {}),
       ...(options.headers || {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
