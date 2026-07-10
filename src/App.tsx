@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
+import { getEventTemporalState, isOperableEvent, sortEventsByDate } from './utils/events';
 
 
 import {
@@ -17,25 +18,6 @@ import {
 } from './dbService';
 
 
-const MONTH_INDEX: Record<string, number> = {
-  ENE: 0,
-  JAN: 0,
-  FEB: 1,
-  MAR: 2,
-  ABR: 3,
-  APR: 3,
-  MAY: 4,
-  JUN: 5,
-  JUL: 6,
-  AGO: 7,
-  AUG: 7,
-  SEP: 8,
-  OCT: 9,
-  NOV: 10,
-  DIC: 11,
-  DEC: 11,
-};
-
 const DashboardScreen = lazy(() => import('./components/DashboardScreen'));
 const StaffScreen = lazy(() => import('./components/StaffScreen'));
 const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
@@ -44,25 +26,16 @@ const ShiftsScreen = lazy(() => import('./components/ShiftsScreen'));
 const KPIScreen = lazy(() => import('./components/KPIScreen'));
 const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScreen'));
 
-function isFutureEvent(event?: LiveEvent | null): boolean {
-  if (!event) return false;
+const isDatabaseManagerEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
 
-  const day = Number(event.dateDay);
-  const month = MONTH_INDEX[event.dateMonth.trim().toUpperCase()];
-  const [hourRaw, minuteRaw] = event.doorsOpen.split(':');
-  const now = new Date();
+function selectDefaultActiveEvent(events: LiveEvent[]): string {
+  const ordered = sortEventsByDate(events);
+  const today = ordered.find((event) => getEventTemporalState(event) === 'today');
+  const future = ordered.find((event) => getEventTemporalState(event) === 'future');
+  const past = sortEventsByDate(events, 'desc').find((event) => getEventTemporalState(event) === 'past');
 
-  const eventDate = new Date(
-    now.getFullYear(),
-    month ?? 0,
-    Number.isFinite(day) ? day : 1,
-    Number(hourRaw) || 0,
-    Number(minuteRaw) || 0,
-    0,
-    0
-  );
-
-  return eventDate.getTime() > Date.now();
+  return today?.id || future?.id || past?.id || events[0]?.id || '';
 }
 
 export default function App() {
@@ -98,11 +71,17 @@ export default function App() {
   // Sync activeEventId with loaded events
   useEffect(() => {
     if (events.length > 0 && !activeEventId) {
-      setActiveEventId(events[0].id);
+      setActiveEventId(selectDefaultActiveEvent(events));
     } else if (events.length === 0 && activeEventId) {
       setActiveEventId('');
     }
   }, [events, activeEventId]);
+
+  useEffect(() => {
+    if (!isDatabaseManagerEnabled && isDbOpen) {
+      setIsDbOpen(false);
+    }
+  }, [isDbOpen]);
 
   useEffect(() => {
     if (!isAuthenticated && !isCheckingSession) return;
@@ -309,8 +288,8 @@ export default function App() {
         return true;
       }
 
-      if (isFutureEvent(activeEvent)) {
-        console.warn('Blocked future event activation for worker', workerId, activeEvent?.title);
+      if (!isOperableEvent(activeEvent)) {
+        console.warn('Blocked non-operable event activation for worker', workerId, activeEvent?.title);
         return false;
       }
 
@@ -678,14 +657,15 @@ export default function App() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {/* Database Admin trigger */}
-            <button
-              onClick={() => setIsDbOpen(true)}
-              className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-mono text-[11px] font-bold text-white/80 cursor-pointer transition-colors flex items-center justify-center gap-2"
-            >
-              <Database className="w-3.5 h-3.5 text-indigo-400" />
-              <span>EXPLORADOR BD</span>
-            </button>
+            {isDatabaseManagerEnabled && (
+              <button
+                onClick={() => setIsDbOpen(true)}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-mono text-[11px] font-bold text-white/80 cursor-pointer transition-colors flex items-center justify-center gap-2"
+              >
+                <Database className="w-3.5 h-3.5 text-indigo-400" />
+                <span>EXPLORADOR BD</span>
+              </button>
+            )}
 
             {/* Profile trigger */}
             <button
@@ -741,13 +721,15 @@ export default function App() {
 
           {/* Header Right Actions */}
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsDbOpen(true)}
-              className="md:hidden p-2 hover:bg-white/10 rounded-full cursor-pointer text-[#dbfcff] opacity-85 hover:opacity-100 transition-all flex items-center justify-center"
-              title="Acceso a Base de Datos (CRUD)"
-            >
-              <Database className="w-5 h-5" />
-            </button>
+            {isDatabaseManagerEnabled && (
+              <button
+                onClick={() => setIsDbOpen(true)}
+                className="md:hidden p-2 hover:bg-white/10 rounded-full cursor-pointer text-[#dbfcff] opacity-85 hover:opacity-100 transition-all flex items-center justify-center"
+                title="Acceso a Base de Datos (CRUD)"
+              >
+                <Database className="w-5 h-5" />
+              </button>
+            )}
 
             {/* Header Logout for Quick Access / Mobile viewports too */}
             <button
@@ -778,7 +760,7 @@ export default function App() {
         </header>
 
         {/* RENDERED ACTIVE VIEW CANVASES WITH FLUID VIEWPORTS */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-32 md:pb-12 overflow-y-auto">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12 overflow-y-auto">
           <Suspense
             fallback={renderActiveScreenFallback()}
           >
@@ -790,6 +772,7 @@ export default function App() {
                 activeEventId={activeEventId}
                 setActiveEventId={setActiveEventId}
                 onLaunchScanner={() => setActiveScreen('scanner')}
+                onDeletePastEvent={handleDeletePastEvent}
               />
             )}
 
@@ -845,7 +828,7 @@ export default function App() {
 
       {/* RENDER DIRECT CORE MYSQL DATABASE MANAGER MODAL */}
       <Suspense fallback={null}>
-        {isDbOpen && (
+        {isDatabaseManagerEnabled && isDbOpen && (
           <DatabaseManagerScreen
             events={events}
             staff={staff}
@@ -857,7 +840,7 @@ export default function App() {
       </Suspense>
 
       {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}
-      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
+      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
         {/* Events active screen trigger */}
         <button
           onClick={() => setActiveScreen('dashboard')}

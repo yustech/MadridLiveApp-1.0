@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
+import { getRoleBucket, getRoleDisplayName } from '../utils/roles';
 
 interface KPIScreenProps {
   shifts: Shift[];
@@ -112,19 +113,24 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
       ? completedHours.reduce((acc, curr) => acc + curr, 0) / completedHours.length
       : 0;
 
-    const roleCounts = {
-      Auxiliar: filteredStaff.filter((worker) => worker.role === 'Auxiliar').length,
-      'Auxiliar Plus': filteredStaff.filter((worker) => worker.role === 'Auxiliar Plus').length,
-      'Coordinación': filteredStaff.filter((worker) => worker.role === 'Coordinación').length,
-    };
+    const roleCountMap = new Map<string, number>();
+    filteredStaff.forEach((worker) => {
+      const bucket = getRoleBucket(worker.role);
+      roleCountMap.set(bucket, (roleCountMap.get(bucket) || 0) + 1);
+    });
 
-    const totalRoleCount = roleCounts.Auxiliar + roleCounts['Auxiliar Plus'] + roleCounts['Coordinación'];
-
-    const rolePercentages = {
-      Auxiliar: totalRoleCount ? Math.round((roleCounts.Auxiliar / totalRoleCount) * 100) : 0,
-      'Auxiliar Plus': totalRoleCount ? Math.round((roleCounts['Auxiliar Plus'] / totalRoleCount) * 100) : 0,
-      'Coordinación': totalRoleCount ? Math.round((roleCounts['Coordinación'] / totalRoleCount) * 100) : 0,
-    };
+    const totalRoleCount = filteredStaff.length;
+    const roleStats = ['Auxiliar', 'Auxiliar Plus', 'Coordinación', 'Otros']
+      .map((role) => {
+        const count = roleCountMap.get(role) || 0;
+        return {
+          role,
+          label: role === 'Otros' ? 'Otros / legacy' : getRoleDisplayName(role),
+          count,
+          pct: totalRoleCount ? Math.round((count / totalRoleCount) * 100) : 0,
+        };
+      })
+      .filter((item) => item.count > 0 || item.role !== 'Otros');
 
     const eventRequired = filteredEvents.reduce((acc, curr) => acc + Number(curr.requiredStaff || curr.totalStaffNeeded || 0), 0);
     const eventActive = filteredEvents.reduce((acc, curr) => acc + Number(curr.activeStaff || 0), 0);
@@ -197,8 +203,7 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
       checkinsLastHour,
       activeShiftsNow: shiftStatus.active,
       shiftStatus,
-      roleCounts,
-      rolePercentages,
+      roleStats,
       eventRanking,
       topStaffByHours,
       hourlyTrend,
@@ -493,19 +498,23 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
           </div>
 
           <div className="space-y-4 pt-2">
-            {(['Auxiliar', 'Auxiliar Plus', 'Coordinación'] as const).map((role) => {
-              const count = kpi.roleCounts[role];
-              const pct = kpi.rolePercentages[role];
-              const barColor = role === 'Auxiliar' ? 'from-white/60 to-white/30' : role === 'Auxiliar Plus' ? 'from-indigo-500 to-indigo-300' : 'from-purple-500 to-pink-500';
+            {kpi.roleStats.map((item) => {
+              const barColor = item.role === 'Auxiliar'
+                ? 'from-white/60 to-white/30'
+                : item.role === 'Auxiliar Plus'
+                  ? 'from-indigo-500 to-indigo-300'
+                  : item.role === 'Coordinación'
+                    ? 'from-purple-500 to-pink-500'
+                    : 'from-amber-500 to-orange-300';
 
               return (
-                <div key={role} className="space-y-1.5">
+                <div key={item.role} className="space-y-1.5">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-white/85 font-sans">{role}</span>
-                    <span className="text-white/60">{count} ({pct}%)</span>
+                    <span className="text-white/85 font-sans">{item.label}</span>
+                    <span className="text-white/60">{item.count} ({item.pct}%)</span>
                   </div>
                   <div className="h-3 bg-white/5 border border-white/10 rounded-full overflow-hidden">
-                    <div className={`h-full bg-gradient-to-r ${barColor} transition-all duration-700`} style={{ width: `${Math.max(pct, 2)}%` }} />
+                    <div className={`h-full bg-gradient-to-r ${barColor} transition-all duration-700`} style={{ width: `${Math.max(item.pct, 2)}%` }} />
                   </div>
                 </div>
               );

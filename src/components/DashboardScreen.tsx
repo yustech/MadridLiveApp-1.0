@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { 
+import {
   Activity, 
   MapPin, 
   AlertTriangle, 
@@ -13,6 +13,13 @@ import {
   History
 } from 'lucide-react';
 import { LiveEvent, EquipmentAlert, StaffMember } from '../types';
+import {
+  formatEventDate,
+  getEventStatusLabel,
+  getEventStatusTone,
+  getEventTemporalState,
+  sortEventsByDate,
+} from '../utils/events';
 
 interface DashboardScreenProps {
   events: LiveEvent[];
@@ -39,57 +46,24 @@ export default function DashboardScreen({
   const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
-  const monthIndex: Record<string, number> = {
-    ENE: 0, JAN: 0, FEB: 1, MAR: 2, ABR: 3, APR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11, DEC: 11,
-  };
-
-  const monthNameMap: Record<string, string> = {
-    ENE: 'Enero', JAN: 'Enero', FEB: 'Febrero', MAR: 'Marzo', ABR: 'Abril', APR: 'Abril', MAY: 'Mayo', JUN: 'Junio',
-    JUL: 'Julio', AGO: 'Agosto', AUG: 'Agosto', SEP: 'Septiembre', OCT: 'Octubre', NOV: 'Noviembre', DIC: 'Diciembre', DEC: 'Diciembre',
-  };
-
-  const formatEventDate = (event: LiveEvent): string => {
-    const day = Number(event.dateDay);
-    const monthName = monthNameMap[event.dateMonth.trim().toUpperCase()] || event.dateMonth;
-    const now = new Date();
-    const year = String(now.getFullYear()).slice(-2);
-    return `${day} ${monthName} ${year}`;
-  };
-
-  const toEventDate = (event: LiveEvent) => {
-    const day = Number(event.dateDay);
-    const month = monthIndex[event.dateMonth.trim().toUpperCase()];
-    const [hourRaw, minRaw] = event.doorsOpen.split(':');
-    const now = new Date();
-    return new Date(
-      now.getFullYear(),
-      month ?? 0,
-      Number.isFinite(day) ? day : 1,
-      Number(hourRaw) || 0,
-      Number(minRaw) || 0,
-      0,
-      0
-    );
-  };
-
-  // Let's filter live vs upcoming events based on activeEventId
+  // Focus card follows the selected event, but its temporal state is shown explicitly.
   const liveEvent = events.find(e => e.id === activeEventId) || events[0] || null;
-  const referenceNow = Date.now();
+  const liveEventState = getEventTemporalState(liveEvent);
+  const liveEventStatusLabel = liveEventState === 'today' ? 'PRODUCCIÓN DE HOY' : getEventStatusLabel(liveEvent);
   const nonLiveEvents = useMemo(() => {
     return (liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events]);
   }, [events, liveEvent]);
 
   const upcomingEvents = useMemo(() => {
-    return nonLiveEvents
-      .filter((event) => toEventDate(event).getTime() >= referenceNow)
-      .sort((a, b) => toEventDate(a).getTime() - toEventDate(b).getTime());
-  }, [nonLiveEvents, referenceNow]);
+    return sortEventsByDate(nonLiveEvents.filter((event) => getEventTemporalState(event) !== 'past'));
+  }, [nonLiveEvents]);
 
   const pastEvents = useMemo(() => {
-    return nonLiveEvents
-      .filter((event) => toEventDate(event).getTime() < referenceNow)
-      .sort((a, b) => toEventDate(b).getTime() - toEventDate(a).getTime());
-  }, [nonLiveEvents, referenceNow]);
+    return sortEventsByDate(
+      nonLiveEvents.filter((event) => getEventTemporalState(event) === 'past'),
+      'desc'
+    );
+  }, [nonLiveEvents]);
 
   // Dynamically calculate active staff count from local state
   const checkedInStaffCount = staff.filter(s => s.status === 'IN').length;
@@ -217,15 +191,15 @@ export default function DashboardScreen({
           onClick={() => liveEvent && setSelectedDetailEvent(liveEvent)}
           className="md:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 hover:border-indigo-400/30 transition-all duration-300 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[280px] shadow-hud-glow cursor-pointer group"
         >
-          {/* Top Identifier Badge */}
-          <div className="absolute top-4 right-4 bg-white/10 border border-white/10 px-2.5 py-1 rounded-full text-xs font-mono text-white/70">
-            ID: WZK-2409
-          </div>
-
           <div>
-            <div className="inline-flex items-center space-x-2 bg-indigo-500/10 text-indigo-300 px-3 py-1 rounded-full text-xs font-mono mb-4 border border-indigo-400/20">
-              <Activity className="w-3.5 h-3.5" />
-              <span>PRODUCCIÓN EN VIVO (CLICK VER)</span>
+            <div className="flex flex-wrap items-center gap-2 mb-4 pr-0 md:pr-28">
+              <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-mono border ${getEventStatusTone(liveEvent)}`}>
+                <Activity className="w-3.5 h-3.5" />
+                <span>{liveEventStatusLabel} (CLICK VER)</span>
+              </div>
+              <div className="bg-white/10 border border-white/10 px-2.5 py-1 rounded-full text-xs font-mono text-white/70">
+                ID: {liveEvent?.id || 'SIN-EVENTO'}
+              </div>
             </div>
 
             <h2 className="text-2xl font-display font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
@@ -428,6 +402,9 @@ export default function DashboardScreen({
                   <h4 className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">
                     {event.title}
                   </h4>
+                  <span className={`inline-flex mt-1 rounded-full border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider ${getEventStatusTone(event)}`}>
+                    {getEventStatusLabel(event)}
+                  </span>
                   <p className="text-[10px] text-indigo-300 font-mono mt-0.5">
                     {formatEventDate(event)}
                   </p>
