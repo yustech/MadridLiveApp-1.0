@@ -20,6 +20,21 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root-password
+          MYSQL_DATABASE: madrid_live_e2e
+          MYSQL_USER: madridlive
+          MYSQL_PASSWORD: madridlive
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -umadridlive -pmadridlive"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     env:
       ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
       ADMIN_LOGIN_EMAIL: ${{ secrets.ADMIN_LOGIN_EMAIL }}
@@ -28,6 +43,11 @@ jobs:
       PLAYWRIGHT_ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
       PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
       PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: madrid_live_e2e
+      MYSQL_USER: madridlive
+      MYSQL_PASSWORD: madridlive
 
     steps:
       - name: Checkout
@@ -56,8 +76,46 @@ jobs:
           done
           exit "$missing"
 
+      - name: Build local E2E app
+        run: npm run build
+
+      - name: Start local E2E app
+        run: |
+          DISABLE_HMR=true PORT=5173 NODE_ENV=development npm start > /tmp/madridlive-e2e-server.log 2>&1 &
+          echo "$!" > /tmp/madridlive-e2e-server.pid
+
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:5173/api/health >/dev/null; then
+              echo "Local E2E app is healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::Local E2E app did not become healthy."
+          cat /tmp/madridlive-e2e-server.log
+          exit 1
+
+      - name: Seed local MySQL fixture
+        run: |
+          curl -fsS \
+            -X POST \
+            -H "x-admin-token: $ADMIN_API_TOKEN" \
+            http://127.0.0.1:5173/api/mysql/reset-initial
+
+          curl -fsS http://127.0.0.1:5173/api/mysql/staff | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const rows=JSON.parse(s); if (!Array.isArray(rows) || rows.length === 0) { throw new Error('Local MySQL fixture has no staff rows.'); } console.log('staff_count=' + rows.length);});"
+
       - name: Run E2E regression
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173
         run: npm run test:e2e
+
+      - name: Stop local E2E app
+        if: always()
+        run: |
+          if [ -f /tmp/madridlive-e2e-server.pid ]; then
+            kill "$(cat /tmp/madridlive-e2e-server.pid)" 2>/dev/null || true
+          fi
 
       - name: Upload Playwright report
         if: always()
@@ -65,4 +123,12 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          if-no-files-found: ignore
+
+      - name: Upload local E2E server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-server-log
+          path: /tmp/madridlive-e2e-server.log
           if-no-files-found: ignore
