@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { StaffMember, Shift } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
+import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import {
   formatShiftDateLabel,
   getActiveShiftForWorker,
@@ -118,10 +119,8 @@ export default function ProfileScreen({
                   alt={worker.name}
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover rounded-full"
-                  src={worker.avatar}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
-                  }}
+                  src={getAvatarSrc(worker.avatar)}
+                  onError={(event) => setFallbackAvatar(event.currentTarget)}
                 />
               </div>
 

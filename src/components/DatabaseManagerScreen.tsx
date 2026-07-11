@@ -25,7 +25,13 @@ import {
 } from 'lucide-react';
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
-import { DEFAULT_FEMALE_AVATAR, DEFAULT_MALE_AVATAR, fileToAvatarDataUrl } from '../utils/avatarUpload';
+import {
+  DEFAULT_FEMALE_AVATAR,
+  DEFAULT_MALE_AVATAR,
+  fileToAvatarDataUrl,
+  getAvatarSrc,
+  setFallbackAvatar,
+} from '../utils/avatarUpload';
 import { 
   addEvent, updateEvent, deleteEvent,
   addStaff, updateStaff, deleteStaff,
@@ -996,7 +1002,12 @@ app.post('/api/auth/login', async (req, res) => {
                 >
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     {activeTab === 'staff' && (
-                      <img src={item.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-white/25 mt-0.5" />
+                      <img
+                        src={getAvatarSrc(item.avatar)}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover border border-white/25 mt-0.5"
+                        onError={(event) => setFallbackAvatar(event.currentTarget)}
+                      />
                     )}
                     <div className="min-w-0 flex-1">
                       {/* Technical Header */}
@@ -1203,7 +1214,12 @@ app.post('/api/auth/login', async (req, res) => {
                     <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="Pega una URL o usa una foto subida desde este dispositivo" />
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
-                    <img src={staffData.avatar} alt="Vista previa avatar" className="h-14 w-14 rounded-2xl object-cover border border-white/10" />
+                    <img
+                      src={getAvatarSrc(staffData.avatar)}
+                      alt="Vista previa avatar"
+                      className="h-14 w-14 rounded-2xl object-cover border border-white/10"
+                      onError={(event) => setFallbackAvatar(event.currentTarget)}
+                    />
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>
                       <p className="text-xs text-white/70">Puedes subir una imagen del dispositivo o elegir un avatar por defecto de hombre o mujer.</p>

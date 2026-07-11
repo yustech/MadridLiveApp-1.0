@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import {
   Search,
   CheckCircle2,
@@ -8,10 +8,17 @@ import {
   QrCode,
   ChevronLeft,
   ChevronRight,
+  Upload,
 } from 'lucide-react';
 import { Shift, StaffMember } from '../types';
 import { addStaffBatch } from '../dbService';
-import { DEFAULT_FEMALE_AVATAR, DEFAULT_MALE_AVATAR, fileToAvatarDataUrl } from '../utils/avatarUpload';
+import {
+  DEFAULT_FEMALE_AVATAR,
+  DEFAULT_MALE_AVATAR,
+  fileToAvatarDataUrl,
+  getAvatarSrc,
+  setFallbackAvatar,
+} from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
 import { isWorkerPresentNow } from '../utils/shifts';
 
@@ -72,7 +79,9 @@ export default function StaffScreen({
   const [newPhone, setNewPhone] = useState('');
   const [newStatus, setNewStatus] = useState<'IN' | 'OUT'>('OUT');
   const [newAvatar, setNewAvatar] = useState(DEFAULT_FEMALE_AVATAR);
+  const [selectedAvatarFileName, setSelectedAvatarFileName] = useState('');
   const [formError, setFormError] = useState('');
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [addMode, setAddMode] = useState<'single' | 'bulk'>('single');
   const [bulkText, setBulkText] = useState('');
@@ -145,6 +154,13 @@ export default function StaffScreen({
   const pageEnd = Math.min(pageStartIndex + pageSize, orderedStaff.length);
   const paginatedStaff = orderedStaff.slice(pageStartIndex, pageStartIndex + pageSize);
 
+  const clearAvatarFileSelection = () => {
+    setSelectedAvatarFileName('');
+    if (avatarFileInputRef.current) {
+      avatarFileInputRef.current.value = '';
+    }
+  };
+
   const resetAndCloseAddModal = () => {
     setNewName('');
     setNewRole('Auxiliar');
@@ -153,6 +169,7 @@ export default function StaffScreen({
     setNewPhone('');
     setNewStatus('OUT');
     setNewAvatar(DEFAULT_FEMALE_AVATAR);
+    clearAvatarFileSelection();
     setFormError('');
     setBulkText('');
     setImportStatus('');
@@ -162,9 +179,13 @@ export default function StaffScreen({
   };
 
   const handleAvatarFileChange = async (file: File | null) => {
-    if (!file) return;
+    if (!file) {
+      clearAvatarFileSelection();
+      return;
+    }
 
     try {
+      setSelectedAvatarFileName(file.name);
       const dataUrl = await fileToAvatarDataUrl(file);
       setNewAvatar(dataUrl);
       setFormError('');
@@ -403,10 +424,8 @@ export default function StaffScreen({
                       alt={worker.name}
                       referrerPolicy="no-referrer"
                       className={`w-full h-full object-cover transition-all ${!isCheckedIn ? 'grayscale opacity-75' : ''}`}
-                      src={worker.avatar}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
-                      }}
+                      src={getAvatarSrc(worker.avatar)}
+                      onError={(event) => setFallbackAvatar(event.currentTarget)}
                     />
                   </div>
 
@@ -635,15 +654,39 @@ export default function StaffScreen({
                 <div className="space-y-2">
                   <label className="block text-xs text-white/50 mb-1">Foto de Perfil *</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setNewAvatar(DEFAULT_FEMALE_AVATAR)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto mujer por defecto</button>
-                    <button type="button" onClick={() => setNewAvatar(DEFAULT_MALE_AVATAR)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto hombre por defecto</button>
+                    <button type="button" onClick={() => { setNewAvatar(DEFAULT_FEMALE_AVATAR); clearAvatarFileSelection(); }} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto mujer por defecto</button>
+                    <button type="button" onClick={() => { setNewAvatar(DEFAULT_MALE_AVATAR); clearAvatarFileSelection(); }} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto hombre por defecto</button>
                   </div>
-                  <input type="file" accept="image/*" onChange={e => void handleAvatarFileChange(e.target.files?.[0] || null)} className="w-full rounded-xl border border-white/10 bg-white/5 p-2.5 text-xs text-white file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500/20 file:px-3 file:py-2 file:text-xs file:font-bold file:text-indigo-200" />
+                  <input
+                    ref={avatarFileInputRef}
+                    id="staff-avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={e => void handleAvatarFileChange(e.target.files?.[0] || null)}
+                    className="sr-only"
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label
+                      htmlFor="staff-avatar-upload"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-500/15 px-3 text-xs font-mono font-bold text-indigo-200 hover:bg-indigo-500/25 cursor-pointer transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Subir foto
+                    </label>
+                    <span className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-[11px] text-white/55 truncate">
+                      {selectedAvatarFileName || 'Ningún archivo seleccionado'}
+                    </span>
+                  </div>
                   <input type="text" required value={newAvatar} onChange={e => setNewAvatar(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white text-xs" placeholder="Pega una URL o usa una foto subida desde este dispositivo" />
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
-                  <img src={newAvatar} alt="Vista previa avatar" className="h-14 w-14 rounded-2xl object-cover border border-white/10" />
+                  <img
+                    src={getAvatarSrc(newAvatar)}
+                    alt="Vista previa avatar"
+                    className="h-14 w-14 rounded-2xl object-cover border border-white/10"
+                    onError={(event) => setFallbackAvatar(event.currentTarget)}
+                  />
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>
                     <p className="text-xs text-white/70">Puedes subir una imagen del dispositivo o elegir un avatar por defecto de hombre o mujer.</p>
@@ -701,9 +744,10 @@ export default function StaffScreen({
 
             <div className="flex items-center gap-3 text-left bg-white/5 p-3 rounded-2xl border border-white/5 font-mono">
               <img
-                src={selectedQrWorker.avatar}
+                src={getAvatarSrc(selectedQrWorker.avatar)}
                 className="w-10 h-10 rounded-xl object-cover border border-indigo-400 shrink-0"
                 alt=""
+                onError={(event) => setFallbackAvatar(event.currentTarget)}
               />
               <div className="min-w-0 flex-1">
                 <h4 className="text-xs font-bold text-white truncate">{selectedQrWorker.name}</h4>
