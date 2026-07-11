@@ -41,6 +41,8 @@
     "ops:staging:apply": "bash scripts/setup-staging.sh --apply",
     "ops:staging-public:plan": "bash scripts/setup-staging-public.sh --plan",
     "ops:staging-public:apply": "bash scripts/setup-staging-public.sh --apply",
+    "ops:staging-cert:plan": "bash scripts/issue-staging-cert.sh --plan",
+    "ops:staging-cert:issue": "bash scripts/issue-staging-cert.sh --issue",
     "smoke:staging": "bash scripts/smoke-test-staging.sh",
     "dev:frontend": "vite --port ${PORT:-5175}",
     "dev:frontend:proddata": "VITE_MYSQL_API_BASE=/api/mysql VITE_DEV_PROXY_MYSQL_TARGET=https://inmosubastas.top vite --port ${PORT:-5175}",

@@ -95,6 +95,29 @@ curl --resolve staging.inmosubastas.top:80:82.223.139.217 \
   -fsS http://staging.inmosubastas.top/api/health
 ```
 
+Cuando el DNS ya resuelva, emitir el certificado TLS:
+
+```bash
+npm run ops:staging-cert:plan
+sudo npm run ops:staging-cert:issue
+```
+
+Opcionalmente se puede pasar un email de contacto a Let's Encrypt:
+
+```bash
+sudo LETSENCRYPT_EMAIL=admin@example.com npm run ops:staging-cert:issue
+```
+
+El script instala `certbot` si falta, emite el certificado por `webroot` en
+`/var/www/letsencrypt` y vuelve a aplicar el proxy publico para activar HTTPS.
+
+Verificacion publica tras TLS:
+
+```bash
+curl -I https://staging.inmosubastas.top
+SITE_URL=https://staging.inmosubastas.top npm run smoke:staging
+```
+
 ## Rollback
 
 Parar staging:
