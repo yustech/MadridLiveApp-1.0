@@ -29,6 +29,8 @@ const MONTH_TO_INDEX: Record<string, number> = {
   DIC: 11,
 };
 
+const MONTH_LABELS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
 function parseEventDate(event: any): Date | null {
   const day = Number(event?.dateDay);
   const monthRaw = String(event?.dateMonth || '').trim().toUpperCase();
@@ -372,7 +374,10 @@ test.describe('Phase 1 - business edge coverage', () => {
 
     const idCode = `FAST${Date.now()}`.slice(0, 20);
     const name = `Fast Toggle Worker ${idCode.slice(-6)}`;
+    const today = new Date();
+    const eventTitle = `Fast Toggle Event ${idCode.slice(-6)}`;
     let staffId = '';
+    let eventId = '';
 
     try {
       const createStaffRes = await api(request, '/api/mysql/staff', {
@@ -404,8 +409,30 @@ test.describe('Phase 1 - business edge coverage', () => {
       expect(createStaffRes.json?.id).toBeTruthy();
       staffId = createStaffRes.json.id;
 
+      const createEventRes = await api(request, '/api/mysql/events', {
+        method: 'POST',
+        body: {
+          title: eventTitle,
+          location: 'QA Fast Venue',
+          dateDay: String(today.getDate()).padStart(2, '0'),
+          dateMonth: MONTH_LABELS[today.getMonth()],
+          doorsOpen: '08:00',
+          requiredStaff: 1,
+          activeStaff: 0,
+          totalStaffNeeded: 1,
+          scanRate: 0,
+          loadInPercent: 50,
+        },
+      });
+
+      expect(createEventRes.status).toBe(201);
+      expect(createEventRes.json?.id).toBeTruthy();
+      eventId = createEventRes.json.id;
+
       await loginWithAdmin(page);
       await page.getByRole('button', { name: /Lector QR/i }).click();
+      await page.locator('select').first().selectOption(eventId);
+      await expect(page.locator('h3').filter({ hasText: eventTitle })).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 
       await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
@@ -437,6 +464,10 @@ test.describe('Phase 1 - business edge coverage', () => {
         }
 
         await api(request, `/api/mysql/staff/${staffId}`, { method: 'DELETE' });
+      }
+
+      if (eventId) {
+        await api(request, `/api/mysql/events/${eventId}`, { method: 'DELETE' });
       }
     }
   });
