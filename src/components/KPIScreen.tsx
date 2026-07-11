@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   TrendingUp,
   Users,
@@ -13,6 +13,12 @@ import {
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
 import { getRoleBucket, getRoleDisplayName } from '../utils/roles';
+import {
+  getShiftStartTimestamp,
+  isShiftActiveNow,
+  isShiftLinkedToEvent,
+  isWorkerPresentNow,
+} from '../utils/shifts';
 
 interface KPIScreenProps {
   shifts: Shift[];
@@ -27,13 +33,8 @@ interface HourBucket {
 }
 
 function extractShiftDate(shift: Shift): Date | null {
-  const candidates = [shift.startedAt, shift.updatedAt, shift.dateString];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const parsed = new Date(candidate);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  return null;
+  const timestamp = getShiftStartTimestamp(shift);
+  return timestamp !== null ? new Date(timestamp) : null;
 }
 
 function getHourBucketKey(date: Date): string {
@@ -41,8 +42,19 @@ function getHourBucketKey(date: Date): string {
 }
 
 export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIScreenProps) {
-  const [selectedEventId, setSelectedEventId] = useState<string>('all');
+  const [selectedEventId, setSelectedEventId] = useState<string>(activeEventId || 'all');
   const [hoveredAreaPoint, setHoveredAreaPoint] = useState<{ index: number; x: number; y: number; label: string; value: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeEventId) return;
+    setSelectedEventId((current) => (
+      current === 'all' || !events.some((event) => event.id === current)
+        ? activeEventId
+        : current
+    ));
+  }, [activeEventId, events]);
+
+  const now = useMemo(() => new Date(), [shifts, staff]);
 
   const filteredEvents = useMemo(() => {
     if (selectedEventId === 'all') return events;
@@ -52,20 +64,18 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
   const filteredShifts = useMemo(() => {
     if (selectedEventId === 'all') return shifts;
 
-    return shifts.filter((shift) => {
-      if (shift.eventId === selectedEventId) return true;
-      const selectedEvent = events.find((event) => event.id === selectedEventId);
-      if (!selectedEvent) return false;
-      return shift.eventTitle.trim().toLowerCase() === selectedEvent.title.trim().toLowerCase();
-    });
+    const selectedEvent = events.find((event) => event.id === selectedEventId);
+    if (!selectedEvent) return [];
+
+    return shifts.filter((shift) => isShiftLinkedToEvent(shift, selectedEvent));
   }, [shifts, events, selectedEventId]);
 
   const activeShiftWorkerIdsByEvent = useMemo(() => {
     const map = new Map<string, Set<string>>();
 
     shifts.forEach((shift) => {
-      if (shift.status.toLowerCase() !== 'active') return;
-      const event = events.find((candidate) => shift.eventId === candidate.id || shift.eventTitle === candidate.title);
+      if (!isShiftActiveNow(shift, now)) return;
+      const event = events.find((candidate) => isShiftLinkedToEvent(shift, candidate));
       if (!event) return;
 
       if (!map.has(event.id)) map.set(event.id, new Set<string>());
@@ -73,31 +83,28 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     });
 
     return map;
-  }, [shifts, events]);
+  }, [shifts, events, now]);
 
   const filteredStaff = useMemo(() => {
-    const activeStaff = staff.filter((worker) => worker.status === 'IN');
+    const activeStaff = staff.filter((worker) => isWorkerPresentNow(worker, shifts, now));
     if (selectedEventId === 'all') return activeStaff;
 
     const linkedWorkerIds = activeShiftWorkerIdsByEvent.get(selectedEventId);
-    if (!linkedWorkerIds || linkedWorkerIds.size === 0) {
-      return selectedEventId === activeEventId ? activeStaff : [];
-    }
+    if (!linkedWorkerIds || linkedWorkerIds.size === 0) return [];
 
     return activeStaff.filter((worker) => linkedWorkerIds.has(worker.id));
-  }, [staff, selectedEventId, activeEventId, activeShiftWorkerIdsByEvent]);
+  }, [staff, shifts, selectedEventId, activeShiftWorkerIdsByEvent, now]);
 
   const currentEvent = useMemo(() => {
     if (selectedEventId === 'all') return events.find((event) => event.id === activeEventId) || null;
     return events.find((event) => event.id === selectedEventId) || null;
   }, [events, activeEventId, selectedEventId]);
 
-  const now = new Date();
   const oneHourAgoMs = now.getTime() - 60 * 60 * 1000;
   const twelveHoursAgoMs = now.getTime() - 12 * 60 * 60 * 1000;
 
   const kpi = useMemo(() => {
-    const activeShifts = filteredShifts.filter((shift) => shift.status.toLowerCase() === 'active');
+    const activeShifts = filteredShifts.filter((shift) => isShiftActiveNow(shift, now));
     const completedShifts = filteredShifts.filter((shift) => shift.status.toLowerCase() === 'completed');
 
     const checkinsLastHour = filteredShifts.filter((shift) => {
@@ -133,7 +140,6 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
       .filter((item) => item.count > 0 || item.role !== 'Otros');
 
     const eventRequired = filteredEvents.reduce((acc, curr) => acc + Number(curr.requiredStaff || curr.totalStaffNeeded || 0), 0);
-    const eventActive = filteredEvents.reduce((acc, curr) => acc + Number(curr.activeStaff || 0), 0);
     const coverage = eventRequired > 0 ? Math.round((filteredStaff.length / eventRequired) * 100) : 100;
 
     const shiftStatus = {
@@ -144,7 +150,7 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     const eventRanking = filteredEvents
       .map((event) => {
         const linkedWorkers = activeShiftWorkerIdsByEvent.get(event.id);
-        const activeCount = linkedWorkers?.size || (event.id === activeEventId ? filteredStaff.length : 0);
+        const activeCount = linkedWorkers?.size || 0;
         return {
           id: event.id,
           title: event.title,
@@ -193,7 +199,6 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     return {
       totalRegistered,
       activeNow,
-      eventActive,
       eventRequired,
       coverage,
       scanRatePerMin: filteredEvents.length
@@ -213,7 +218,6 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     filteredStaff,
     filteredEvents,
     activeShiftWorkerIdsByEvent,
-    activeEventId,
     now,
     oneHourAgoMs,
     twelveHoursAgoMs,

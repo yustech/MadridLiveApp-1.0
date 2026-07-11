@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import { 
   ArrowLeft, 
-  MapPin, 
   Clock, 
   Timer, 
   CalendarRange, 
   ChevronRight, 
-  BadgeCheck, 
   CheckCircle,
-  HelpCircle,
-  Plus,
-  QrCode
 } from 'lucide-react';
 import { StaffMember, Shift } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
+import {
+  formatShiftDateLabel,
+  getActiveShiftForWorker,
+  getShiftStartTimestamp,
+  isShiftActiveNow,
+  isWorkerPresentNow,
+} from '../utils/shifts';
 
 interface ProfileScreenProps {
   worker: StaffMember;
@@ -31,21 +33,8 @@ const zoneTranslationMap: Record<string, string> = {
   'Artist Entrance': 'Entrada de Artistas'
 };
 
-function formatShiftDateLabel(dateString: string): string {
-  if (!dateString) return "Sin fecha";
-
-  const parsed = new Date(dateString);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  }
-
-  return dateString
-    .replace("Today", "Hoy")
-    .replace("Yesterday", "Ayer");
+function formatTimespanLabel(timespan: string): string {
+  return timespan.replace('Present', 'Presente');
 }
 
 export default function ProfileScreen({
@@ -56,12 +45,16 @@ export default function ProfileScreen({
 }: ProfileScreenProps) {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
   const [customLocation, setCustomLocation] = useState(worker.location || 'Stage Left');
-  
-  const isCheckedIn = worker.status === 'IN';
 
-  const getCurrentShiftParts = (member: StaffMember) => {
+  const isMarkedIn = worker.status === 'IN';
+  const activeShift = getActiveShiftForWorker(workerShifts, worker.id);
+  const isLiveNow = isWorkerPresentNow(worker, workerShifts);
+
+  const getCurrentShiftParts = (member: StaffMember, currentShift: Shift | null) => {
     const fallbackMinutes = (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0);
-    const startTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
+    const shiftStartTs = currentShift ? getShiftStartTimestamp(currentShift) : null;
+    const workerStartTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
+    const startTs = shiftStartTs ?? workerStartTs;
     const elapsedMinutes = Number.isFinite(startTs) && Date.now() > startTs
       ? Math.floor((Date.now() - startTs) / (1000 * 60))
       : fallbackMinutes;
@@ -73,10 +66,10 @@ export default function ProfileScreen({
     };
   };
 
-  const liveShift = getCurrentShiftParts(worker);
+  const liveShift = isLiveNow ? getCurrentShiftParts(worker, activeShift) : { hours: 0, mins: 0 };
 
   const handleToggle = () => {
-    if (isCheckedIn) {
+    if (isMarkedIn) {
       // Check-out is straight-forward
       onToggleStatus(worker.id);
     } else {
@@ -142,10 +135,15 @@ export default function ProfileScreen({
               </div>
 
               <div className="flex gap-2">
-                {isCheckedIn ? (
+                {isLiveNow ? (
                   <span className="bg-emerald-400/10 text-emerald-300 text-xs font-mono px-3 py-1 rounded-full border border-emerald-400/20 flex items-center gap-1.5 font-bold shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     En el Recinto
+                  </span>
+                ) : isMarkedIn ? (
+                  <span className="bg-amber-400/10 text-amber-300 text-xs font-mono px-3 py-1 rounded-full border border-amber-400/20 flex items-center gap-1.5 font-bold shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                    IN fuera de fecha
                   </span>
                 ) : (
                   <span className="bg-white/5 text-white/50 text-xs font-mono px-3 py-1 rounded-full border border-white/10 flex items-center gap-1.5">
@@ -181,21 +179,26 @@ export default function ProfileScreen({
                 Turno Actual
               </div>
               <div className="text-3xl font-display font-black text-white my-2 leading-none">
-                {isCheckedIn ? (
+                {isLiveNow ? (
                   <>
-                    {String(worker.currentShiftHours).padStart(2, '0')}
+                    {String(liveShift.hours).padStart(2, '0')}
                     <span className="text-sm font-mono text-white/30 ml-0.5 mr-1.5">h</span>
-                    {String(worker.currentShiftMins).padStart(2, '0')}
+                    {String(liveShift.mins).padStart(2, '0')}
                     <span className="text-sm font-mono text-white/30 ml-0.5">m</span>
                   </>
                 ) : (
                   '00h 00m'
                 )}
               </div>
-              {isCheckedIn ? (
+              {isLiveNow ? (
                 <div className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
                   <Timer className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '6s' }} />
                   Activo Ahora
+                </div>
+              ) : isMarkedIn ? (
+                <div className="text-[10px] font-mono text-amber-300 flex items-center gap-1 font-bold">
+                  <Clock className="w-3.5 h-3.5" />
+                  Sin turno activo hoy
                 </div>
               ) : (
                 <div className="text-[10px] font-mono text-white/20">
@@ -263,13 +266,13 @@ export default function ProfileScreen({
             <button
               onClick={handleToggle}
               className={`w-full h-12 bg-transparent text-indigo-300 hover:text-white font-mono text-xs rounded-2xl border border-indigo-400 transition-all uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer ${
-                isCheckedIn 
+                isMarkedIn
                   ? 'hover:bg-rose-500/10 hover:border-rose-400 hover:text-rose-400' 
                   : 'hover:bg-indigo-400/10'
               }`}
             >
               <CalendarRange className="w-4 h-4" />
-              {isCheckedIn ? 'Salida Manual' : 'Entrada Manual'}
+              {isMarkedIn ? 'Salida Manual' : 'Entrada Manual'}
             </button>
           </div>
 
@@ -280,7 +283,7 @@ export default function ProfileScreen({
                 Historial de Turnos
               </h3>
               <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest font-semibold">
-                Oct 24 - 28
+                Historial completo
               </span>
             </div>
 
@@ -291,7 +294,8 @@ export default function ProfileScreen({
                 </div>
               ) : (
                 workerShifts.map(shift => {
-                  const isActive = shift.status === 'Active';
+                  const isActive = isShiftActiveNow(shift);
+                  const isOpenOutOfRange = shift.status === 'Active' && !isActive;
 
                   return (
                     <div
@@ -299,29 +303,31 @@ export default function ProfileScreen({
                       className={`bg-white/5 rounded-3xl p-4 flex justify-between items-center border relative overflow-hidden ${
                         isActive 
                           ? 'border-emerald-400/30 bg-emerald-500/10' 
+                          : isOpenOutOfRange
+                            ? 'border-amber-400/25 bg-amber-500/10'
                           : 'border-white/10'
                       }`}
                     >
                       {/* Left neon indicator for active shifts */}
-                      {isActive && (
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-400" />
+                      {(isActive || isOpenOutOfRange) && (
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${isActive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                       )}
 
                       <div className="flex flex-col ml-1 text-left">
                         <span className="text-sm font-semibold text-white">
-                          {formatShiftDateLabel(shift.dateString)}
+                          {formatShiftDateLabel(shift)}
                         </span>
                         <span className="text-xs font-mono text-white/40 mt-1">
-                          {shift.timespan === '14:00 - Present' ? '14:00 - Presente' : shift.timespan === '14:30 - Present' ? '14:30 - Presente' : shift.timespan === '09:00 - Present' ? '09:00 - Presente' : shift.timespan}
+                          {formatTimespanLabel(shift.timespan)}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <p className={`text-xs font-mono font-bold uppercase ${
-                            isActive ? 'text-emerald-400' : 'text-white'
+                            isActive ? 'text-emerald-400' : isOpenOutOfRange ? 'text-amber-300' : 'text-white'
                           }`}>
-                            {isActive ? 'Activo' : 'Completado'}
+                            {isActive ? 'Activo ahora' : isOpenOutOfRange ? 'Activo antiguo' : 'Completado'}
                           </p>
                           <p className="text-[10px] font-mono text-white/50 mt-0.5">
                             {shift.eventTitle}
