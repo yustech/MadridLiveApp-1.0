@@ -265,25 +265,37 @@ export default function App() {
         const elapsedMs = Number.isFinite(startTs) && endTs > startTs ? endTs - startTs : 0;
         const netAccrued = elapsedMs / (1000 * 60 * 60);
         const finalHours = worker.totalHours + netAccrued;
-
-        await updateStaff(workerId, {
+        const staffPatch: Partial<StaffMember> = {
           status: 'OUT',
           checkedInTime: '',
           lastSeen: nowIso,
           currentShiftHours: 0,
           currentShiftMins: 0,
-          totalHours: finalHours
-        });
+          totalHours: finalHours,
+        };
+
+        await updateStaff(workerId, staffPatch);
 
         if (activeShift) {
           const startLabel = activeShift.timespan.split(' - ')[0];
-          await updateShift(activeShift.id, {
+          const shiftPatch: Partial<Shift> = {
             status: 'Completed',
             timespan: `${startLabel} - ${nowStr}`,
             durationLabel: `${netAccrued.toFixed(1)}h`,
             endedAt: nowIso,
-          });
+          };
+          await updateShift(activeShift.id, shiftPatch);
+          setShifts((prev) => prev.map((shift) => (
+            shift.id === activeShift.id ? { ...shift, ...shiftPatch } : shift
+          )));
         }
+
+        setStaff((prev) => prev.map((staffMember) => (
+          staffMember.id === workerId ? { ...staffMember, ...staffPatch } : staffMember
+        )));
+        setSelectedWorker((prev) => (
+          prev?.id === workerId ? { ...prev, ...staffPatch } : prev
+        ));
 
         return true;
       }
@@ -293,7 +305,7 @@ export default function App() {
         return false;
       }
 
-      const shiftId = await addShift({
+      const newShift: Omit<Shift, 'id'> = {
         workerId: workerId,
         dateString: todayDateStr,
         timespan: `${nowStr} - Presente`,
@@ -302,16 +314,25 @@ export default function App() {
         eventTitle,
         status: 'Active',
         startedAt: nowIso,
-      });
+      };
+      const shiftId = await addShift(newShift);
 
       try {
-        await updateStaff(workerId, {
+        const staffPatch: Partial<StaffMember> = {
           status: 'IN',
           checkedInTime: nowIso,
           currentShiftHours: 0,
           currentShiftMins: 0,
           location: customLocation || worker.location || ''
-        });
+        };
+        await updateStaff(workerId, staffPatch);
+        setShifts((prev) => [{ ...newShift, id: shiftId }, ...prev]);
+        setStaff((prev) => prev.map((staffMember) => (
+          staffMember.id === workerId ? { ...staffMember, ...staffPatch } : staffMember
+        )));
+        setSelectedWorker((prev) => (
+          prev?.id === workerId ? { ...prev, ...staffPatch } : prev
+        ));
       } catch (staffErr) {
         await deleteShift(shiftId);
         throw staffErr;
