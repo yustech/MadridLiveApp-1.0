@@ -39,6 +39,8 @@
     "ops:env:validate": "bash scripts/validate-env-file.sh",
     "ops:staging:plan": "bash scripts/setup-staging.sh --plan",
     "ops:staging:apply": "bash scripts/setup-staging.sh --apply",
+    "ops:staging-public:plan": "bash scripts/setup-staging-public.sh --plan",
+    "ops:staging-public:apply": "bash scripts/setup-staging-public.sh --apply",
     "smoke:staging": "bash scripts/smoke-test-staging.sh",
     "dev:frontend": "vite --port ${PORT:-5175}",
     "dev:frontend:proddata": "VITE_MYSQL_API_BASE=/api/mysql VITE_DEV_PROXY_MYSQL_TARGET=https://inmosubastas.top vite --port ${PORT:-5175}",

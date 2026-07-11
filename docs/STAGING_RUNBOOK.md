@@ -64,9 +64,10 @@ staff_count=6
 
 Actualmente `staging.inmosubastas.top` no resuelve. Para exponer staging publicamente falta:
 
-1. Crear DNS `staging.inmosubastas.top -> 82.223.139.217`.
-2. Crear vhost/proxy HTTPS hacia `http://127.0.0.1:3001`.
-3. Emitir certificado TLS.
+1. Crear DNS externo `staging.inmosubastas.top -> 82.223.139.217`.
+   - El dominio usa AliDNS (`ns7.alidns.com`, `ns8.alidns.com`), asi que crear registros DNS en Hestia local no basta.
+2. Crear vhost/proxy hacia `http://127.0.0.1:3001`.
+3. Emitir certificado TLS cuando el DNS ya resuelva.
 4. Ejecutar smoke:
 
 ```bash
@@ -74,6 +75,25 @@ SITE_URL=https://staging.inmosubastas.top npm run smoke:staging
 ```
 
 Hasta tener HTTPS, el login UI en navegador puede fallar contra `http://127.0.0.1:3001` porque las cookies de sesion se marcan como `Secure` cuando `NODE_ENV=production`.
+
+Plan del proxy publico:
+
+```bash
+npm run ops:staging-public:plan
+```
+
+Aplicar proxy HTTP publico:
+
+```bash
+sudo npm run ops:staging-public:apply
+```
+
+Mientras el DNS no exista, se puede probar el proxy con resolucion local forzada:
+
+```bash
+curl --resolve staging.inmosubastas.top:80:82.223.139.217 \
+  -fsS http://staging.inmosubastas.top/api/health
+```
 
 ## Rollback
 
