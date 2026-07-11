@@ -395,6 +395,11 @@ test.describe('Phase 1 - business edge coverage', () => {
         },
       });
 
+      test.skip(
+        createStaffRes.status === 500 && isMysqlUnconfiguredMessage(String(createStaffRes.json?.message || createStaffRes.text || '')),
+        'MySQL is not configured in this runner; skipping scanner mutation check.'
+      );
+
       expect(createStaffRes.status).toBe(201);
       expect(createStaffRes.json?.id).toBeTruthy();
       staffId = createStaffRes.json.id;
