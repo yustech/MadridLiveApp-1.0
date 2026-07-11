@@ -27,8 +27,18 @@ certbot_status() {
 }
 
 cert_status() {
+  local cert_dir
+  local cert_parent
+
+  cert_dir="$(dirname "$CERT_PATH")"
+  cert_parent="$(dirname "$cert_dir")"
+
   if [[ -f "$CERT_PATH" ]]; then
     echo "present"
+  elif [[ -e "$cert_parent" && ! -x "$cert_parent" ]]; then
+    echo "inaccessible"
+  elif [[ -e "$cert_dir" && ! -x "$cert_dir" ]]; then
+    echo "inaccessible"
   else
     echo "missing"
   fi
