@@ -2,13 +2,18 @@
 set -euo pipefail
 
 site_url="${WATCHDOG_SITE_URL:-${DEPLOY_URL:-https://inmosubastas.top}}"
-health_url="${WATCHDOG_HEALTH_URL:-$site_url/api/health}"
-staff_url="${WATCHDOG_STAFF_URL:-$site_url/api/mysql/staff}"
+local_base_url="${WATCHDOG_LOCAL_BASE_URL:-http://127.0.0.1:3000}"
+health_url="${WATCHDOG_HEALTH_URL:-$local_base_url/api/health}"
+staff_url="${WATCHDOG_STAFF_URL:-$local_base_url/api/mysql/staff}"
 expected_staff_count="${WATCHDOG_EXPECTED_STAFF_COUNT:-9}"
 alert_webhook="${WATCHDOG_ALERT_WEBHOOK:-${DEPLOY_ALERT_WEBHOOK:-}}"
 alert_contact="${WATCHDOG_ALERT_CONTACT:-cyuste@gmail.com}"
 service_name="${WATCHDOG_SERVICE_NAME:-madridlive-app.service}"
 min_memavailable_kib="${WATCHDOG_MIN_MEMAVAILABLE_KIB:-524288}"
+
+redact_url() {
+  printf '%s' "$1" | sed -E 's/([?&](sig|token|key|password|secret)=)[^&[:space:]]+/\1[redacted]/Ig'
+}
 
 notify_failure() {
   local message="$1"
@@ -23,11 +28,24 @@ notify_failure() {
   fi
 }
 
+fetch_url() {
+  local label="$1"
+  local url="$2"
+  local response
+
+  if ! response="$(curl --connect-timeout 3 --max-time 10 --fail -sS "$url" 2>&1)"; then
+    notify_failure "[madridlive-watchdog] ${label} request failed for $service_name at $(redact_url "$url"): $response"
+    exit 1
+  fi
+
+  printf '%s' "$response"
+}
+
 check_health() {
   local response
-  response="$(curl --connect-timeout 3 --max-time 10 --fail -sS "$health_url")"
+  response="$(fetch_url "health" "$health_url")"
   printf '%s' "$response" | grep -q '"status":"ok"' || {
-    notify_failure "[madridlive-watchdog] health check failed for $service_name at $health_url"
+    notify_failure "[madridlive-watchdog] health check failed for $service_name at $(redact_url "$health_url")"
     printf '%s\n' "health response: $response" >&2
     exit 1
   }
@@ -51,12 +69,12 @@ check_memory_pressure() {
 
 check_staff() {
   local response count
-  response="$(curl --connect-timeout 3 --max-time 10 --fail -sS "$staff_url")"
+  response="$(fetch_url "staff" "$staff_url")"
   count="$(printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const a=JSON.parse(s);process.stdout.write(String(Array.isArray(a)?a.length:-1));}catch{process.stdout.write('-1');}})")"
 
   if [[ "$count" != "$expected_staff_count" ]]; then
-    notify_failure "[madridlive-watchdog] staff count check failed for $service_name at $staff_url (expected $expected_staff_count, got $count; contact $alert_contact)"
-    printf '%s\n' "staff response: $response" >&2
+    notify_failure "[madridlive-watchdog] staff count check failed for $service_name at $(redact_url "$staff_url") (expected $expected_staff_count, got $count; contact $alert_contact)"
+    printf '%s\n' "staff count response length: ${#response}" >&2
     exit 1
   fi
 }
