@@ -93,14 +93,41 @@ jobs:
     name: Shifts integrity gate (blocking)
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root-password
+          MYSQL_DATABASE: madrid_live_ci
+          MYSQL_USER: madridlive
+          MYSQL_PASSWORD: madridlive
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -umadridlive -pmadridlive"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     outputs:
       gate_failed: ${{ steps.gate_status.outputs.failed }}
     env:
-      PLAYWRIGHT_BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
-      API_BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
+      INTEGRITY_LOCAL_BASE_URL: http://127.0.0.1:5173
+      PLAYWRIGHT_BASE_URL: ${{ github.event_name == 'pull_request' && 'http://127.0.0.1:5173' || vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
+      API_BASE_URL: ${{ github.event_name == 'pull_request' && 'http://127.0.0.1:5173' || vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
       ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
+      ADMIN_LOGIN_EMAIL: ${{ secrets.ADMIN_LOGIN_EMAIL }}
+      ADMIN_LOGIN_PASSWORD: ${{ secrets.ADMIN_LOGIN_PASSWORD }}
+      ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET || secrets.ADMIN_API_TOKEN }}
+      PLAYWRIGHT_ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
+      PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
       REQUIRE_DELETE_STAFF_AUTH: ${{ vars.REQUIRE_DELETE_STAFF_AUTH || 'true' }}
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: madrid_live_ci
+      MYSQL_USER: madridlive
+      MYSQL_PASSWORD: madridlive
 
     steps:
       - name: Checkout
@@ -118,6 +145,49 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
+      - name: Validate admin integrity credentials
+        run: |
+          missing=0
+          for name in ADMIN_API_TOKEN PLAYWRIGHT_ADMIN_API_TOKEN PLAYWRIGHT_ADMIN_EMAIL PLAYWRIGHT_ADMIN_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::${name} is required for shifts integrity coverage."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Build local integrity app
+        if: github.event_name == 'pull_request'
+        run: npm run build
+
+      - name: Start local integrity app
+        if: github.event_name == 'pull_request'
+        run: |
+          DISABLE_HMR=true PORT=5173 NODE_ENV=development npm start > /tmp/madridlive-shifts-integrity.log 2>&1 &
+          echo "$!" > /tmp/madridlive-shifts-integrity.pid
+
+          for attempt in {1..60}; do
+            if curl -fsS "$INTEGRITY_LOCAL_BASE_URL/api/health" >/dev/null; then
+              echo "Local shifts integrity app is healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::Local shifts integrity app did not become healthy."
+          cat /tmp/madridlive-shifts-integrity.log
+          exit 1
+
+      - name: Seed local integrity MySQL fixture
+        if: github.event_name == 'pull_request'
+        run: |
+          curl -fsS \
+            -X POST \
+            -H "x-admin-token: $ADMIN_API_TOKEN" \
+            "$INTEGRITY_LOCAL_BASE_URL/api/mysql/reset-initial"
+
+          curl -fsS "$INTEGRITY_LOCAL_BASE_URL/api/mysql/staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const rows=JSON.parse(s); if (!Array.isArray(rows) || rows.length === 0) { throw new Error('Local integrity fixture has no staff rows.'); } console.log('staff_count=' + rows.length);});"
+
       - name: Run shifts API regression
         id: api_regression
         run: npm run test:api:shifts:regression
@@ -125,6 +195,21 @@ jobs:
       - name: Run phase1 edge e2e
         id: phase1_edges
         run: npm run test:e2e:phase1:edges
+
+      - name: Stop local integrity app
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        run: |
+          if [ -f /tmp/madridlive-shifts-integrity.pid ]; then
+            kill "$(cat /tmp/madridlive-shifts-integrity.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload local integrity server log
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: shifts-integrity-server-log
+          path: /tmp/madridlive-shifts-integrity.log
+          if-no-files-found: ignore
 
       - name: Capture shifts integrity outcome
         if: ${{ always() }}
