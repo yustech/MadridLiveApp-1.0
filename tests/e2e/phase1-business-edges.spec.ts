@@ -366,4 +366,73 @@ test.describe('Phase 1 - business edge coverage', () => {
     await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Ingreso Manual de ID/i })).toBeVisible();
   });
+
+  test('scanner supports immediate manual check-in and check-out without reload', async ({ page, request }) => {
+    test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for scanner mutation checks.');
+
+    const idCode = `FAST${Date.now()}`.slice(0, 20);
+    const name = `Fast Toggle Worker ${idCode.slice(-6)}`;
+    let staffId = '';
+
+    try {
+      const createStaffRes = await api(request, '/api/mysql/staff', {
+        method: 'POST',
+        body: {
+          idCode,
+          name,
+          role: 'Auxiliar',
+          roleLabel: 'AUXILIAR',
+          status: 'OUT',
+          checkedInTime: '',
+          lastSeen: new Date().toISOString(),
+          avatar: '',
+          email: `${idCode.toLowerCase()}@example.test`,
+          phone: '+34910000123',
+          totalHours: 0,
+          currentShiftHours: 0,
+          currentShiftMins: 0,
+          location: 'QA Fast Gate',
+        },
+      });
+
+      expect(createStaffRes.status).toBe(201);
+      expect(createStaffRes.json?.id).toBeTruthy();
+      staffId = createStaffRes.json.id;
+
+      await loginWithAdmin(page);
+      await page.getByRole('button', { name: /Lector QR/i }).click();
+      await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+
+      await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
+      await page.locator('input[placeholder*="SEC-042"]').fill(idCode);
+      await page.getByRole('button', { name: /^ENVIAR$/i }).click();
+      await expect(page.getByText(/ENTRADA REGISTRADA/i)).toBeVisible({ timeout: 12_000 });
+
+      await page.getByRole('button', { name: /Volver a Escanear/i }).click();
+      await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
+      await page.locator('input[placeholder*="SEC-042"]').fill(idCode);
+      await page.getByRole('button', { name: /^ENVIAR$/i }).click();
+      await expect(page.getByText(/SALIDA REGISTRADA/i)).toBeVisible({ timeout: 12_000 });
+
+      await expect.poll(async () => {
+        const staffRes = await api(request, '/api/mysql/staff');
+        const staff = Array.isArray(staffRes.json) ? staffRes.json : [];
+        return staff.find((member: any) => member.id === staffId)?.status;
+      }).toBe('OUT');
+    } finally {
+      if (staffId) {
+        const shiftsRes = await api(request, '/api/mysql/shifts');
+        const shifts = Array.isArray(shiftsRes.json) ? shiftsRes.json : [];
+        const workerShiftIds = shifts
+          .filter((shift: any) => shift.workerId === staffId)
+          .map((shift: any) => shift.id);
+
+        for (const shiftId of workerShiftIds) {
+          await api(request, `/api/mysql/shifts/${shiftId}`, { method: 'DELETE' });
+        }
+
+        await api(request, `/api/mysql/staff/${staffId}`, { method: 'DELETE' });
+      }
+    }
+  });
 });
