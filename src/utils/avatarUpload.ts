@@ -1,8 +1,21 @@
 export const DEFAULT_FEMALE_AVATAR = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200';
 export const DEFAULT_MALE_AVATAR = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200';
+export const DEFAULT_AVATAR = DEFAULT_MALE_AVATAR;
 
 const MAX_AVATAR_SIDE = 320;
 const JPEG_QUALITY = 0.78;
+
+export function getAvatarSrc(src?: string | null): string {
+  const trimmedSrc = src?.trim();
+  return trimmedSrc || DEFAULT_AVATAR;
+}
+
+export function setFallbackAvatar(image: HTMLImageElement): void {
+  if (image.dataset.avatarFallbackApplied === 'true') return;
+
+  image.dataset.avatarFallbackApplied = 'true';
+  image.src = DEFAULT_AVATAR;
+}
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

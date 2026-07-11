@@ -18,6 +18,7 @@ import {
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
 import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
+import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleBucket, getRoleDisplayName } from '../utils/roles';
 import {
   formatShiftDateLabel,
@@ -68,6 +69,15 @@ function getShiftEventTitle(shift: Shift): string {
 
 function normalizeShiftDateLabel(dateString: string, timespan = '00:00 - 00:00', updatedAt?: string, shiftId?: string, startedAt?: string): string {
   return formatShiftDateLabel(buildShiftDateLike(dateString, timespan, updatedAt, shiftId, startedAt));
+}
+
+function formatDateInputLabel(value: string): string {
+  if (!value) return 'dd/mm/aaaa';
+
+  const [year, month, day] = value.split('-');
+  if (!year || !month || !day) return value;
+
+  return `${day}/${month}/${year}`;
 }
 
 interface ShiftsScreenProps {
@@ -123,15 +133,6 @@ export default function ShiftsScreen({
     }
   }, [roleFilters, selectedRole]);
 
-  const openDatePicker = (inputId: 'custom-date-from' | 'custom-date-to') => {
-    const input = document.getElementById(inputId) as HTMLInputElement | null;
-    if (input?.showPicker) {
-      input.showPicker();
-    } else {
-      input?.focus();
-    }
-  };
-
   // 1. Extract unique dates from the shifts list for the date filter dropdown
   const uniqueDates = useMemo(() => {
     const datesSet = new Set<string>();
@@ -171,7 +172,7 @@ export default function ShiftsScreen({
         workerIdCode: worker ? worker.idCode : 'SIN-ID',
         workerRole: worker ? worker.role : 'Auxiliar',
         workerRoleLabel: worker ? worker.roleLabel : 'AUXILIAR',
-        workerAvatar: worker ? worker.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+        workerAvatar: getAvatarSrc(worker?.avatar),
       };
     });
   }, [shifts, staff]);
@@ -537,43 +538,41 @@ export default function ShiftsScreen({
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
           <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
             <div>
-              <label className="text-[9px] font-mono uppercase tracking-wider text-white/35 block mb-1">Desde</label>
+              <label htmlFor="custom-date-from" className="text-[9px] font-mono uppercase tracking-wider text-white/35 block mb-1">Desde</label>
               <div className="relative">
                 <input
                   id="custom-date-from"
                   type="date"
                   value={customDateFrom}
                   onChange={(e) => setCustomDateFrom(e.target.value)}
-                  className="w-full bg-[#120f26] border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  aria-label="Fecha desde"
+                  className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                 />
-                <button
-                  type="button"
-                  onClick={() => openDatePicker('custom-date-from')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-300/80 hover:text-indigo-200 transition-colors cursor-pointer"
-                  aria-label="Abrir calendario desde"
-                >
-                  <Calendar className="w-4 h-4" />
-                </button>
+                <div className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#120f26] px-3.5 py-2.5 text-xs text-white transition-colors peer-focus:border-indigo-400">
+                  <span className={customDateFrom ? 'text-white' : 'text-white/35'}>
+                    {formatDateInputLabel(customDateFrom)}
+                  </span>
+                  <Calendar className="w-4 h-4 text-indigo-300/80" />
+                </div>
               </div>
             </div>
             <div>
-              <label className="text-[9px] font-mono uppercase tracking-wider text-white/35 block mb-1">Hasta</label>
+              <label htmlFor="custom-date-to" className="text-[9px] font-mono uppercase tracking-wider text-white/35 block mb-1">Hasta</label>
               <div className="relative">
                 <input
                   id="custom-date-to"
                   type="date"
                   value={customDateTo}
                   onChange={(e) => setCustomDateTo(e.target.value)}
-                  className="w-full bg-[#120f26] border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  aria-label="Fecha hasta"
+                  className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                 />
-                <button
-                  type="button"
-                  onClick={() => openDatePicker('custom-date-to')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-300/80 hover:text-indigo-200 transition-colors cursor-pointer"
-                  aria-label="Abrir calendario hasta"
-                >
-                  <Calendar className="w-4 h-4" />
-                </button>
+                <div className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#120f26] px-3.5 py-2.5 text-xs text-white transition-colors peer-focus:border-indigo-400">
+                  <span className={customDateTo ? 'text-white' : 'text-white/35'}>
+                    {formatDateInputLabel(customDateTo)}
+                  </span>
+                  <Calendar className="w-4 h-4 text-indigo-300/80" />
+                </div>
               </div>
             </div>
           </div>
@@ -722,6 +721,7 @@ export default function ShiftsScreen({
                               src={shift.workerAvatar}
                               alt={shift.workerName}
                               className="w-8 h-8 rounded-lg object-cover border border-white/10"
+                              onError={(event) => setFallbackAvatar(event.currentTarget)}
                             />
                             <div>
                               <button
@@ -835,6 +835,7 @@ export default function ShiftsScreen({
                           src={shift.workerAvatar}
                           alt={shift.workerName}
                           className="w-9 h-9 rounded-lg object-cover border border-white/15"
+                          onError={(event) => setFallbackAvatar(event.currentTarget)}
                         />
                         <div>
                           <button
@@ -965,6 +966,7 @@ export default function ShiftsScreen({
                 src={selectedShiftDetail.workerAvatar}
                 alt={selectedShiftDetail.workerName}
                 className="w-16 h-16 rounded-2xl object-cover border border-white/15 shrink-0"
+                onError={(event) => setFallbackAvatar(event.currentTarget)}
               />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-indigo-300/80">Detalle del fichaje</p>
