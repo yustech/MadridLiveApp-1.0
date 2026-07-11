@@ -14,7 +14,7 @@ import {
   Users,
   Tv
 } from 'lucide-react';
-import { StaffMember, LiveEvent } from '../types';
+import { StaffMember, LiveEvent, Shift } from '../types';
 import {
   formatEventDate,
   getEventStatusLabel,
@@ -22,9 +22,15 @@ import {
   getEventTemporalState,
   sortEventsByDate,
 } from '../utils/events';
+import {
+  getActiveShiftForWorker,
+  getShiftStartTimestamp,
+  isWorkerPresentNow,
+} from '../utils/shifts';
 
 interface ScannerScreenProps {
   staff: StaffMember[];
+  shifts: Shift[];
   events: LiveEvent[];
   activeEventId: string;
   setActiveEventId: (id: string) => void;
@@ -64,6 +70,7 @@ const roleIconMap: Record<string, string> = {
 
 export default function ScannerScreen({
   staff,
+  shifts,
   events,
   activeEventId,
   setActiveEventId,
@@ -283,10 +290,17 @@ export default function ScannerScreen({
   );
 
   const activeSelectedWorker = staff.find(w => w.id === selectedWorkerId) || staff[0];
+  const isActiveSelectedWorkerPresent = activeSelectedWorker
+    ? isWorkerPresentNow(activeSelectedWorker, shifts)
+    : false;
+  const isActiveSelectedWorkerOpen = activeSelectedWorker?.status === 'IN';
 
   const getWorkerDurationLabel = (worker: StaffMember) => {
+    const activeShift = getActiveShiftForWorker(shifts, worker.id);
     const fallbackMinutes = (worker.currentShiftHours || 0) * 60 + (worker.currentShiftMins || 0);
-    const startTs = worker.checkedInTime ? new Date(worker.checkedInTime).getTime() : Number.NaN;
+    const shiftStartTs = activeShift ? getShiftStartTimestamp(activeShift) : null;
+    const workerStartTs = worker.checkedInTime ? new Date(worker.checkedInTime).getTime() : Number.NaN;
+    const startTs = shiftStartTs ?? workerStartTs;
     const elapsedMinutes = Number.isFinite(startTs) && Date.now() > startTs
       ? Math.floor((Date.now() - startTs) / (1000 * 60))
       : fallbackMinutes;
@@ -302,7 +316,7 @@ export default function ScannerScreen({
 
   const handlePrimaryAction = () => {
     if (!activeSelectedWorker) return;
-    if (activeSelectedWorker.status === 'IN') {
+    if (isActiveSelectedWorkerOpen) {
       setCloseConfirmWorker(activeSelectedWorker);
       return;
     }
@@ -560,25 +574,34 @@ export default function ScannerScreen({
             {filteredStaff.length === 0 ? (
               <p className="text-[11px] font-mono text-white/30 text-center py-4">No se encontraron resultados</p>
             ) : (
-              filteredStaff.map(w => (
-                <button
-                  key={w.id}
-                  onClick={() => setSelectedWorkerId(w.id)}
-                  className={`w-full p-2 rounded-xl flex items-center gap-2 border text-left font-mono text-xs transition-colors cursor-pointer ${
-                    w.id === activeSelectedWorker?.id
-                      ? 'bg-indigo-500/15 border-indigo-400/40 text-white'
-                      : 'bg-white/5 border-transparent text-white/60 hover:bg-white/10'
-                  }`}
-                >
-                  <img src={w.avatar} className="w-6 h-6 rounded-full object-cover shrink-0" alt="" />
-                  <span className="truncate flex-1 font-semibold">{w.name}</span>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
-                    w.status === 'IN' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'
-                  }`}>
-                    {w.status === 'IN' ? 'DENTRO' : 'FUERA'}
-                  </span>
-                </button>
-              ))
+              filteredStaff.map(w => {
+                const isPresent = isWorkerPresentNow(w, shifts);
+                const isOpenOutOfRange = w.status === 'IN' && !isPresent;
+
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => setSelectedWorkerId(w.id)}
+                    className={`w-full p-2 rounded-xl flex items-center gap-2 border text-left font-mono text-xs transition-colors cursor-pointer ${
+                      w.id === activeSelectedWorker?.id
+                        ? 'bg-indigo-500/15 border-indigo-400/40 text-white'
+                        : 'bg-white/5 border-transparent text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    <img src={w.avatar} className="w-6 h-6 rounded-full object-cover shrink-0" alt="" />
+                    <span className="truncate flex-1 font-semibold">{w.name}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                      isPresent
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : isOpenOutOfRange
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-white/10 text-white/40'
+                    }`}>
+                      {isPresent ? 'DENTRO' : isOpenOutOfRange ? 'IN ANT.' : 'FUERA'}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -621,11 +644,13 @@ export default function ScannerScreen({
                 </p>
                 <div className="flex gap-1.5 mt-2 flex-wrap">
                   <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase font-bold ${
-                    activeSelectedWorker.status === 'IN' 
+                    isActiveSelectedWorkerPresent
                       ? 'bg-emerald-500/10 border-emerald-400/20 text-emerald-300' 
+                      : isActiveSelectedWorkerOpen
+                        ? 'bg-amber-500/10 border-amber-400/20 text-amber-300'
                       : 'bg-white/10 border-white/10 text-white/50'
                   }`}>
-                    {activeSelectedWorker.status === 'IN' ? 'EN EL RECINTO' : 'FUERA DEL RECINTO'}
+                    {isActiveSelectedWorkerPresent ? 'EN EL RECINTO' : isActiveSelectedWorkerOpen ? 'IN FUERA DE FECHA' : 'FUERA DEL RECINTO'}
                   </span>
                 </div>
               </div>
@@ -669,23 +694,27 @@ export default function ScannerScreen({
               <div className="text-[10px] font-mono text-white/50 text-center">
                 Evento activo: {activeEvent?.title || 'Sin evento'}
               </div>
-              {!isActiveEventOperable && activeSelectedWorker.status !== 'IN' && (
+              {!isActiveEventOperable && !isActiveSelectedWorkerOpen && (
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
                   Inicio bloqueado para evento {getEventStatusLabel(activeEvent).toLowerCase()}. Selecciona un evento de hoy.
                 </div>
               )}
-              {activeSelectedWorker.status === 'IN' && (
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
-                  Turno abierto · Duracion estimada: {activeSelectedWorkerDuration}
+              {isActiveSelectedWorkerOpen && (
+                <div className={`rounded-xl border px-3 py-2 text-[10px] font-mono ${
+                  isActiveSelectedWorkerPresent
+                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                    : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+                }`}>
+                  {isActiveSelectedWorkerPresent ? 'Turno abierto' : 'Turno abierto fuera de fecha'} · Duracion estimada: {activeSelectedWorkerDuration}
                 </div>
               )}
               <button
                 onClick={handlePrimaryAction}
-                disabled={isScanActive || (activeSelectedWorker.status !== 'IN' && !isActiveEventOperable)}
+                disabled={isScanActive || (!isActiveSelectedWorkerOpen && !isActiveEventOperable)}
                 className="w-full h-12 bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white disabled:from-white/10 disabled:to-white/5 disabled:text-white/40 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all duration-350 cursor-pointer shadow-indigo-500/10 hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
               >
                 <QrCode className={`w-4 h-4 ${isScanActive ? 'animate-spin' : ''}`} />
-                <span>{activeSelectedWorker.status === 'IN' ? 'CERRAR TURNO GUIADO' : 'INICIO TURNO 1 CLIC'}</span>
+                <span>{isActiveSelectedWorkerOpen ? 'CERRAR TURNO GUIADO' : 'INICIO TURNO 1 CLIC'}</span>
               </button>
             </div>
 

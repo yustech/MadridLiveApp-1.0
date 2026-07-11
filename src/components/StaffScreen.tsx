@@ -9,13 +9,15 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { StaffMember } from '../types';
+import { Shift, StaffMember } from '../types';
 import { addStaffBatch } from '../dbService';
 import { DEFAULT_FEMALE_AVATAR, DEFAULT_MALE_AVATAR, fileToAvatarDataUrl } from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
+import { isWorkerPresentNow } from '../utils/shifts';
 
 interface StaffScreenProps {
   staff: StaffMember[];
+  shifts: Shift[];
   onSelectWorker: (worker: StaffMember) => void;
   onAddWorker: (worker: Omit<StaffMember, 'id'>) => Promise<void> | void;
 }
@@ -50,6 +52,7 @@ function normalizeRole(role: string): StaffMember['role'] {
 
 export default function StaffScreen({
   staff,
+  shifts,
   onSelectWorker,
   onAddWorker,
 }: StaffScreenProps) {
@@ -77,7 +80,7 @@ export default function StaffScreen({
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
 
-  const checkedInCount = staff.filter((s) => s.status === 'IN').length;
+  const checkedInCount = staff.filter((worker) => isWorkerPresentNow(worker, shifts)).length;
   const roleFilters = useMemo(() => getDynamicRoleFilters(staff), [staff]);
 
   useEffect(() => {
@@ -126,13 +129,15 @@ export default function StaffScreen({
       case 'ActiveFirst':
       default:
         return copied.sort((a, b) => {
-          if (a.status === b.status) {
+          const aPresent = isWorkerPresentNow(a, shifts);
+          const bPresent = isWorkerPresentNow(b, shifts);
+          if (aPresent === bPresent) {
             return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
           }
-          return a.status === 'IN' ? -1 : 1;
+          return aPresent ? -1 : 1;
         });
     }
-  }, [filteredStaff, sortMode]);
+  }, [filteredStaff, sortMode, shifts]);
 
   const totalPages = Math.max(1, Math.ceil(orderedStaff.length / pageSize));
   const pageStartIndex = (currentPage - 1) * pageSize;
@@ -366,7 +371,8 @@ export default function StaffScreen({
           </div>
         ) : (
           paginatedStaff.map((worker) => {
-            const isCheckedIn = worker.status === 'IN';
+            const isCheckedIn = isWorkerPresentNow(worker, shifts);
+            const isOpenOutOfRange = worker.status === 'IN' && !isCheckedIn;
 
             return (
               <div
@@ -375,16 +381,20 @@ export default function StaffScreen({
                 className={`rounded-3xl p-5 relative overflow-hidden group cursor-pointer transition-all duration-200 border ${
                   isCheckedIn
                     ? 'bg-emerald-500/10 border-emerald-400/20 hover:bg-emerald-500/15'
+                    : isOpenOutOfRange
+                      ? 'bg-amber-500/10 border-amber-400/20 hover:bg-amber-500/15'
                     : 'bg-white/5 border-white/10 hover:bg-white/10'
                 }`}
               >
                 <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-mono font-bold flex items-center gap-1.5 ${
                   isCheckedIn
                     ? 'bg-emerald-400 text-slate-900 shadow-success-glow'
+                    : isOpenOutOfRange
+                      ? 'bg-amber-400 text-slate-900'
                     : 'bg-white/10 text-white/60 border-l border-b border-white/10'
                 }`}>
                   {isCheckedIn && <CheckCircle2 className="w-3.5 h-3.5" />}
-                  {isCheckedIn ? 'DENTRO' : 'FUERA'}
+                  {isCheckedIn ? 'DENTRO' : isOpenOutOfRange ? 'IN ANTIGUO' : 'FUERA'}
                 </div>
 
                 <div className="flex items-start gap-4">
@@ -418,6 +428,8 @@ export default function StaffScreen({
                         <span className="truncate">
                           {isCheckedIn
                             ? `Entrada: ${formatPresenceTimestamp(worker.checkedInTime)}`
+                            : isOpenOutOfRange
+                              ? 'IN fuera de la ventana actual'
                             : `Última vez: ${formatPresenceTimestamp(worker.lastSeen)}`}
                         </span>
                       </div>

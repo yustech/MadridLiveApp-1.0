@@ -12,7 +12,7 @@ import {
   Trash2,
   History
 } from 'lucide-react';
-import { LiveEvent, EquipmentAlert, StaffMember } from '../types';
+import { LiveEvent, EquipmentAlert, StaffMember, Shift } from '../types';
 import {
   formatEventDate,
   getEventStatusLabel,
@@ -20,11 +20,17 @@ import {
   getEventTemporalState,
   sortEventsByDate,
 } from '../utils/events';
+import {
+  getActiveShiftForWorker,
+  getShiftStartTimestamp,
+  isWorkerPresentNow,
+} from '../utils/shifts';
 
 interface DashboardScreenProps {
   events: LiveEvent[];
   alerts: EquipmentAlert[];
   staff: StaffMember[];
+  shifts: Shift[];
   activeEventId: string;
   setActiveEventId: (id: string) => void;
   onLaunchScanner: () => void;
@@ -35,6 +41,7 @@ export default function DashboardScreen({
   events,
   alerts,
   staff,
+  shifts,
   activeEventId,
   setActiveEventId,
   onLaunchScanner,
@@ -49,6 +56,7 @@ export default function DashboardScreen({
   // Focus card follows the selected event, but its temporal state is shown explicitly.
   const liveEvent = events.find(e => e.id === activeEventId) || events[0] || null;
   const liveEventState = getEventTemporalState(liveEvent);
+  const isOperationalFocus = liveEventState === 'today';
   const liveEventStatusLabel = liveEventState === 'today' ? 'PRODUCCIÓN DE HOY' : getEventStatusLabel(liveEvent);
   const nonLiveEvents = useMemo(() => {
     return (liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events]);
@@ -65,20 +73,27 @@ export default function DashboardScreen({
     );
   }, [nonLiveEvents]);
 
-  // Dynamically calculate active staff count from local state
-  const checkedInStaffCount = staff.filter(s => s.status === 'IN').length;
+  const presentStaff = useMemo(() => {
+    const now = new Date();
+    return staff.filter((member) => isWorkerPresentNow(member, shifts, now));
+  }, [staff, shifts]);
+
+  // Active staff is intentionally "active now", not stale IN flags from old fixtures.
+  const checkedInStaffCount = presentStaff.length;
   const activeRequiredStaff = liveEvent?.requiredStaff ?? liveEvent?.totalStaffNeeded ?? 0;
-  const pendingNowCount = Math.max(activeRequiredStaff - checkedInStaffCount, 0);
+  const pendingNowCount = isOperationalFocus ? Math.max(activeRequiredStaff - checkedInStaffCount, 0) : 0;
 
   const longShiftWorkers = useMemo(() => {
     const LONG_SHIFT_MINUTES = 8 * 60;
     const now = Date.now();
 
-    return staff
-      .filter((member) => member.status === 'IN')
+    return presentStaff
       .map((member) => {
+        const activeShift = getActiveShiftForWorker(shifts, member.id);
         const fallbackMinutes = (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0);
-        const startTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
+        const shiftStartTs = activeShift ? getShiftStartTimestamp(activeShift) : null;
+        const workerStartTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
+        const startTs = shiftStartTs ?? workerStartTs;
         const elapsedMinutes = Number.isFinite(startTs) && now > startTs
           ? Math.floor((now - startTs) / (1000 * 60))
           : fallbackMinutes;
@@ -93,22 +108,44 @@ export default function DashboardScreen({
       })
       .filter((member) => member.shiftMinutes >= LONG_SHIFT_MINUTES)
       .sort((a, b) => b.shiftMinutes - a.shiftMinutes);
-  }, [staff]);
+  }, [presentStaff, shifts]);
 
   const pendingNowCandidates = useMemo(() => {
+    if (!isOperationalFocus) return [];
+
     return staff
       .filter((member) => member.status === 'OUT')
       .slice(0, Math.max(pendingNowCount, 3));
-  }, [staff, pendingNowCount]);
+  }, [staff, pendingNowCount, isOperationalFocus]);
 
   const getCoverageStats = (event: LiveEvent | null) => {
     const required = event?.requiredStaff ?? event?.totalStaffNeeded ?? 0;
+    const temporalState = getEventTemporalState(event);
     const active = event
-      ? (event.id === liveEvent?.id ? checkedInStaffCount : event.activeStaff ?? 0)
+      ? (temporalState === 'today'
+        ? (event.id === liveEvent?.id ? checkedInStaffCount : event.activeStaff ?? 0)
+        : 0)
       : 0;
 
-    const gap = required - active;
     const coveragePct = required > 0 ? Math.round((active / required) * 100) : 100;
+
+    if (temporalState === 'future') {
+      return {
+        label: `${required} planificados`,
+        tone: 'text-sky-300 border-sky-400/30 bg-sky-500/10',
+        coveragePct,
+      };
+    }
+
+    if (temporalState === 'past') {
+      return {
+        label: 'Archivado',
+        tone: 'text-white/50 border-white/15 bg-white/5',
+        coveragePct,
+      };
+    }
+
+    const gap = required - active;
 
     if (gap > 0) {
       return {
@@ -224,7 +261,7 @@ export default function DashboardScreen({
           <div className="grid grid-cols-3 gap-4 border-t border-white/10 pt-5 mt-auto">
             <div>
               <p className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">
-                Personal Activo
+                Personal Ahora
               </p>
               <p className="text-xl font-display font-medium text-indigo-300">
                 {checkedInStaffCount} <span className="text-xs text-white/20">/ {liveEvent?.requiredStaff ?? liveEvent?.totalStaffNeeded ?? 0}</span>
@@ -314,11 +351,17 @@ export default function DashboardScreen({
 
       <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">Pendientes ahora</h3>
-          <span className="text-sm font-display font-bold text-amber-300">{pendingNowCount}</span>
+          <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
+            {isOperationalFocus ? 'Pendientes ahora' : 'Planificación de cobertura'}
+          </h3>
+          <span className="text-sm font-display font-bold text-amber-300">
+            {isOperationalFocus ? pendingNowCount : activeRequiredStaff}
+          </span>
         </div>
         <p className="text-xs text-white/60">
-          Fichajes pendientes para cubrir el evento activo ({checkedInStaffCount}/{activeRequiredStaff}).
+          {isOperationalFocus
+            ? `Fichajes pendientes para cubrir el evento activo (${checkedInStaffCount}/${activeRequiredStaff}).`
+            : 'Este evento no pertenece al día operativo; no se cuentan fichajes como activos ahora.'}
         </p>
         <div className="flex flex-wrap gap-2">
           {pendingNowCount > 0 ? (
@@ -329,7 +372,7 @@ export default function DashboardScreen({
             ))
           ) : (
             <span className="text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1 text-emerald-300">
-              Cobertura completa ahora mismo
+              {isOperationalFocus ? 'Cobertura completa ahora mismo' : 'Sin conteo operativo hasta el día del evento'}
             </span>
           )}
         </div>
@@ -544,15 +587,17 @@ export default function DashboardScreen({
             {/* Actions */}
             <div className="flex flex-col gap-2">
               <button
+                disabled={getEventTemporalState(selectedDetailEvent) !== 'today'}
                 onClick={() => {
+                  if (getEventTemporalState(selectedDetailEvent) !== 'today') return;
                   setActiveEventId(selectedDetailEvent.id);
                   onLaunchScanner();
                   setSelectedDetailEvent(null);
                 }}
-                className="w-full h-11 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-indigo-500/20 hover:shadow-hud-glow"
+                className="w-full h-11 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 disabled:from-white/10 disabled:to-white/10 disabled:text-white/30 disabled:border disabled:border-white/10 disabled:cursor-not-allowed text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-indigo-500/20 hover:shadow-hud-glow"
               >
                 <QrCode className="w-4 h-4" />
-                <span>Hacer registro QR en este evento</span>
+                <span>{getEventTemporalState(selectedDetailEvent) === 'today' ? 'Hacer registro QR en este evento' : 'QR disponible solo el día del evento'}</span>
               </button>
 
               <button

@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
 import { getEventTemporalState, isOperableEvent, sortEventsByDate } from './utils/events';
+import { getActiveShiftForWorker, isWorkerPresentNow } from './utils/shifts';
 
 
 import {
@@ -62,9 +63,10 @@ export default function App() {
   const [selectedWorker, setSelectedWorker] = useState<StaffMember | null>(null);
   const [activeEventId, setActiveEventId] = useState<string>('');
 
+  const presentStaffCount = staff.filter((member) => isWorkerPresentNow(member, shifts)).length;
   const activeZonesCount = new Set(
     staff
-      .filter((s) => s.status === 'IN' && s.location)
+      .filter((s) => isWorkerPresentNow(s, shifts) && s.location)
       .map((s) => s.location.split('(')[0].trim())
   ).size;
 
@@ -258,7 +260,8 @@ export default function App() {
 
     try {
       if (isCurrentlyIn) {
-        const activeShift = shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
+        const activeShift = getActiveShiftForWorker(shifts, workerId)
+          || shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
         const canonicalStartIso = activeShift?.startedAt || worker.checkedInTime || nowIso;
         const startTs = new Date(canonicalStartIso).getTime();
         const endTs = new Date(nowIso).getTime();
@@ -669,7 +672,7 @@ export default function App() {
           <div className="space-y-2.5 font-mono text-[11px]">
             <div className="flex justify-between">
               <span className="text-white/40">Presentes:</span>
-              <span className="text-emerald-400 font-bold">{staff.filter(s => s.status === 'IN').length}</span>
+              <span className="text-emerald-400 font-bold">{presentStaffCount}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-white/40">Zonas Activas:</span>
@@ -781,7 +784,7 @@ export default function App() {
         </header>
 
         {/* RENDERED ACTIVE VIEW CANVASES WITH FLUID VIEWPORTS */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-12 overflow-y-auto">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-5 md:px-8 py-6 md:py-8 pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-12 overflow-y-auto scroll-pb-[calc(11rem+env(safe-area-inset-bottom))]">
           <Suspense
             fallback={renderActiveScreenFallback()}
           >
@@ -790,6 +793,7 @@ export default function App() {
                 events={events}
                 alerts={alerts}
                 staff={staff}
+                shifts={shifts}
                 activeEventId={activeEventId}
                 setActiveEventId={setActiveEventId}
                 onLaunchScanner={() => setActiveScreen('scanner')}
@@ -800,6 +804,7 @@ export default function App() {
             {activeScreen === 'staff' && (
               <StaffScreen
                 staff={staff}
+                shifts={shifts}
                 onSelectWorker={handleSelectWorker}
                 onAddWorker={handleAddNewCrewMember}
               />
@@ -808,6 +813,7 @@ export default function App() {
             {activeScreen === 'scanner' && (
               <ScannerScreen
                 staff={staff}
+                shifts={shifts}
                 events={events}
                 activeEventId={activeEventId}
                 setActiveEventId={setActiveEventId}
@@ -861,7 +867,7 @@ export default function App() {
       </Suspense>
 
       {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}
-      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
+      <nav id="bottom-navigation-dock" className="md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md z-40 bg-[#120f26]/90 backdrop-blur-xl border border-white/10 flex justify-around items-center py-2 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl">
         {/* Events active screen trigger */}
         <button
           onClick={() => setActiveScreen('dashboard')}

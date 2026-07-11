@@ -19,6 +19,11 @@ import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
 import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
 import { getDynamicRoleFilters, getRoleBucket, getRoleDisplayName } from '../utils/roles';
+import {
+  formatShiftDateLabel,
+  getShiftStartTimestamp,
+  ShiftDateLike,
+} from '../utils/shifts';
 
 interface EnrichedShift extends Shift {
   workerName: string;
@@ -37,148 +42,32 @@ function getRoleBadgeTone(role: string): string {
   return 'bg-amber-500/10 border border-amber-400/20 text-amber-300';
 }
 
-const MONTH_INDEX: Record<string, number> = {
-  ENE: 0,
-  JAN: 0,
-  FEB: 1,
-  MAR: 2,
-  ABR: 3,
-  APR: 3,
-  MAY: 4,
-  JUN: 5,
-  JUL: 6,
-  AGO: 7,
-  AUG: 7,
-  SEP: 8,
-  OCT: 9,
-  NOV: 10,
-  DIC: 11,
-  DEC: 11,
-};
-
-function extractShiftTimestampFromId(shiftId?: string): number | null {
-  if (!shiftId) return null;
-  const match = shiftId.match(/^sh_(\d{13})(?:_|$)/);
-  if (!match) return null;
-  const timestamp = Number(match[1]);
-  return Number.isFinite(timestamp) ? timestamp : null;
+function buildShiftDateLike(
+  dateString: string,
+  timespan: string,
+  updatedAt?: string,
+  shiftId?: string,
+  startedAt?: string
+): ShiftDateLike {
+  return {
+    dateString,
+    timespan,
+    updatedAt,
+    id: shiftId,
+    startedAt,
+  };
 }
 
 function parseShiftDateTime(dateString: string, timespan: string, updatedAt?: string, shiftId?: string, startedAt?: string): number {
-  const now = new Date();
-  const canonicalStart = startedAt ? new Date(startedAt) : null;
-  if (canonicalStart && !Number.isNaN(canonicalStart.getTime())) {
-    return canonicalStart.getTime();
-  }
-  const normalized = dateString.trim().toLowerCase();
-  const [startHourRaw, startMinuteRaw] = timespan.split(' - ')[0]?.split(':') || ['0', '0'];
-
-  const build = (year: number, monthZeroBased: number, day: number) =>
-    new Date(
-      year,
-      monthZeroBased,
-      day,
-      Number(startHourRaw) || 0,
-      Number(startMinuteRaw) || 0,
-      0,
-      0
-    ).getTime();
-
-  const isoMatch = normalized.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) {
-    const year = Number(isoMatch[1]);
-    const month = Number(isoMatch[2]) - 1;
-    const day = Number(isoMatch[3]);
-    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
-      return build(year, month, day);
-    }
-  }
-
-  const slashDateMatch = normalized.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
-  if (slashDateMatch) {
-    const first = Number(slashDateMatch[1]);
-    const second = Number(slashDateMatch[2]);
-    const rawYear = Number(slashDateMatch[3]);
-    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
-
-    // Accept both dd/mm/yyyy and mm/dd/yyyy to avoid locale mismatch gaps.
-    let day = first;
-    let month = second - 1;
-    if (first <= 12 && second > 12) {
-      day = second;
-      month = first - 1;
-    }
-
-    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
-      return build(year, month, day);
-    }
-  }
-
-  const dateMatch = dateString.match(/(\d{1,2})[\s,.-]+([a-záéíóúñ]{3,9})/i);
-  const parsedMonth = dateMatch ? MONTH_INDEX[dateMatch[2].slice(0, 3).toUpperCase()] : undefined;
-  if (dateMatch && parsedMonth !== undefined) {
-    const parsedDay = Number(dateMatch[1]);
-    return build(now.getFullYear(), parsedMonth, Number.isFinite(parsedDay) ? parsedDay : now.getDate());
-  }
-
-  const idTimestamp = extractShiftTimestampFromId(shiftId);
-  const idReference = idTimestamp !== null ? new Date(idTimestamp) : null;
-  const updatedAtReference = updatedAt ? new Date(updatedAt) : null;
-  const safeReference = [idReference, updatedAtReference, now].find(
-    (candidate): candidate is Date => Boolean(candidate) && !Number.isNaN(candidate.getTime())
-  ) || now;
-  const baseDate = new Date(
-    safeReference.getFullYear(),
-    safeReference.getMonth(),
-    safeReference.getDate(),
-    Number(startHourRaw) || 0,
-    Number(startMinuteRaw) || 0,
-    0,
-    0
-  );
-
-  if (normalized.startsWith('ayer') || normalized.startsWith('yesterday')) {
-    baseDate.setDate(baseDate.getDate() - 1);
-  }
-
-  return baseDate.getTime();
+  return getShiftStartTimestamp(buildShiftDateLike(dateString, timespan, updatedAt, shiftId, startedAt)) || 0;
 }
 
 function getShiftEventTitle(shift: Shift): string {
   return shift.eventTitle.trim() || 'Control General';
 }
 
-function getDayStartTs(timestamp: number): number {
-  if (!Number.isFinite(timestamp)) return Number.NaN;
-  const date = new Date(timestamp);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-}
-
 function normalizeShiftDateLabel(dateString: string, timespan = '00:00 - 00:00', updatedAt?: string, shiftId?: string, startedAt?: string): string {
-  const trimmed = dateString.trim();
-  if (!trimmed) return '';
-
-  const shiftTime = parseShiftDateTime(trimmed, timespan, updatedAt, shiftId, startedAt);
-  const shiftDayStart = getDayStartTs(shiftTime);
-  if (!Number.isFinite(shiftDayStart)) {
-    return trimmed;
-  }
-
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-
-  const fullLabel = new Date(shiftTime).toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-
-  if (shiftDayStart === todayStart) return `Hoy · ${fullLabel}`;
-  if (shiftDayStart === yesterdayStart) return `Ayer · ${fullLabel}`;
-
-  return fullLabel;
+  return formatShiftDateLabel(buildShiftDateLike(dateString, timespan, updatedAt, shiftId, startedAt));
 }
 
 interface ShiftsScreenProps {
