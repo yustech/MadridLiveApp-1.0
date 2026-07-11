@@ -83,7 +83,7 @@ fi
 
 if ! command -v certbot >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update
+  apt-get update --allow-releaseinfo-change
   apt-get install -y certbot
 fi
 
