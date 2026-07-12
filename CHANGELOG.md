@@ -1,9 +1,35 @@
 # Changelog
 
+## [security] - 2026-07-12 (follow-up)
+
+### 🔒 Added: login rate-limiting, correct client-IP derivation, safe HOST default
+Follow-up to the 2026-07-12 `HOST` exposure incident, from code review of PR #17.
+
+- **`POST /api/auth/login` now locks out an IP after 5 *failed* attempts /
+  15 min** (successful logins reset the counter and never count against it).
+  Previously there was no brute-force protection at all on the admin login.
+  First attempt counted every request (like the existing `/api/test-mariadb`
+  limiter) and broke the e2e CI job, because several specs each perform an
+  independent, valid login against the same running instance and tripped
+  the limit with zero actual attack traffic — caught by CI before merge,
+  fixed by only counting failed attempts.
+- **Fixed spoofable client-IP derivation:** `getClientIp` used to trust the
+  first hop of `X-Forwarded-For` directly, which nginx's
+  `$proxy_add_x_forwarded_for` lets a client control (defeating both rate
+  limiters). Added `app.set("trust proxy", 1)` and switched to Express's
+  `req.ip`.
+- **`server.ts`'s `HOST` default changed from `0.0.0.0` to `127.0.0.1`:**
+  defense-in-depth on top of the explicit `HOST=127.0.0.1` now set in every
+  `.env`. Verified no CI workflow, dev script, or Dockerfile relied on the
+  old implicit `0.0.0.0` default.
+- **Not included in this change (deferred by product owner):** rotating
+  `ADMIN_LOGIN_PASSWORD`, and restricting `/api/test-mariadb`'s `isValidHost`
+  against private/metadata IP ranges.
+
 ## [security] - 2026-07-12
 
 ### 🔒 Fixed: production backend exposed on public IP without TLS
-- **Root cause:** `server.ts` defaults `HOST` to `0.0.0.0` when unset;
+- **Root cause:** `server.ts` defaulted `HOST` to `0.0.0.0` when unset;
   production's `.env` never set `HOST`, unlike staging. Backend was
   reachable on the host's public IP at port 3000 — plain HTTP, full app
   including `/api/auth/login`, bypassing nginx/TLS/domain routing entirely.
@@ -14,8 +40,9 @@
   Incident Closure 2026-07-12"); standing rule added to `AGENTS.md` and
   `.github/copilot-instructions.md`; `HOST` documented in `.env.example`.
 - **Follow-ups not yet done:** consider firewalling port 3000 from external
-  networks as defense-in-depth, add `helmet`/rate-limiting to `server.ts`,
-  and add a pre-deploy check that fails if a target `.env` is missing `HOST`.
+  networks as defense-in-depth, add `helmet`/rate-limiting to `server.ts`
+  (done above, same day), and add a pre-deploy check that fails if a target
+  `.env` is missing `HOST`.
 
 ## [v1.0.0-prod-deploy] - 2026-07-07
 
