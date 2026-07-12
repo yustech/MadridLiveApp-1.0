@@ -2,6 +2,11 @@ import { LiveEvent } from '../types';
 
 export type EventTemporalState = 'past' | 'today' | 'future' | 'unknown';
 
+type EventRegistrationWindow = {
+  startsAt: Date;
+  endsAt: Date;
+};
+
 const MONTH_INDEX: Record<string, number> = {
   ENE: 0,
   JAN: 0,
@@ -51,11 +56,10 @@ function parseEventMonth(rawMonth: string): number | null {
   return MONTH_INDEX[normalized] ?? null;
 }
 
-export function getEventDate(event: LiveEvent): Date | null {
+export function getEventDate(event: LiveEvent, now = new Date()): Date | null {
   const day = Number(event.dateDay);
   const month = parseEventMonth(event.dateMonth);
   const [hourRaw, minuteRaw] = event.doorsOpen.split(':');
-  const now = new Date();
 
   if (!Number.isFinite(day) || month === null) {
     return null;
@@ -75,7 +79,7 @@ export function getEventDate(event: LiveEvent): Date | null {
 export function getEventTemporalState(event?: LiveEvent | null, now = new Date()): EventTemporalState {
   if (!event) return 'unknown';
 
-  const eventDate = getEventDate(event);
+  const eventDate = getEventDate(event, now);
   if (!eventDate) return 'unknown';
 
   const startOfToday = new Date(now);
@@ -90,8 +94,44 @@ export function getEventTemporalState(event?: LiveEvent | null, now = new Date()
   return 'today';
 }
 
-export function isOperableEvent(event?: LiveEvent | null): boolean {
-  return getEventTemporalState(event) === 'today';
+export function getEventDefaultRegistrationWindow(
+  event?: LiveEvent | null,
+  now = new Date()
+): EventRegistrationWindow | null {
+  if (!event) return null;
+
+  const eventDate = getEventDate(event, now);
+  if (!eventDate) return null;
+
+  const startsAt = new Date(eventDate);
+  startsAt.setHours(0, 0, 0, 0);
+
+  const endsAt = new Date(startsAt);
+  endsAt.setDate(endsAt.getDate() + 1);
+  endsAt.setHours(23, 59, 59, 999);
+
+  return { startsAt, endsAt };
+}
+
+export function isEventInDefaultRegistrationWindow(event?: LiveEvent | null, now = new Date()): boolean {
+  const registrationWindow = getEventDefaultRegistrationWindow(event, now);
+  if (!registrationWindow) return false;
+
+  const nowTs = now.getTime();
+  return nowTs >= registrationWindow.startsAt.getTime() && nowTs <= registrationWindow.endsAt.getTime();
+}
+
+export function isRegistrableEvent(event?: LiveEvent | null, now = new Date()): boolean {
+  const state = getEventTemporalState(event, now);
+  return state === 'today' || state === 'past';
+}
+
+export function requiresPastEventWarning(event?: LiveEvent | null, now = new Date()): boolean {
+  return getEventTemporalState(event, now) === 'past';
+}
+
+export function isOperableEvent(event?: LiveEvent | null, now = new Date()): boolean {
+  return isRegistrableEvent(event, now);
 }
 
 export function getEventStatusLabel(event?: LiveEvent | null): string {

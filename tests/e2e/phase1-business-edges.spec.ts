@@ -513,4 +513,116 @@ test.describe('Phase 1 - business edge coverage', () => {
       }
     }
   });
+
+  test('scanner warns before manual check-in on a past event', async ({ page, request }) => {
+    test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for scanner mutation checks.');
+
+    const idCode = `PAST${Date.now()}`.slice(0, 20);
+    const name = `Past Event Worker ${idCode.slice(-6)}`;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    test.skip(
+      yesterday.getFullYear() !== new Date().getFullYear(),
+      'Event model stores current-year day/month only; skipping year-boundary past-event UI check.'
+    );
+
+    const eventTitle = `Past Warning Event ${idCode.slice(-6)}`;
+    let staffId = '';
+    let eventId = '';
+
+    try {
+      const createStaffRes = await api(request, '/api/mysql/staff', {
+        method: 'POST',
+        body: {
+          idCode,
+          name,
+          role: 'Auxiliar',
+          roleLabel: 'AUXILIAR',
+          status: 'OUT',
+          checkedInTime: '',
+          lastSeen: new Date().toISOString(),
+          avatar: '',
+          email: `${idCode.toLowerCase()}@example.test`,
+          phone: '+34910000123',
+          totalHours: 0,
+          currentShiftHours: 0,
+          currentShiftMins: 0,
+          location: 'QA Past Gate',
+        },
+      });
+
+      test.skip(
+        createStaffRes.status === 500 && isMysqlUnconfiguredMessage(String(createStaffRes.json?.message || createStaffRes.text || '')),
+        'MySQL is not configured in this runner; skipping past-event scanner mutation check.'
+      );
+
+      expect(createStaffRes.status).toBe(201);
+      expect(createStaffRes.json?.id).toBeTruthy();
+      staffId = createStaffRes.json.id;
+
+      const createEventRes = await api(request, '/api/mysql/events', {
+        method: 'POST',
+        body: {
+          title: eventTitle,
+          location: 'QA Past Venue',
+          dateDay: String(yesterday.getDate()).padStart(2, '0'),
+          dateMonth: MONTH_LABELS[yesterday.getMonth()],
+          doorsOpen: '20:00',
+          requiredStaff: 1,
+          activeStaff: 0,
+          totalStaffNeeded: 1,
+          scanRate: 0,
+          loadInPercent: 100,
+        },
+      });
+
+      expect(createEventRes.status).toBe(201);
+      expect(createEventRes.json?.id).toBeTruthy();
+      eventId = createEventRes.json.id;
+
+      await loginWithAdmin(page);
+      await page.getByRole('button', { name: /Lector QR/i }).click();
+      await page.locator('select').first().selectOption(eventId);
+      await expect(page.locator('h3').filter({ hasText: eventTitle })).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(/Registro extendido activo|Evento pasado/i)).toBeVisible();
+      await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+
+      await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
+      await page.locator('input[placeholder*="SEC-042"]').fill(idCode);
+      await page.getByRole('button', { name: /^ENVIAR$/i }).click();
+      await expect(page.getByRole('heading', { name: /Entrada en evento pasado/i })).toBeVisible();
+      await page.getByRole('button', { name: /Confirmar entrada/i }).click();
+      await expect(page.getByText(/ENTRADA REGISTRADA/i)).toBeVisible({ timeout: 12_000 });
+
+      await page.getByRole('button', { name: /Volver a Escanear/i }).click();
+      await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
+      await page.locator('input[placeholder*="SEC-042"]').fill(idCode);
+      await page.getByRole('button', { name: /^ENVIAR$/i }).click();
+      await expect(page.getByText(/SALIDA REGISTRADA/i)).toBeVisible({ timeout: 12_000 });
+
+      await expect.poll(async () => {
+        const staffRes = await api(request, '/api/mysql/staff');
+        const staff = Array.isArray(staffRes.json) ? staffRes.json : [];
+        return staff.find((member: any) => member.id === staffId)?.status;
+      }).toBe('OUT');
+    } finally {
+      if (staffId) {
+        const shiftsRes = await api(request, '/api/mysql/shifts');
+        const shifts = Array.isArray(shiftsRes.json) ? shiftsRes.json : [];
+        const workerShiftIds = shifts
+          .filter((shift: any) => shift.workerId === staffId)
+          .map((shift: any) => shift.id);
+
+        for (const shiftId of workerShiftIds) {
+          await api(request, `/api/mysql/shifts/${shiftId}`, { method: 'DELETE' });
+        }
+
+        await api(request, `/api/mysql/staff/${staffId}`, { method: 'DELETE' });
+      }
+
+      if (eventId) {
+        await api(request, `/api/mysql/events/${eventId}`, { method: 'DELETE' });
+      }
+    }
+  });
 });

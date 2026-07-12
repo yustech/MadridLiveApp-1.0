@@ -2,7 +2,12 @@ import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
 import { getAvatarSrc, setFallbackAvatar } from './utils/avatarUpload';
-import { getEventTemporalState, isOperableEvent, sortEventsByDate } from './utils/events';
+import {
+  getEventTemporalState,
+  isEventInDefaultRegistrationWindow,
+  isOperableEvent,
+  sortEventsByDate
+} from './utils/events';
 import { getActiveShiftForWorker, isWorkerPresentNow } from './utils/shifts';
 
 
@@ -34,8 +39,9 @@ const isDatabaseManagerEnabled =
 function selectDefaultActiveEvent(events: LiveEvent[]): string {
   const ordered = sortEventsByDate(events);
   const today = ordered.find((event) => getEventTemporalState(event) === 'today');
+  const inDefaultRegistrationWindow = ordered.find((event) => isEventInDefaultRegistrationWindow(event));
 
-  return today?.id || '';
+  return today?.id || inDefaultRegistrationWindow?.id || '';
 }
 
 export default function App() {
