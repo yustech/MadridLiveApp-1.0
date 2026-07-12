@@ -44,6 +44,30 @@ function parseEventDate(event: any): Date | null {
   return new Date(year, month, day);
 }
 
+function buildFutureEventPayload() {
+  const now = new Date();
+  const future = new Date(now);
+  future.setDate(now.getDate() + 14);
+
+  if (future.getFullYear() !== now.getFullYear()) {
+    future.setFullYear(now.getFullYear(), 11, 31);
+  }
+
+  const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  return {
+    title: `Phase1 Edge Future Event ${stamp}`,
+    location: 'QA Future Gate',
+    dateDay: String(future.getDate()).padStart(2, '0'),
+    dateMonth: MONTH_LABELS[future.getMonth()],
+    doorsOpen: '23:59',
+    requiredStaff: 0,
+    activeStaff: 0,
+    totalStaffNeeded: 0,
+    scanRate: 0,
+    loadInPercent: 0,
+  };
+}
+
 function isFutureGuardMessage(payload: string) {
   return payload.toLowerCase().includes('future event');
 }
@@ -108,6 +132,7 @@ test.describe('Phase 1 - business edge coverage', () => {
 
     const createdShiftIds: string[] = [];
     const createdStaffIds: string[] = [];
+    const createdEventIds: string[] = [];
 
     try {
       const [eventsRes, staffRes] = await Promise.all([
@@ -323,6 +348,20 @@ test.describe('Phase 1 - business edge coverage', () => {
         }
       }
 
+      if (!futureEvent) {
+        const futureEventPayload = buildFutureEventPayload();
+        const futureEventRes = await api(request, '/api/mysql/events', {
+          method: 'POST',
+          body: futureEventPayload,
+        });
+
+        expect(futureEventRes.status).toBe(201);
+        expect(futureEventRes.json?.id).toBeTruthy();
+
+        futureEvent = { id: futureEventRes.json.id, ...futureEventPayload };
+        createdEventIds.push(futureEvent.id);
+      }
+
       expect(futureEvent).toBeTruthy();
 
       const now = new Date();
@@ -350,6 +389,9 @@ test.describe('Phase 1 - business edge coverage', () => {
       }
       for (const staffId of createdStaffIds) {
         await api(request, `/api/mysql/staff/${staffId}`, { method: 'DELETE' });
+      }
+      for (const eventId of createdEventIds) {
+        await api(request, `/api/mysql/events/${eventId}`, { method: 'DELETE' });
       }
     }
   });
