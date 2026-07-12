@@ -22,6 +22,8 @@ const MONTH_TO_INDEX = {
   '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '10': 9, '11': 10, '12': 11,
 };
 
+const MONTH_INDEX_TO_TOKEN = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
 function parseEventDate(event) {
   const day = Number(event?.dateDay);
   const monthRaw = String(event?.dateMonth || '').trim().toUpperCase();
@@ -33,6 +35,30 @@ function parseEventDate(event) {
   }
 
   return new Date(year, month, day);
+}
+
+function buildFutureEventPayload() {
+  const now = new Date();
+  const future = new Date(now);
+  future.setDate(now.getDate() + 14);
+
+  if (future.getFullYear() !== now.getFullYear()) {
+    future.setFullYear(now.getFullYear(), 11, 31);
+  }
+
+  const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  return {
+    title: `Shift Regression Future Event ${stamp}`,
+    location: 'Regression Gate',
+    dateDay: String(future.getDate()).padStart(2, '0'),
+    dateMonth: MONTH_INDEX_TO_TOKEN[future.getMonth()],
+    doorsOpen: '23:59',
+    requiredStaff: 0,
+    activeStaff: 0,
+    totalStaffNeeded: 0,
+    scanRate: 0,
+    loadInPercent: 0,
+  };
 }
 
 function isFutureGuardMessage(textOrJsonMessage) {
@@ -94,6 +120,7 @@ async function run() {
   const startedAtMs = Date.now();
   const createdShiftIds = [];
   const createdStaffIds = [];
+  const createdEventIds = [];
 
   try {
     const [eventsRes, staffRes, shiftsRes] = await Promise.all([
@@ -493,6 +520,22 @@ async function run() {
       }
     }
 
+    if (!futureEvent) {
+      const futureEventPayload = buildFutureEventPayload();
+      const futureEventRes = await api('/api/mysql/events', {
+        method: 'POST',
+        body: futureEventPayload,
+      });
+
+      assert(
+        futureEventRes.status === 201 && futureEventRes.json?.id,
+        `No se pudo crear evento futuro temporal para regresion (${futureEventRes.status}): ${futureEventRes.text}`,
+      );
+
+      futureEvent = { id: futureEventRes.json.id, ...futureEventPayload };
+      createdEventIds.push(futureEvent.id);
+    }
+
     assert(futureEvent, 'No se encontró evento futuro para validar bloqueo.');
 
     const futureRes = await api('/api/mysql/shifts', {
@@ -650,6 +693,10 @@ async function run() {
 
     for (const staffId of createdStaffIds) {
       await api(`/api/mysql/staff/${staffId}`, { method: 'DELETE' });
+    }
+
+    for (const eventId of createdEventIds) {
+      await api(`/api/mysql/events/${eventId}`, { method: 'DELETE' });
     }
   }
 }
