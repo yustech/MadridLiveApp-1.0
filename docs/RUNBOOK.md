@@ -46,7 +46,19 @@ No trabajar directo en `main`. Usar commits pequenos y atomicos.
 
 ## Deploy
 
-Deploy remoto preferido, con variables `DEPLOY_*` configuradas fuera del repo:
+Deploy recomendado staging-first, con variables `DEPLOY_*` configuradas fuera
+del repo cuando se vaya a produccion:
+
+```bash
+npm run deploy:staging-first
+npm run deploy:staging-first:prod
+```
+
+El primer comando solo publica y valida staging. El segundo repite staging y
+solo despliega produccion si staging pasa smoke local y publico con el SHA
+exacto esperado.
+
+Deploy remoto directo, reservado para rollback controlado o emergencia:
 
 ```bash
 npm run build

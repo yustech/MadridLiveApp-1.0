@@ -138,6 +138,7 @@ jobs:
         env:
           SITE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
           EXPECTED_STAFF_COUNT: ${{ vars.PROD_EXPECTED_STAFF_COUNT || '9' }}
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
           SMOKE_CHECK_FRONTEND_BUNDLE: ${{ inputs.publish_public_frontend }}
         run: npm run smoke:prod
 

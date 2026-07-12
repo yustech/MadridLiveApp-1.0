@@ -3,6 +3,7 @@ set -euo pipefail
 
 SITE_URL="${SITE_URL:-https://inmosubastas.top}"
 EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-9}"
+EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-}"
 SMOKE_CHECK_FRONTEND_BUNDLE="${SMOKE_CHECK_FRONTEND_BUNDLE:-true}"
 
 health_url="${SITE_URL%/}"
@@ -28,6 +29,15 @@ echo "$health_response" | grep -q '"status":"ok"'
 
 action_version="$(curl --connect-timeout 5 --max-time 10 -fsS "$version_url")"
 echo "$action_version" | grep -q '"status":"ok"'
+version_commit="$(
+  printf '%s' "$action_version" |
+    node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(x.commitSha||''));});"
+)"
+
+if [[ -n "$EXPECTED_COMMIT_SHA" && "$version_commit" != "$EXPECTED_COMMIT_SHA" ]]; then
+  echo "Unexpected production commit: got $version_commit, expected $EXPECTED_COMMIT_SHA" >&2
+  exit 1
+fi
 
 actions_staff="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/staff")"
 staff_count="$(printf '%s' "$actions_staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);process.stdout.write(String(a.length));});")"
@@ -77,3 +87,4 @@ echo "smoke=ok"
 echo "health_url=$health_url"
 echo "version_url=$version_url"
 echo "staff_count=$staff_count"
+echo "commit_sha=$version_commit"

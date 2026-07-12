@@ -15,35 +15,39 @@ Operational release flow for Madrid Live Access with dual-mode deploy validation
 1. Confirm target commit
 - `git log --oneline -n 3`
 
-2. Push commit(s) to `main`
+2. Validate staging first
+- `npm run deploy:staging-first`
+- Confirm both staging smokes report the target `commit_sha`.
+
+3. Push commit(s) to `main`
 - `git push origin HEAD:main`
 
-3. Launch dual-mode validation workflow
+4. Launch dual-mode validation workflow
 - Run `Deploy Dual-Mode Validation` manually (or wait for schedule).
 
-4. Verify frontend publish mode
+5. Verify frontend publish mode
 - Job: `Deploy (publish_public_frontend=true) / deploy`
 - Must finish `Success`.
 
-5. Verify backend-only mode
+6. Verify backend-only mode
 - Job: `Deploy (publish_public_frontend=false) / deploy`
 - Must finish `Success`.
 
-6. Check notification job behavior
+7. Check notification job behavior
 - `notify_failure` should be `skipped` on success.
 - If it runs, inspect email/webhook delivery.
 
-7. Health verification
+8. Health verification
 - `https://inmosubastas.top/api/health`
 - `https://inmosubastas.top/api/mysql/staff`
 
-8. Smoke verification
+9. Smoke verification
 - `npm run smoke:prod`
 
-9. Record run evidence
+10. Record run evidence
 - Save run URL and duration in ops notes.
 
-10. Tag stable state (optional but recommended)
+11. Tag stable state (optional but recommended)
 - `git tag -a <tag-name> <sha> -m "..."`
 - `git push origin <tag-name>`
 
