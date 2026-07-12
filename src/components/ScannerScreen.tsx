@@ -20,6 +20,9 @@ import {
   getEventStatusLabel,
   getEventStatusTone,
   getEventTemporalState,
+  isEventInDefaultRegistrationWindow,
+  isOperableEvent,
+  requiresPastEventWarning,
   sortEventsByDate,
 } from '../utils/events';
 import {
@@ -63,6 +66,10 @@ interface Html5QrcodeConstructor {
   new (elementId: string): Html5QrcodeInstance;
 }
 
+type TriggerScanOptions = {
+  confirmedPastEvent?: boolean;
+};
+
 const roleIconMap: Record<string, string> = {
   Auxiliar: '👥 Auxiliar',
   'Auxiliar Plus': '⭐ Auxiliar Plus',
@@ -80,7 +87,8 @@ export default function ScannerScreen({
 }: ScannerScreenProps) {
   const activeEvent = events.find(e => e.id === activeEventId) || null;
   const activeEventState = getEventTemporalState(activeEvent);
-  const isActiveEventOperable = activeEventState === 'today';
+  const isActiveEventOperable = isOperableEvent(activeEvent);
+  const isActiveEventInDefaultWindow = isEventInDefaultRegistrationWindow(activeEvent);
   const orderedEvents = sortEventsByDate(events);
   const [flashlightOn, setFlashlightOn] = useState(false);
   const [cameraMode, setCameraMode] = useState<'back' | 'front'>('back');
@@ -133,6 +141,7 @@ export default function ScannerScreen({
   // Manual code entry mode
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [closeConfirmWorker, setCloseConfirmWorker] = useState<StaffMember | null>(null);
+  const [pastEventWarningWorker, setPastEventWarningWorker] = useState<StaffMember | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [manualError, setManualError] = useState('');
   const [scanError, setScanError] = useState('');
@@ -222,19 +231,26 @@ export default function ScannerScreen({
   }, [isWebcamActive, cameraMode]);
 
   // Execute actual database toggle and show success animation
-  const triggerScanOperation = (workerId: string) => {
+  const triggerScanOperation = (workerId: string, options: TriggerScanOptions = {}) => {
     const targetWorker = staff.find(s => s.id === workerId);
     if (!targetWorker) return;
 
-    if (targetWorker.status !== 'IN' && !isActiveEventOperable) {
-      setScanError(
-        activeEventState === 'past'
-          ? 'Este evento ya está pasado. Cambia a un evento de hoy para iniciar turnos.'
-          : activeEventState === 'future'
+    if (targetWorker.status !== 'IN') {
+      if (!isActiveEventOperable) {
+        setScanError(
+          activeEventState === 'future'
             ? 'Este evento todavía es futuro. No se pueden iniciar turnos antes del día del evento.'
-            : 'Selecciona un evento con fecha válida para iniciar turnos.'
-      );
-      return;
+            : 'Selecciona un evento actual o pasado con fecha válida para iniciar turnos.'
+        );
+        return;
+      }
+
+      if (requiresPastEventWarning(activeEvent) && !options.confirmedPastEvent) {
+        setPastEventWarningWorker(targetWorker);
+        setManualError('');
+        setScanError('');
+        return;
+      }
     }
 
     setIsScanActive(true);
@@ -346,12 +362,24 @@ export default function ScannerScreen({
           )}
           {!activeEvent && (
             <p className="mt-2 text-[11px] font-mono text-amber-300">
-              No hay evento operativo seleccionado. Las entradas requieren elegir un evento de hoy.
+              No hay evento seleccionado. Las entradas requieren elegir un evento actual o pasado.
             </p>
           )}
-          {!isActiveEventOperable && activeEvent && (
+          {activeEventState === 'future' && (
             <p className="mt-2 text-[11px] font-mono text-amber-300">
-              Entradas bloqueadas: solo se inician turnos en eventos de hoy.
+              Entradas bloqueadas: no se pueden iniciar turnos antes del día del evento.
+            </p>
+          )}
+          {activeEventState === 'past' && (
+            <p className="mt-2 text-[11px] font-mono text-amber-300">
+              {isActiveEventInDefaultWindow
+                ? 'Registro extendido activo hasta las 23:59 del día siguiente. Las nuevas entradas pedirán confirmación.'
+                : 'Evento pasado: las nuevas entradas pedirán confirmación manual antes de registrarse.'}
+            </p>
+          )}
+          {activeEventState === 'unknown' && activeEvent && (
+            <p className="mt-2 text-[11px] font-mono text-amber-300">
+              Fecha de evento sin validar. Selecciona otro evento para iniciar turnos.
             </p>
           )}
         </div>
@@ -365,7 +393,7 @@ export default function ScannerScreen({
             className="bg-[#120f26] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-indigo-400 w-full md:w-64 cursor-pointer"
           >
             <option value="" disabled className="bg-[#0A051A] text-white/60">
-              Sin evento operativo hoy
+              Sin evento seleccionado
             </option>
             {orderedEvents.map((ev) => (
               <option key={ev.id} value={ev.id} className="bg-[#0A051A] text-white">
@@ -711,7 +739,12 @@ export default function ScannerScreen({
               </div>
               {!isActiveEventOperable && !isActiveSelectedWorkerOpen && (
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
-                  Inicio bloqueado para evento {getEventStatusLabel(activeEvent).toLowerCase()}. Selecciona un evento de hoy.
+                  Inicio bloqueado para evento {getEventStatusLabel(activeEvent).toLowerCase()}. Selecciona un evento actual o pasado.
+                </div>
+              )}
+              {isActiveEventOperable && activeEventState === 'past' && !isActiveSelectedWorkerOpen && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-mono text-amber-300">
+                  Entrada permitida en evento pasado con confirmación previa por modal.
                 </div>
               )}
               {isActiveSelectedWorkerOpen && (
@@ -737,6 +770,64 @@ export default function ScannerScreen({
         )}
 
       </div>
+
+      {pastEventWarningWorker && activeEvent && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-md">
+          <div className="w-full max-w-md bg-[#120f26]/95 border border-amber-400/25 rounded-3xl p-6 space-y-5 text-left shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-amber-300 font-bold">
+                  Confirmación requerida
+                </p>
+                <h3 className="text-lg font-display font-black text-white mt-1">
+                  Entrada en evento pasado
+                </h3>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-white/65 leading-relaxed">
+              <p>
+                Vas a registrar la entrada de <span className="font-bold text-white">{pastEventWarningWorker.name}</span> en
+                {' '}<span className="font-bold text-white">{activeEvent.title}</span>, que ya figura como evento pasado.
+              </p>
+              <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 font-mono text-[11px] text-amber-200">
+                {isActiveEventInDefaultWindow
+                  ? 'Este evento sigue dentro de la ventana por defecto: día del concierto y hasta las 23:59 del día siguiente.'
+                  : 'Este evento está fuera de la ventana por defecto. Úsalo solo para una corrección manual consciente.'}
+              </div>
+              <p>
+                Si la entrada corresponde a una operación real o a una corrección autorizada, confirma para continuar.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPastEventWarningWorker(null)}
+                disabled={isScanActive}
+                className="h-11 rounded-xl border border-white/15 text-xs font-mono text-white/70 hover:bg-white/10 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const workerId = pastEventWarningWorker.id;
+                  setPastEventWarningWorker(null);
+                  triggerScanOperation(workerId, { confirmedPastEvent: true });
+                }}
+                disabled={isScanActive}
+                className="h-11 rounded-xl bg-amber-500/80 hover:bg-amber-500 text-xs font-mono font-bold text-[#120f26] disabled:opacity-50"
+              >
+                Confirmar entrada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {closeConfirmWorker && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-md">

@@ -18,6 +18,8 @@ import {
   getEventStatusLabel,
   getEventStatusTone,
   getEventTemporalState,
+  isEventInDefaultRegistrationWindow,
+  isOperableEvent,
   sortEventsByDate,
 } from '../utils/events';
 import {
@@ -53,13 +55,20 @@ export default function DashboardScreen({
   const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
-  // Focus card follows the selected event. If there is no event today, keep the
-  // operational focus empty instead of auto-promoting a future planning event.
+  // Focus card follows the selected event. Yesterday remains operational until
+  // 23:59 the next day; future events stay in planning mode.
   const liveEvent = events.find(e => e.id === activeEventId) || null;
   const liveEventState = getEventTemporalState(liveEvent);
-  const isOperationalFocus = liveEventState === 'today';
+  const isDefaultRegistrationFocus = isEventInDefaultRegistrationWindow(liveEvent);
+  const isOperationalFocus = Boolean(liveEvent && isDefaultRegistrationFocus);
   const liveEventStatusLabel = liveEvent
-    ? (liveEventState === 'today' ? 'PRODUCCIÓN DE HOY' : getEventStatusLabel(liveEvent))
+    ? (
+      liveEventState === 'today'
+        ? 'PRODUCCIÓN DE HOY'
+        : liveEventState === 'past' && isDefaultRegistrationFocus
+          ? 'REGISTRO EXTENDIDO'
+          : getEventStatusLabel(liveEvent)
+    )
     : 'SIN EVENTO OPERATIVO';
   const nonLiveEvents = useMemo(() => {
     return (liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events]);
@@ -124,7 +133,7 @@ export default function DashboardScreen({
   const getCoverageStats = (event: LiveEvent | null) => {
     if (!event) {
       return {
-        label: 'Sin evento de hoy',
+        label: 'Sin evento operativo',
         tone: 'text-white/50 border-white/15 bg-white/5',
         coveragePct: 0,
       };
@@ -132,8 +141,9 @@ export default function DashboardScreen({
 
     const required = event?.requiredStaff ?? event?.totalStaffNeeded ?? 0;
     const temporalState = getEventTemporalState(event);
+    const isDefaultRegistrationEvent = isEventInDefaultRegistrationWindow(event);
     const active = event
-      ? (temporalState === 'today'
+      ? (isDefaultRegistrationEvent
         ? (event.id === liveEvent?.id ? checkedInStaffCount : event.activeStaff ?? 0)
         : 0)
       : 0;
@@ -148,7 +158,7 @@ export default function DashboardScreen({
       };
     }
 
-    if (temporalState === 'past') {
+    if (temporalState === 'past' && !isDefaultRegistrationEvent) {
       return {
         label: 'Archivado',
         tone: 'text-white/50 border-white/15 bg-white/5',
@@ -210,6 +220,23 @@ export default function DashboardScreen({
     }
   };
 
+  const getScannerActionLabel = (event: LiveEvent) => {
+    const temporalState = getEventTemporalState(event);
+
+    if (temporalState === 'today') return 'Hacer registro QR en este evento';
+    if (temporalState === 'past') return 'Registrar con aviso de evento pasado';
+    if (temporalState === 'future') return 'QR disponible desde el día del evento';
+    return 'Fecha no válida para QR';
+  };
+
+  const getFocusActionLabel = (event: LiveEvent) => {
+    const temporalState = getEventTemporalState(event);
+
+    if (temporalState === 'today') return 'Establecer como Evento Operativo';
+    if (temporalState === 'past') return 'Usar evento pasado como foco';
+    return 'Usar como foco de planificación';
+  };
+
   const liveCoverage = getCoverageStats(liveEvent);
 
   return (
@@ -251,7 +278,7 @@ export default function DashboardScreen({
             </div>
 
             <h2 className="text-2xl font-display font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
-              {liveEvent?.title || "Sin evento operativo hoy"}
+              {liveEvent?.title || "Sin evento en ventana operativa"}
             </h2>
             {liveEvent && (
               <p className="text-xs text-indigo-300 mb-1 font-mono">
@@ -260,7 +287,7 @@ export default function DashboardScreen({
             )}
             <p className="text-sm text-white/60 flex items-center mb-3">
               <MapPin className="w-4 h-4 mr-2 text-indigo-400" />
-              {liveEvent?.location || "Selecciona un evento de hoy cuando empiece la operación."}
+              {liveEvent?.location || "Selecciona un evento actual o pasado si necesitas corregir registros."}
             </p>
             <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-wider ${liveCoverage.tone}`}>
               <Users className="w-3.5 h-3.5" />
@@ -318,7 +345,7 @@ export default function DashboardScreen({
             <p className="text-xs text-white/60 max-w-[180px]">
               {isOperationalFocus
                 ? 'Cambiar al modo de control de accesos rápido en la Puerta A.'
-                : 'Consultar el lector; las entradas se activan solo con un evento de hoy.'}
+                : 'Consultar el lector; futuros bloqueados y pasados con confirmación manual.'}
             </p>
           </button>
 
@@ -365,7 +392,7 @@ export default function DashboardScreen({
       <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
-            {isOperationalFocus ? 'Pendientes ahora' : liveEvent ? 'Planificación de cobertura' : 'Sin evento operativo hoy'}
+            {isOperationalFocus ? 'Pendientes ahora' : liveEvent ? 'Planificación de cobertura' : 'Sin evento en ventana operativa'}
           </h3>
           <span className="text-sm font-display font-bold text-amber-300">
             {isOperationalFocus ? pendingNowCount : liveEvent ? activeRequiredStaff : 0}
@@ -373,10 +400,12 @@ export default function DashboardScreen({
         </div>
         <p className="text-xs text-white/60">
           {isOperationalFocus
-            ? `Fichajes pendientes para cubrir el evento activo (${checkedInStaffCount}/${activeRequiredStaff}).`
+            ? liveEventState === 'past'
+              ? `Registro extendido hasta las 23:59 del día siguiente (${checkedInStaffCount}/${activeRequiredStaff}).`
+              : `Fichajes pendientes para cubrir el evento activo (${checkedInStaffCount}/${activeRequiredStaff}).`
             : liveEvent
-              ? 'Este evento no pertenece al día operativo; no se cuentan fichajes como activos ahora.'
-              : 'No hay un evento fechado para hoy. Los próximos conciertos siguen disponibles como planificación.'}
+              ? 'Este evento no está en la ventana operativa por defecto; el scanner pedirá confirmación si es pasado.'
+              : 'No hay un evento dentro de la ventana operativa. Los próximos conciertos siguen disponibles como planificación.'}
         </p>
         <div className="flex flex-wrap gap-2">
           {pendingNowCount > 0 ? (
@@ -387,7 +416,7 @@ export default function DashboardScreen({
             ))
           ) : (
             <span className="text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1 text-emerald-300">
-              {isOperationalFocus ? 'Cobertura completa ahora mismo' : liveEvent ? 'Sin conteo operativo hasta el día del evento' : 'Sin conteo operativo activo'}
+              {isOperationalFocus ? 'Cobertura completa en la ventana actual' : liveEvent ? 'Sin conteo operativo por defecto' : 'Sin conteo operativo activo'}
             </span>
           )}
         </div>
@@ -602,9 +631,9 @@ export default function DashboardScreen({
             {/* Actions */}
             <div className="flex flex-col gap-2">
               <button
-                disabled={getEventTemporalState(selectedDetailEvent) !== 'today'}
+                disabled={!isOperableEvent(selectedDetailEvent)}
                 onClick={() => {
-                  if (getEventTemporalState(selectedDetailEvent) !== 'today') return;
+                  if (!isOperableEvent(selectedDetailEvent)) return;
                   setActiveEventId(selectedDetailEvent.id);
                   onLaunchScanner();
                   setSelectedDetailEvent(null);
@@ -612,7 +641,7 @@ export default function DashboardScreen({
                 className="w-full h-11 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 disabled:from-white/10 disabled:to-white/10 disabled:text-white/30 disabled:border disabled:border-white/10 disabled:cursor-not-allowed text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-indigo-500/20 hover:shadow-hud-glow"
               >
                 <QrCode className="w-4 h-4" />
-                <span>{getEventTemporalState(selectedDetailEvent) === 'today' ? 'Hacer registro QR en este evento' : 'QR disponible solo el día del evento'}</span>
+                <span>{getScannerActionLabel(selectedDetailEvent)}</span>
               </button>
 
               <button
@@ -622,7 +651,7 @@ export default function DashboardScreen({
                 }}
                 className="w-full h-11 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>{getEventTemporalState(selectedDetailEvent) === 'today' ? 'Establecer como Evento Operativo' : 'Usar como foco de planificación'}</span>
+                <span>{getFocusActionLabel(selectedDetailEvent)}</span>
               </button>
 
               <button
