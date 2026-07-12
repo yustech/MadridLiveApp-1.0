@@ -195,9 +195,12 @@ jobs:
         id: api_regression
         run: npm run test:api:shifts:regression
 
-      - name: Run phase1 edge e2e
-        id: phase1_edges
-        run: npm run test:e2e:phase1:edges
+      - name: Run full e2e suite
+        id: e2e_suite
+        # Full Playwright suite (phase1-core, phase1-business-edges, regression)
+        # against the isolated local harness. Consolidated here from the former
+        # e2e-regression.yml, which ran the same suite on the same harness.
+        run: npm run test:e2e
 
       - name: Stop local integrity app
         if: ${{ always() }}
@@ -218,7 +221,7 @@ jobs:
         if: ${{ always() }}
         id: gate_status
         run: |
-          if [[ "${{ steps.api_regression.outcome }}" == "failure" || "${{ steps.phase1_edges.outcome }}" == "failure" ]]; then
+          if [[ "${{ steps.api_regression.outcome }}" == "failure" || "${{ steps.e2e_suite.outcome }}" == "failure" ]]; then
             echo "failed=true" >> "$GITHUB_OUTPUT"
           else
             echo "failed=false" >> "$GITHUB_OUTPUT"
