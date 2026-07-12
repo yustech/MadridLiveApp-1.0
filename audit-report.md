@@ -8,9 +8,10 @@
 ## ▶️ Prompt de continuación (pegar para reanudar la ejecución de tareas)
 
 ```
-Lee audit-report.md en la raíz del repo. Toma la PRIMERA tarea sin completar (el primer `[ ]`
-en orden de aparición) y ejecútala siguiendo exactamente su prompt, con el modelo y nivel de
-effort indicados en esa tarea.
+Lee audit-report.md en la raíz del repo. Toma la PRIMERA tarea pendiente (el primer `[ ]` en
+orden de aparición; ignora las `[x]` completadas y las `[~]` descartadas por el owner) y
+ejecútala siguiendo exactamente su prompt, con el modelo y nivel de effort indicados en esa
+tarea.
 
 Reglas de ejecución (obligatorias):
 1. Trabaja SIEMPRE en una rama nueva `agent/<slug-descriptivo>`; nunca commits directos a main.
@@ -36,7 +37,7 @@ Empieza ahora con la primera tarea `[ ]`.
 ## Cómo leer este informe
 
 - **Orden**: las tareas están ordenadas por **orden de ejecución recomendado** (dependencias + prioridad). Ejecutar de arriba hacia abajo.
-- **Marcador**: `[x]` = hecha y verificada · `[ ]` = pendiente.
+- **Marcador**: `[x]` = hecha y verificada · `[ ]` = pendiente · `[~]` = descartada por decisión del owner (no ejecutar).
 - **Modelo / Effort**: recomendación para Claude Code. `Opus 4.8` para razonamiento crítico o de seguridad; `Sonnet 5` para desarrollo estándar; `Haiku 4.5` para trabajo mecánico. Effort = nivel de razonamiento (low/medium/high).
 - **Prompt**: instrucción lista para pegar/pasar al agente que ejecute la tarea.
 
@@ -57,18 +58,11 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
 
 ## Fase 1 — Seguridad (crítico, ejecutar primero)
 
-- [ ] **1. Rotar la contraseña de admin (`ADMIN_LOGIN_PASSWORD`).**
-  **Modelo/Effort**: Opus 4.8 · low (es una operación, no requiere código).
-  **Por qué**: la contraseña actual sigue un patrón adivinable (nombre + año) y es la única barrera del panel admin. Combinado con que ya hay rate-limit, es el mayor hueco explotable restante.
-  **Prompt**:
-  ```
-  Rota ADMIN_LOGIN_PASSWORD en producción y staging. Genera una contraseña aleatoria fuerte
-  (>=24 chars). Antes de aplicar, pregunta al usuario cómo quiere recibirla (mostrarla una vez
-  vs. que la elija él). Aplica en /opt/madridlive-app/.env y /opt/madridlive-app-staging/.env,
-  reinicia ambos servicios por señal (kill al MainPID, systemd relanza), y verifica que un login
-  con la nueva credencial devuelve 200 con cookie en cada entorno. Regenera y sincroniza el
-  snapshot de .env a Drive. No imprimas la contraseña en logs ni commits.
-  ```
+- [~] **1. Rotar la contraseña de admin (`ADMIN_LOGIN_PASSWORD`). — DESCARTADO (decisión del owner, 2026-07-12).**
+  **Estado**: NO ejecutar. El owner decidió mantener la contraseña actual y la valoración lo respalda.
+  **Justificación**: la contraseña actual es una passphrase larga (~34 chars, mayúsculas/minúsculas/números/separadores), no débil en entropía; el "patrón adivinable" original quedó mitigado por el rate-limit de login (5 fallos/15 min por IP, tarea completada en Fase 0) y porque el backend ya no está expuesto en el puerto público. Con 3-4 usuarios internos, la fuerza bruta no es una amenaza realista.
+  **Única recomendación viva (no bloqueante)**: no reutilizar esa contraseña en email u otras cuentas importantes, ya que sigue un patrón personal. Si es única para esta app, no hay acción pendiente.
+  **Agentes**: no reabrir ni ejecutar esta tarea salvo que el owner lo pida explícitamente.
 
 - [ ] **2. Restringir `isValidHost` contra SSRF en `/api/test-mariadb`.**
   **Modelo/Effort**: Opus 4.8 · high.
