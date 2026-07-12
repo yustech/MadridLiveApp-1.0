@@ -184,3 +184,44 @@ KPI thresholds (enforced in workflow):
 - `occupancy_drift_vs_unique_active` must be `0`
 
 Any threshold breach marks the run as failed and triggers configured email/webhook notifications.
+
+## Deploy Incident Closure 2026-07-12
+
+Summary: production backend was reachable directly from the public internet,
+unencrypted, bypassing nginx/TLS entirely.
+
+- Root cause: `server.ts` defaults `HOST` to `0.0.0.0` when the env var is
+  unset (`const HOST = process.env.HOST || "0.0.0.0"`). Staging's `.env` set
+  `HOST=127.0.0.1` explicitly; production's `.env` never set it, so prod fell
+  back to binding all interfaces.
+- Impact confirmed live: `curl http://82.223.139.217:3000/` returned `200`
+  and served the full app — including `/api/auth/login` — over plain HTTP,
+  with none of the protections the `inmosubastas.top` vhost provides
+  (TLS, domain routing, and only the `/api/` path proxied). The app has no
+  `helmet`/rate-limiting of its own, so this was the only layer of defense
+  and it was bypassable.
+- Fix applied: added `HOST=127.0.0.1` to `/opt/madridlive-app/.env`
+  (matching staging), then restarted `madridlive-app.service` (SIGTERM to
+  let `Restart=always` relaunch it, since non-interactive `sudo systemctl
+  restart` isn't available in this shell — see `DEPLOY_RESTART_STRATEGY` in
+  `DEPLOY.md`).
+- Validation: `ss -tlnp` shows the app now listening on `127.0.0.1:3000`
+  only; `http://82.223.139.217:3000/` times out / connection refused;
+  `https://inmosubastas.top/api/health` and `http://127.0.0.1:3000/api/health`
+  both still return `{"status":"ok"}`.
+
+Operational takeaway — **read this before touching `HOST`, deploy scripts, or
+any production `.env`**:
+
+- Production `.env` MUST always set `HOST=127.0.0.1`. Never remove this line
+  or let it fall back to the `server.ts` default of `0.0.0.0`.
+- `.env.example` now documents `HOST` for this reason — copy it into any new
+  environment's `.env` verbatim, don't skip vars that "look optional."
+- If you ever need the backend reachable directly from outside `127.0.0.1`
+  (e.g. a health-check appliance on another host), do it via an explicit
+  firewall allowlist rule, not by rebinding the app to `0.0.0.0`.
+- After any change to `.env`, `server.ts` startup, or the systemd unit,
+  re-run the external-exposure check from a shell on the box:
+  `curl -m 5 -o /dev/null -w "%{http_code}\n" http://82.223.139.217:3000/`
+  — anything other than a timeout/refused connection is a regression of
+  this incident.

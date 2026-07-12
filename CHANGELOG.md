@@ -1,5 +1,22 @@
 # Changelog
 
+## [security] - 2026-07-12
+
+### 🔒 Fixed: production backend exposed on public IP without TLS
+- **Root cause:** `server.ts` defaults `HOST` to `0.0.0.0` when unset;
+  production's `.env` never set `HOST`, unlike staging. Backend was
+  reachable at `http://82.223.139.217:3000/` — plain HTTP, full app
+  including `/api/auth/login`, bypassing nginx/TLS/domain routing entirely.
+- **Fix:** added `HOST=127.0.0.1` to `/opt/madridlive-app/.env`, restarted
+  `madridlive-app.service`. Verified port 3000 now bound to loopback only;
+  public domain (`https://inmosubastas.top`) unaffected.
+- **Docs:** full writeup in `docs/PRODUCTION_OBSERVABILITY.md` ("Deploy
+  Incident Closure 2026-07-12"); standing rule added to `AGENTS.md` and
+  `.github/copilot-instructions.md`; `HOST` documented in `.env.example`.
+- **Follow-ups not yet done:** consider firewalling port 3000 from external
+  networks as defense-in-depth, add `helmet`/rate-limiting to `server.ts`,
+  and add a pre-deploy check that fails if a target `.env` is missing `HOST`.
+
 ## [v1.0.0-prod-deploy] - 2026-07-07
 
 ### 🚀 Production Deployment
