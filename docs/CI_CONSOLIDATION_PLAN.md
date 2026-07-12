@@ -38,7 +38,7 @@ Acción propuesta: **quitar el bloque `schedule:` (dejar `workflow_dispatch`)**.
 | Workflow | Cron actual | Por qué desactivar | Riesgo de desactivar |
 |---|---|---|---|
 | `ops-watchdog.yml` | cada hora | Salud + latencia contra prod. **Redundante** con el watchdog systemd (cada 5 min, más frecuente y on-server). | **Bajo.** El watchdog systemd sigue cubriendo salud. |
-| `health-audit.yml` | semanal (lun) | Salud + versión. **Totalmente subsumido** por el watchdog systemd. | **Bajo.** Candidato incluso a borrado. |
+| `health-audit.yml` | ~~semanal (lun)~~ | Salud + versión. Totalmente subsumido por el watchdog systemd. | ✅ **ELIMINADO 2026-07-12** (paso 3). |
 | `active-shift-watchdog.yml` | 2×/día | Detecta turnos activos duplicados. **Solo tiene sentido con turnos reales** (ahora 0 fichajes reales). | **Bajo** hasta go-live. Reactivar al empezar eventos reales. |
 | `ops-weekly-integrity-report.yml` | semanal (lun) | KPI de deriva de ocupación. **Sin ocupación real, el informe no significa nada.** | **Bajo** hasta go-live. |
 | `deploy-dual-mode-validation.yml` | diario 03:15 | Valida el modo dual de deploy a diario. Nicho; el deploy ya se valida en cada release. | **Bajo.** |
@@ -73,8 +73,12 @@ Cada uno lo usa **solo** su workflow; al desactivar el cron quedan como herramie
 
 1. **Desactivar schedules del tramo 🔻 (7 workflows).** Cambio de bajo riesgo, reversible, efecto inmediato en ruido/minutos. *(Sonnet 5 · low)*
 2. ~~**Resolver el solape de e2e**~~ ✅ **HECHO 2026-07-12**: suite completa plegada en `ci.yml`, `e2e-regression.yml` eliminado.
-3. **Valorar borrado de `health-audit.yml`** (totalmente redundante) una vez confirmado que el watchdog systemd cubre su caso. *(Sonnet 5 · low)*
-4. **Documentar en `docs/PRODUCTION_OBSERVABILITY.md`** qué monitorización queda activa (watchdog systemd) y el runbook para **reactivar** los workflows de integridad al go-live. *(Sonnet 5 · low)*
+3. ~~**Valorar borrado de `health-audit.yml`**~~ ✅ **HECHO 2026-07-12**: eliminado (totalmente subsumido por el watchdog systemd).
+4. ~~**Documentar en `docs/PRODUCTION_OBSERVABILITY.md`**~~ ✅ **HECHO 2026-07-12**: sección "Monitorización activa (estado tras la consolidación)" + runbook de reactivación al go-live.
+
+---
+
+**Estado del plan: los 4 pasos completados (2026-07-12).** Workflows: 13 → 11. Ejecuciones programadas: ~30/día → 0. Monitores de salud activos: 5-6 → 1 (watchdog systemd). Todo reversible; nada borrado salvo lo redundante (`e2e-regression.yml`, `health-audit.yml`).
 
 ## Checklist de go-live (reactivar cuando haya datos reales)
 
