@@ -137,10 +137,8 @@ No pegar el token real en terminales compartidas, capturas o logs. Para fixtures
 
 Checks principales:
 
-- `CI`
-- `E2E Regression`
+- `CI` (incluye lint, build, regresión de API y la suite e2e completa en un gate de integridad aislado; absorbe al antiguo `E2E Regression`)
 - `Deploy`
-- `Ops Weekly Integrity Report`
 
 Si E2E falla:
 

@@ -65,9 +65,7 @@ E2E regresión disponible con Playwright:
 
 Workflows:
 
-1. `E2E Regression`:
-   - PR/push a `main` para validar regresión continua.
-2. `E2E Prod Nightly`:
-   - Diario 02:30 UTC (04:30 en verano, hora de Madrid), suite readonly contra producción.
-3. `E2E Staging Nightly`:
-   - Diario 03:00 UTC, suite completa contra staging.
+1. `CI` (gate de integridad):
+   - PR/push a `main`: monta una instancia local aislada y corre la regresión de API + la suite e2e completa (phase1-core, phase1-business-edges, regression). Sustituye al antiguo workflow `E2E Regression`, ya eliminado.
+2. `E2E Prod Nightly` / `E2E Staging Nightly`:
+   - Suites contra los entornos desplegados. **Schedule desactivado** (solo `workflow_dispatch`) hasta el go-live — ver `docs/CI_CONSOLIDATION_PLAN.md`.

@@ -25,11 +25,11 @@ El repo tiene **13 workflows de GitHub Actions** + **31 scripts** + un **watchdo
 | `deploy.yml` | manual / workflow_call | build + deploy + smoke | **Mantener.** Núcleo de release. |
 | `rollback.yml` | manual | rollback a snapshot | **Mantener.** Red de seguridad; solo manual, coste 0. |
 
-### 🟡 CONSOLIDAR — solape de e2e (1)
+### ✅ CONSOLIDADO — solape de e2e (hecho 2026-07-12, paso 2)
 
-| Workflow | Trigger | Solape | Veredicto |
-|---|---|---|---|
-| `e2e-regression.yml` | push/PR (paths) + manual | Corre `npm run test:e2e` (suite completa) en cada PR/push. `ci.yml` ya corre `test:e2e:phase1:edges` + `test:api:shifts:regression` en su gate. → **dos workflows corriendo e2e por cada PR**. | **Consolidar a UNO.** Decidir la autoridad de e2e en PR: (a) mover la suite completa al gate de `ci.yml` y borrar `e2e-regression.yml`, o (b) quedarse con `e2e-regression` como autoridad e2e y quitar el e2e del gate de `ci`. Riesgo **medio**: verificar que no se pierde cobertura antes de borrar. |
+| Workflow | Estado |
+|---|---|
+| `e2e-regression.yml` | **Eliminado.** Su suite (`npm run test:e2e`, las 3 specs) se plegó dentro del gate de `ci.yml`, que antes solo corría `test:e2e:phase1:edges`. Ahora el gate corre `test:api:shifts:regression` + `test:e2e` (suite completa) sobre el mismo arnés local aislado. Resultado: una sola infraestructura por PR (antes dos duplicadas), un workflow menos, y cobertura = superconjunto de ambos. `main` no tiene protección de rama, así que borrarlo no bloquea PRs. README y RUNBOOK actualizados. Reversible vía `git revert`. |
 
 ### 🔻 DESACTIVAR SCHEDULE — presuponen operación en vivo o duplican el watchdog systemd (7)
 
@@ -72,7 +72,7 @@ Cada uno lo usa **solo** su workflow; al desactivar el cron quedan como herramie
 ## Orden de ejecución recomendado (por seguridad, incremental)
 
 1. **Desactivar schedules del tramo 🔻 (7 workflows).** Cambio de bajo riesgo, reversible, efecto inmediato en ruido/minutos. *(Sonnet 5 · low)*
-2. **Resolver el solape de e2e** (decidir autoridad, verificar cobertura, borrar el redundante). *(Opus 4.8 · medium — requiere confirmar que no se pierde cobertura)*
+2. ~~**Resolver el solape de e2e**~~ ✅ **HECHO 2026-07-12**: suite completa plegada en `ci.yml`, `e2e-regression.yml` eliminado.
 3. **Valorar borrado de `health-audit.yml`** (totalmente redundante) una vez confirmado que el watchdog systemd cubre su caso. *(Sonnet 5 · low)*
 4. **Documentar en `docs/PRODUCTION_OBSERVABILITY.md`** qué monitorización queda activa (watchdog systemd) y el runbook para **reactivar** los workflows de integridad al go-live. *(Sonnet 5 · low)*
 
