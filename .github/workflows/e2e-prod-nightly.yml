@@ -7,8 +7,9 @@ on:
         description: 'Base URL for production regression'
         required: false
         default: 'https://inmosubastas.top'
-  schedule:
-    - cron: '30 2 * * *'
+  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
+  # Readonly e2e against prod demo data has little value until there's real data.
+  # RE-ENABLE AT GO-LIVE: restore `schedule:` with cron '30 2 * * *'.
 
 jobs:
   e2e_prod:

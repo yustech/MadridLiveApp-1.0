@@ -1,12 +1,9 @@
 name: Health Audit
 
 on:
-  schedule:
-    # 09:00 Europe/Madrid year-round (DST-safe):
-    # - 07:00 UTC when Madrid is UTC+2 (summer)
-    # - 08:00 UTC when Madrid is UTC+1 (winter)
-    - cron: "0 7 * * 1"
-    - cron: "0 8 * * 1"
+  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
+  # Fully subsumed by the on-server systemd watchdog (health + version, every 5 min).
+  # To re-enable: restore `schedule:` with cron "0 7 * * 1" and "0 8 * * 1" (09:00 Madrid, DST-safe).
   workflow_dispatch:
 
 concurrency:

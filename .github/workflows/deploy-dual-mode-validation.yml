@@ -2,8 +2,9 @@ name: Deploy Dual-Mode Validation
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '15 3 * * *'
+  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
+  # Deploy is already validated on every release; a daily standalone run adds little.
+  # To re-enable: restore `schedule:` with cron '15 3 * * *'.
 
 concurrency:
   group: deploy-dual-mode-validation
