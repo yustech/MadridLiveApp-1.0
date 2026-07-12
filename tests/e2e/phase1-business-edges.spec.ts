@@ -590,8 +590,13 @@ test.describe('Phase 1 - business edge coverage', () => {
       await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
       await page.locator('input[placeholder*="SEC-042"]').fill(idCode);
       await page.getByRole('button', { name: /^ENVIAR$/i }).click();
-      await expect(page.getByRole('heading', { name: /Entrada en evento pasado/i })).toBeVisible();
-      await page.getByRole('button', { name: /Confirmar entrada/i }).click();
+      const warningModal = page.locator('.fixed').filter({
+        has: page.getByRole('heading', { name: /Entrada en evento pasado/i }),
+      });
+      await expect(warningModal).toBeVisible();
+      await expect(warningModal.getByText(idCode)).toBeVisible();
+      await expect(warningModal.getByText(/20:00 hs/i)).toBeVisible();
+      await warningModal.getByRole('button', { name: /Confirmar entrada/i }).click();
       await expect(page.getByText(/ENTRADA REGISTRADA/i)).toBeVisible({ timeout: 12_000 });
 
       await page.getByRole('button', { name: /Volver a Escanear/i }).click();

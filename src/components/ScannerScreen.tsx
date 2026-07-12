@@ -793,6 +793,16 @@ export default function ScannerScreen({
                 Vas a registrar la entrada de <span className="font-bold text-white">{pastEventWarningWorker.name}</span> en
                 {' '}<span className="font-bold text-white">{activeEvent.title}</span>, que ya figura como evento pasado.
               </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[10px]">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-white/35 uppercase tracking-wider mb-1">Evento</p>
+                  <p className="text-white/80">{formatEventDate(activeEvent)} · {activeEvent.doorsOpen} hs</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-white/35 uppercase tracking-wider mb-1">Credencial</p>
+                  <p className="text-white/80">{pastEventWarningWorker.idCode}</p>
+                </div>
+              </div>
               <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 font-mono text-[11px] text-amber-200">
                 {isActiveEventInDefaultWindow
                   ? 'Este evento sigue dentro de la ventana por defecto: día del concierto y hasta las 23:59 del día siguiente.'
