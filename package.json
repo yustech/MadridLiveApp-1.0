@@ -15,6 +15,8 @@
     "watchdog:prod": "bash scripts/production-watchdog.sh",
     "deploy:frontend:public": "bash scripts/deploy-frontend-public.sh",
     "deploy:full": "DEPLOY_PUBLIC_FRONTEND=true bash scripts/deploy.sh",
+    "deploy:staging-first": "bash scripts/deploy-staging-first.sh --staging-only",
+    "deploy:staging-first:prod": "bash scripts/deploy-staging-first.sh --production",
     "smoke:prod": "bash scripts/smoke-test-prod.sh",
     "guard:shifts:contract": "bash scripts/guard-shifts-contract.sh",
     "test:e2e": "playwright test",

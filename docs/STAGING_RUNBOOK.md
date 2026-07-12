@@ -118,6 +118,45 @@ curl -I https://staging.inmosubastas.top
 SITE_URL=https://staging.inmosubastas.top npm run smoke:staging
 ```
 
+El plan distingue ahora entre certificado ausente y ruta inaccesible por
+permisos. Si se ejecuta sin root y `/etc/letsencrypt/live` no es atravesable,
+puede mostrar:
+
+```text
+tls_status=certificate_inaccessible
+public_tls_status=serving_valid_certificate
+```
+
+Ese estado significa que nginx esta sirviendo TLS correctamente, aunque el
+usuario actual no pueda leer la ruta local del certificado.
+
+## Deploy Staging-First
+
+Para validar una release en staging antes de tocar produccion:
+
+```bash
+npm run deploy:staging-first
+```
+
+El comando:
+
+- Exige worktree limpio por defecto.
+- Ejecuta `npm run build`.
+- Genera `dist/build-info.json` con el SHA exacto de Git.
+- Aplica staging con `scripts/setup-staging.sh --apply`.
+- Ejecuta smoke local y publico contra staging con `EXPECTED_COMMIT_SHA`.
+- No despliega produccion.
+
+Para desplegar produccion solo despues de que staging este verde:
+
+```bash
+npm run deploy:staging-first:prod
+```
+
+Este modo requiere las variables `DEPLOY_*` fuera del repo y reutiliza
+`scripts/deploy.sh`. Tras produccion, `npm run smoke:prod` tambien valida
+`EXPECTED_COMMIT_SHA`.
+
 ## Rollback
 
 Parar staging:
