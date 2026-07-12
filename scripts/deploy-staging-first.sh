@@ -14,6 +14,8 @@ PROD_SITE_URL="${PROD_SITE_URL:-https://inmosubastas.top}"
 PROD_EXPECTED_STAFF_COUNT="${PROD_EXPECTED_STAFF_COUNT:-1}"
 DEPLOY_PUBLIC_FRONTEND="${DEPLOY_PUBLIC_FRONTEND:-true}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-true}"
+STAGING_ENV_FILE="${STAGING_ENV_FILE:-/opt/madridlive-app-staging/.env}"
+PROD_ENV_FILE="${PROD_ENV_FILE:-/opt/madridlive-app/.env}"
 SMOKE_PROD_AFTER_DEPLOY="${SMOKE_PROD_AFTER_DEPLOY:-true}"
 EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"
 
@@ -159,6 +161,20 @@ deploy_and_verify_production() {
   fi
 }
 
+# Fail fast if any target .env violates the HOST-loopback invariant (or has
+# malformed/duplicate keys). Guards against the 2026-07-12 exposure incident.
+validate_env_files() {
+  local env_file
+  for env_file in "$STAGING_ENV_FILE" "$PROD_ENV_FILE"; do
+    if [[ -f "$env_file" ]]; then
+      echo "[staging-first] validating env: $env_file"
+      bash scripts/validate-env-file.sh "$env_file"
+    else
+      echo "[staging-first] env not found, skipping validation: $env_file"
+    fi
+  done
+}
+
 if [[ "$MODE" == "--help" || "$MODE" == "-h" ]]; then
   usage
   exit 0
@@ -172,6 +188,7 @@ if [[ "$MODE" == "--plan" ]]; then
 fi
 
 require_clean_worktree
+validate_env_files
 deploy_and_verify_staging
 
 if [[ "$MODE" == "--staging-only" ]]; then
