@@ -1,5 +1,27 @@
 # Changelog
 
+## [security] - 2026-07-12 (follow-up)
+
+### 🔒 Added: login rate-limiting, correct client-IP derivation, safe HOST default
+Follow-up to the 2026-07-12 `HOST` exposure incident, from code review of PR #17.
+
+- **`POST /api/auth/login` now rate-limited:** 5 attempts / 15 min per IP
+  (mirrors the existing limiter on `/api/test-mariadb`, now shared via a
+  generic `isRateLimited(store, key, windowMs, maxRequests)`). Previously
+  there was no brute-force protection at all on the admin login.
+- **Fixed spoofable client-IP derivation:** `getClientIp` used to trust the
+  first hop of `X-Forwarded-For` directly, which nginx's
+  `$proxy_add_x_forwarded_for` lets a client control (defeating both rate
+  limiters). Added `app.set("trust proxy", 1)` and switched to Express's
+  `req.ip`.
+- **`server.ts`'s `HOST` default changed from `0.0.0.0` to `127.0.0.1`:**
+  defense-in-depth on top of the explicit `HOST=127.0.0.1` now set in every
+  `.env`. Verified no CI workflow, dev script, or Dockerfile relied on the
+  old implicit `0.0.0.0` default.
+- **Not included in this change (deferred by product owner):** rotating
+  `ADMIN_LOGIN_PASSWORD`, and restricting `/api/test-mariadb`'s `isValidHost`
+  against private/metadata IP ranges.
+
 ## [v1.0.0-prod-deploy] - 2026-07-07
 
 ### 🚀 Production Deployment

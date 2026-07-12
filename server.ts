@@ -11,27 +11,35 @@ dotenv.config();
 
 const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60_000;
+const LOGIN_MAX_ATTEMPTS = 5;
 const AUTH_COOKIE_NAME = "ml_admin_session";
 const AUTH_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const dbTestRateLimits = new Map<string, { count: number; windowStart: number }>();
+const loginRateLimits = new Map<string, { count: number; windowStart: number }>();
 const historyFilterTelemetry = new Map<string, number>();
 
+// Requires app.set("trust proxy", ...) so req.ip reflects the real client
+// (nginx-forwarded) address instead of a client-spoofable X-Forwarded-For value.
 function getClientIp(req: express.Request) {
-  const forwarded = req.headers["x-forwarded-for"];
-  const firstForwarded = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
-  return (firstForwarded || req.socket.remoteAddress || "unknown").trim();
+  return req.ip || req.socket.remoteAddress || "unknown";
 }
 
-function isRateLimited(ip: string) {
+function isRateLimited(
+  store: Map<string, { count: number; windowStart: number }>,
+  key: string,
+  windowMs: number,
+  maxRequests: number,
+) {
   const now = Date.now();
-  const entry = dbTestRateLimits.get(ip);
-  if (!entry || now - entry.windowStart > DB_TEST_WINDOW_MS) {
-    dbTestRateLimits.set(ip, { count: 1, windowStart: now });
+  const entry = store.get(key);
+  if (!entry || now - entry.windowStart > windowMs) {
+    store.set(key, { count: 1, windowStart: now });
     return false;
   }
 
   entry.count += 1;
-  return entry.count > DB_TEST_MAX_REQUESTS;
+  return entry.count > maxRequests;
 }
 
 function getCookieValue(req: express.Request, name: string) {
@@ -155,12 +163,24 @@ function readBuildInfo() {
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
-  const HOST = process.env.HOST || "0.0.0.0";
+  const HOST = process.env.HOST || "127.0.0.1";
+
+  // Trust exactly one hop (nginx on this box) so req.ip / req.secure reflect
+  // the real client instead of a spoofable X-Forwarded-For header.
+  app.set("trust proxy", 1);
 
   // Middleware to parse JSON
   app.use(express.json());
 
   app.post("/api/auth/login", (req, res) => {
+    const clientIp = getClientIp(req);
+    if (isRateLimited(loginRateLimits, clientIp, LOGIN_WINDOW_MS, LOGIN_MAX_ATTEMPTS)) {
+      return res.status(429).json({
+        success: false,
+        message: "Demasiados intentos. Inténtalo de nuevo más tarde.",
+      });
+    }
+
     const configuredEmail = process.env.ADMIN_LOGIN_EMAIL?.trim().toLowerCase();
     const configuredPassword = process.env.ADMIN_LOGIN_PASSWORD || "";
     const sessionSecret = getSessionSecret();
@@ -218,7 +238,7 @@ async function startServer() {
     const dbName = database || name;
     const clientIp = getClientIp(req);
 
-    if (isRateLimited(clientIp)) {
+    if (isRateLimited(dbTestRateLimits, clientIp, DB_TEST_WINDOW_MS, DB_TEST_MAX_REQUESTS)) {
       return res.status(429).json({
         success: false,
         message: "Demasiadas solicitudes. Inténtalo de nuevo en un minuto.",
