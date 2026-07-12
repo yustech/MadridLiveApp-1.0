@@ -210,7 +210,9 @@ set_env_value "$STAGING_ENV" MYSQL_DATABASE "$STAGING_DB"
 set_env_value "$STAGING_ENV" PORT "$STAGING_PORT"
 set_env_value "$STAGING_ENV" HOST "$STAGING_HOST"
 set_env_value "$STAGING_ENV" WATCHDOG_ALERT_WEBHOOK ""
-set_env_value "$STAGING_ENV" WATCHDOG_EXPECTED_STAFF_COUNT "$STAGING_EXPECTED_STAFF_COUNT"
+# No staging watchdog exists; the prod watchdog reads WATCHDOG_MIN_STAFF_COUNT
+# (a floor, not an exact count). Staging's exact seed count is verified by
+# smoke-test-staging.sh, so nothing here needs a watchdog staff-count var.
 chown "$APP_USER:$APP_GROUP" "$STAGING_ENV"
 chmod 0600 "$STAGING_ENV"
 

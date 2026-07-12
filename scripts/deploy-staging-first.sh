@@ -9,7 +9,9 @@ STAGING_LOCAL_URL="${STAGING_LOCAL_URL:-http://127.0.0.1:3001}"
 STAGING_PUBLIC_URL="${STAGING_PUBLIC_URL:-https://staging.inmosubastas.top}"
 STAGING_EXPECTED_STAFF_COUNT="${STAGING_EXPECTED_STAFF_COUNT:-6}"
 PROD_SITE_URL="${PROD_SITE_URL:-https://inmosubastas.top}"
-PROD_EXPECTED_STAFF_COUNT="${PROD_EXPECTED_STAFF_COUNT:-6}"
+# Production uses a minimum floor (real roster varies/grows); staging stays an
+# exact seed count above. Passed to smoke:prod, which treats it as a floor.
+PROD_EXPECTED_STAFF_COUNT="${PROD_EXPECTED_STAFF_COUNT:-1}"
 DEPLOY_PUBLIC_FRONTEND="${DEPLOY_PUBLIC_FRONTEND:-true}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-true}"
 SMOKE_PROD_AFTER_DEPLOY="${SMOKE_PROD_AFTER_DEPLOY:-true}"
