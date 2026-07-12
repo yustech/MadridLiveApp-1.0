@@ -1,8 +1,9 @@
 name: Ops Watchdog
 
 on:
-  schedule:
-    - cron: '0 * * * *'
+  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
+  # Health/latency is already covered by the on-server systemd watchdog (every 5 min).
+  # To re-enable: restore `schedule:` with cron '0 * * * *'.
   workflow_dispatch:
 
 jobs:
