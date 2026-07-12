@@ -19,8 +19,9 @@ Rules going forward:
 - `.env.example` documents `HOST` — when scaffolding a new environment,
   copy every var, don't skip ones that look optional.
 - If a change touches `server.ts` startup, the systemd units, or any `.env`,
-  verify exposure before calling it done:
-  `curl -m 5 -o /dev/null -w "%{http_code}\n" http://82.223.139.217:3000/`
+  verify exposure before calling it done (run on the box itself, using its
+  own public IP — don't hardcode the IP in this repo):
+  `curl -m 5 -o /dev/null -w "%{http_code}\n" http://$(curl -s ifconfig.me):3000/`
   should time out / refuse — not return `200`.
 - Full incident writeup: `docs/PRODUCTION_OBSERVABILITY.md` → "Deploy
   Incident Closure 2026-07-12".

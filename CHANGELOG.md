@@ -5,7 +5,7 @@
 ### 🔒 Fixed: production backend exposed on public IP without TLS
 - **Root cause:** `server.ts` defaults `HOST` to `0.0.0.0` when unset;
   production's `.env` never set `HOST`, unlike staging. Backend was
-  reachable at `http://82.223.139.217:3000/` — plain HTTP, full app
+  reachable on the host's public IP at port 3000 — plain HTTP, full app
   including `/api/auth/login`, bypassing nginx/TLS/domain routing entirely.
 - **Fix:** added `HOST=127.0.0.1` to `/opt/madridlive-app/.env`, restarted
   `madridlive-app.service`. Verified port 3000 now bound to loopback only;
