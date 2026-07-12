@@ -45,6 +45,80 @@ print_plan() {
 PLAN
 }
 
+path_status() {
+  local path="$1"
+
+  if [[ -f "$path" ]]; then
+    echo "present"
+    return 0
+  fi
+
+  if command -v namei >/dev/null 2>&1; then
+    local namei_output
+    namei_output="$(namei -m "$path" 2>&1 || true)"
+    if printf '%s\n' "$namei_output" | grep -q "Permission denied"; then
+      echo "inaccessible"
+      return 0
+    fi
+  fi
+
+  if [[ -e "$path" ]]; then
+    echo "inaccessible"
+    return 0
+  fi
+
+  echo "missing"
+}
+
+print_tls_status() {
+  local cert_status
+  local key_status
+  cert_status="$(path_status "$CERT_PATH")"
+  key_status="$(path_status "$CERT_KEY_PATH")"
+
+  echo "[staging-public] cert_path_status=$cert_status"
+  echo "[staging-public] cert_key_path_status=$key_status"
+
+  if [[ "$cert_status" == "present" && "$key_status" == "present" ]]; then
+    echo "[staging-public] tls_status=certificate_present"
+  elif [[ "$cert_status" == "inaccessible" || "$key_status" == "inaccessible" ]]; then
+    echo "[staging-public] tls_status=certificate_inaccessible"
+  else
+    echo "[staging-public] tls_status=certificate_missing"
+  fi
+}
+
+print_public_tls_probe() {
+  local cert_metadata
+  local subject
+  local not_after
+
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "[staging-public] public_tls_status=not_checked_openssl_missing"
+    return 0
+  fi
+
+  cert_metadata="$(
+    timeout 8 openssl s_client \
+      -connect "$STAGING_DOMAIN:443" \
+      -servername "$STAGING_DOMAIN" \
+      -verify_hostname "$STAGING_DOMAIN" \
+      </dev/null 2>/dev/null |
+      openssl x509 -noout -subject -enddate 2>/dev/null || true
+  )"
+
+  subject="$(printf '%s\n' "$cert_metadata" | grep '^subject=' | head -n 1 | cut -d '=' -f2- || true)"
+  not_after="$(printf '%s\n' "$cert_metadata" | grep '^notAfter=' | head -n 1 | cut -d '=' -f2- || true)"
+
+  if [[ -n "$subject" && -n "$not_after" ]]; then
+    echo "[staging-public] public_tls_status=serving_valid_certificate"
+    echo "[staging-public] public_tls_subject=$subject"
+    echo "[staging-public] public_tls_not_after=$not_after"
+  else
+    echo "[staging-public] public_tls_status=not_serving_valid_certificate"
+  fi
+}
+
 if [[ "$MODE" == "--help" || "$MODE" == "-h" ]]; then
   usage
   exit 0
@@ -68,11 +142,8 @@ if [[ "$MODE" == "--plan" ]]; then
   else
     echo "[staging-public] nginx_conf_status=missing"
   fi
-  if [[ -f "$CERT_PATH" && -f "$CERT_KEY_PATH" ]]; then
-    echo "[staging-public] tls_status=certificate_present"
-  else
-    echo "[staging-public] tls_status=certificate_missing"
-  fi
+  print_tls_status
+  print_public_tls_probe
   exit 0
 fi
 
