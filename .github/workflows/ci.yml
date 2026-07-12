@@ -112,9 +112,15 @@ jobs:
     outputs:
       gate_failed: ${{ steps.gate_status.outputs.failed }}
     env:
+      # Shifts integrity e2e ALWAYS runs against an isolated local app instance
+      # (built + seeded fresh below), on both pull_request and push-to-main.
+      # It must NOT target a deployed environment: doing so used to run these
+      # data-mutating tests against live production and left QA fixtures in the
+      # prod DB. Production health is covered by the systemd watchdog, smoke:prod,
+      # and the nightly e2e workflows instead.
       INTEGRITY_LOCAL_BASE_URL: http://127.0.0.1:5173
-      PLAYWRIGHT_BASE_URL: ${{ github.event_name == 'pull_request' && 'http://127.0.0.1:5173' || vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
-      API_BASE_URL: ${{ github.event_name == 'pull_request' && 'http://127.0.0.1:5173' || vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173
+      API_BASE_URL: http://127.0.0.1:5173
       ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
       ADMIN_LOGIN_EMAIL: ${{ secrets.ADMIN_LOGIN_EMAIL }}
       ADMIN_LOGIN_PASSWORD: ${{ secrets.ADMIN_LOGIN_PASSWORD }}
@@ -157,11 +163,9 @@ jobs:
           exit "$missing"
 
       - name: Build local integrity app
-        if: github.event_name == 'pull_request'
         run: npm run build
 
       - name: Start local integrity app
-        if: github.event_name == 'pull_request'
         run: |
           DISABLE_HMR=true PORT=5173 NODE_ENV=development npm start > /tmp/madridlive-shifts-integrity.log 2>&1 &
           echo "$!" > /tmp/madridlive-shifts-integrity.pid
@@ -179,7 +183,6 @@ jobs:
           exit 1
 
       - name: Seed local integrity MySQL fixture
-        if: github.event_name == 'pull_request'
         run: |
           curl -fsS \
             -X POST \
@@ -197,14 +200,14 @@ jobs:
         run: npm run test:e2e:phase1:edges
 
       - name: Stop local integrity app
-        if: ${{ always() && github.event_name == 'pull_request' }}
+        if: ${{ always() }}
         run: |
           if [ -f /tmp/madridlive-shifts-integrity.pid ]; then
             kill "$(cat /tmp/madridlive-shifts-integrity.pid)" 2>/dev/null || true
           fi
 
       - name: Upload local integrity server log
-        if: ${{ always() && github.event_name == 'pull_request' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: shifts-integrity-server-log

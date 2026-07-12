@@ -584,7 +584,7 @@ test.describe('Phase 1 - business edge coverage', () => {
       await page.getByRole('button', { name: /Lector QR/i }).click();
       await page.locator('select').first().selectOption(eventId);
       await expect(page.locator('h3').filter({ hasText: eventTitle })).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByText(/Registro extendido activo|Evento pasado/i)).toBeVisible();
+      await expect(page.getByText(/Registro extendido activo|Evento pasado/i).first()).toBeVisible();
       await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 
       await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
