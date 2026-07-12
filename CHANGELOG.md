@@ -1,5 +1,32 @@
 # Changelog
 
+## [ops] - 2026-07-12 (data reset, monitoring & CI consolidation)
+
+### 🔄 Production data reset to the demo seed
+- Reset production to the app's standard demo dataset (6 staff / 4 events /
+  8 shifts / 1 alert), matching staging, after finding its whole DB was QA
+  fixtures left by CI. Full pre-reset backup taken and synced to Drive.
+
+### 📉 Watchdog staff check is now a floor, not an exact count (#26)
+- The prod watchdog / smoke checks compared the roster to an exact number,
+  which false-alarms as the roster grows. Now a configurable minimum floor
+  (`WATCHDOG_MIN_STAFF_COUNT`, default 1); alerts only on DB down/empty/below
+  floor. Staging keeps its exact seed count (deterministic fixture).
+
+### 🧹 CI / ops consolidation (#27, #28, #29)
+- The app isn't in real use yet, but ~30 scheduled workflow runs/day hit prod
+  demo data with 5-6 overlapping health monitors. Disabled the `schedule:` on
+  7 workflows (kept `workflow_dispatch`), consolidated e2e into the CI gate
+  (full suite; removed the duplicate `e2e-regression.yml`), and removed the
+  redundant `health-audit.yml`. Workflows 13 → 11; scheduled runs ~30/day → 0;
+  active health monitors 5-6 → 1 (the on-server systemd watchdog). Plan +
+  go-live re-enable runbook in `docs/CI_CONSOLIDATION_PLAN.md`.
+
+### 🔒 HOST-loopback invariant now enforced, not just documented (#30)
+- `scripts/validate-env-file.sh` fails if `HOST` is unset or not loopback;
+  `deploy-staging-first.sh` runs it as a preflight before any deploy. Guards
+  against a recurrence of the 2026-07-12 public-exposure incident.
+
 ## [ops] - 2026-07-12 (schema cleanup)
 
 ### 🧹 Removed orphan DB objects from production; documented real schema
