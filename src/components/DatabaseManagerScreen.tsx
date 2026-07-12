@@ -705,28 +705,18 @@ export default function DatabaseManagerScreen({
                         Esquema SQL Físico para MySQL / MariaDB
                       </p>
                       <p className="text-[10px] text-white/50 mt-1 leading-relaxed">
-                        Copia y ejecuta estas sentencias DDL en tu consola de MySQL, MariaDB o phpMyAdmin para crear las tablas necesarias correspondientes a los modelos de la aplicación.
+                        Referencia del esquema real de la app (4 tablas: staff, events, shifts, alerts). El backend ya las crea automáticamente al arrancar; esto es solo para consulta o para reconstruir manualmente en MySQL/MariaDB/phpMyAdmin.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        const sqlCode = `-- 1. Tabla de Supervisores / Usuarios
-CREATE TABLE IF NOT EXISTS supervisors (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  email VARCHAR(100) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  role VARCHAR(50) DEFAULT 'supervisor',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+                        const sqlCode = `-- NOTA: la app NO usa una tabla 'supervisors'. La autenticación de admin
+-- es por variables de entorno (ADMIN_LOGIN_EMAIL/ADMIN_LOGIN_PASSWORD) con
+-- cookies firmadas en server.ts. El esquema real son solo estas 4 tablas.
+-- (Ver AGENTS.md: no recrees 'supervisors' -- fue un residuo legacy ya eliminado.)
 
--- Inserción de credencial inicial con hash provisionado por entorno
-INSERT INTO supervisors (email, password_hash, name, role) 
-VALUES ('admin@madridlive.com', 'ADMIN_PASSWORD_HASH', 'Administrador General', 'admin')
-ON DUPLICATE KEY UPDATE email=email;
-
--- 2. Tabla de Plantilla (Staff)
+-- 1. Tabla de Plantilla (Staff)
 CREATE TABLE IF NOT EXISTS staff (
   id VARCHAR(50) PRIMARY KEY,
   id_code VARCHAR(20) NOT NULL UNIQUE,
@@ -782,22 +772,12 @@ CREATE TABLE IF NOT EXISTS events (
 
                   {/* Visual Console Screen */}
                   <div className="bg-[#030008] border border-white/10 rounded-2xl p-4 font-mono text-[10px] text-indigo-300 leading-normal overflow-x-auto max-h-[320px]">
-                    <pre>{`-- 1. Tabla de Supervisores / Usuarios de Acceso
-CREATE TABLE IF NOT EXISTS supervisors (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  email VARCHAR(100) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  role VARCHAR(50) DEFAULT 'supervisor',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+                    <pre>{`-- NOTA: la app NO usa una tabla 'supervisors'. La autenticación de admin
+-- es por variables de entorno (ADMIN_LOGIN_EMAIL/ADMIN_LOGIN_PASSWORD) con
+-- cookies firmadas en server.ts. El esquema real son solo estas 4 tablas.
+-- (Ver AGENTS.md: no recrees 'supervisors' -- fue un residuo legacy ya eliminado.)
 
--- Inserción inicial de credencial con hash provisionado por entorno
-INSERT INTO supervisors (email, password_hash, name, role) 
-VALUES ('admin@madridlive.com', 'ADMIN_PASSWORD_HASH', 'Administrador General', 'admin')
-ON DUPLICATE KEY UPDATE email=email;
-
--- 2. Tabla de Plantilla (Staff)
+-- 1. Tabla de Plantilla (Staff)
 CREATE TABLE IF NOT EXISTS staff (
   id VARCHAR(50) PRIMARY KEY,
   id_code VARCHAR(20) NOT NULL UNIQUE,
@@ -883,7 +863,9 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Endpoint de Validación de Clave y Login de Supervisor
+// EJEMPLO HISTÓRICO (NO refleja la app real): el login real vive en server.ts,
+// usa ADMIN_LOGIN_EMAIL/ADMIN_LOGIN_PASSWORD del .env con cookies firmadas y NO
+// consulta ninguna tabla 'supervisors'. Se conserva solo como referencia visual.
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   
@@ -966,7 +948,9 @@ const pool = mysql.createPool({
   connectionLimit: 10
 });
 
-// Login con Token de Seguridad JWT
+// EJEMPLO HISTÓRICO (NO refleja la app real): el login real vive en server.ts,
+// usa ADMIN_LOGIN_EMAIL/ADMIN_LOGIN_PASSWORD del .env con cookies firmadas y NO
+// consulta ninguna tabla 'supervisors'. Se conserva solo como referencia visual.
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {

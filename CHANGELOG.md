@@ -1,5 +1,23 @@
 # Changelog
 
+## [ops] - 2026-07-12 (schema cleanup)
+
+### 🧹 Removed orphan DB objects from production; documented real schema
+- Dropped the orphan `supervisors` table and the `STAFF COMPLETO` view from
+  the production database. Neither is referenced by any code path — the app's
+  real schema is only 4 tables (`staff`, `events`, `shifts`, `alerts`), created
+  by `initSchema()`. `supervisors` was a leftover of an abandoned DB-based auth
+  design that reached prod when someone ran the example SQL shown in
+  `DatabaseManagerScreen.tsx`; real admin auth is `.env`-based with signed
+  cookies. Staging never had these objects (it was provisioned clean), so this
+  brings prod's schema in line with staging, not the other way around.
+- Each object was backed up individually before dropping
+  (`/opt/madridlive-app/backups/pre-drop-*`, also synced to Google Drive) in
+  addition to the full validated env backups.
+- Marked the misleading `supervisors` example SQL in `DatabaseManagerScreen.tsx`
+  as legacy so it isn't copied into a DB again, and recorded the "4 tables only"
+  rule in `AGENTS.md`.
+
 ## [security] - 2026-07-12 (follow-up)
 
 ### 🔒 Added: login rate-limiting, correct client-IP derivation, safe HOST default
