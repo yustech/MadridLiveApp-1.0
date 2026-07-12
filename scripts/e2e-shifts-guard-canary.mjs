@@ -27,6 +27,8 @@ const MONTH_TO_INDEX = {
   DIC: 11,
 };
 
+const MONTH_INDEX_TO_TOKEN = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
 function parseEventDate(event) {
   const day = Number(event?.dateDay);
   const monthRaw = String(event?.dateMonth || '').trim().toUpperCase();
@@ -38,6 +40,30 @@ function parseEventDate(event) {
   }
 
   return new Date(year, month, day);
+}
+
+function buildFutureEventPayload() {
+  const now = new Date();
+  const future = new Date(now);
+  future.setDate(now.getDate() + 14);
+
+  if (future.getFullYear() !== now.getFullYear()) {
+    future.setFullYear(now.getFullYear(), 11, 31);
+  }
+
+  const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  return {
+    title: `Shifts Guard Future Event ${stamp}`,
+    location: 'QA Future Guard',
+    dateDay: String(future.getDate()).padStart(2, '0'),
+    dateMonth: MONTH_INDEX_TO_TOKEN[future.getMonth()],
+    doorsOpen: '23:59',
+    requiredStaff: 0,
+    activeStaff: 0,
+    totalStaffNeeded: 0,
+    scanRate: 0,
+    loadInPercent: 0,
+  };
 }
 
 function isFutureGuardMessage(textOrJsonMessage) {
@@ -118,6 +144,8 @@ async function run() {
   let allowedEvent = null;
   let futureEvent = null;
   let createdShiftId = null;
+  let createdFutureEventId = null;
+  let createdFutureShiftId = null;
 
   for (const candidateWorker of candidateWorkers) {
     for (const event of orderedEvents) {
@@ -236,6 +264,22 @@ async function run() {
       }
     }
 
+    if (!futureEvent) {
+      const futureEventPayload = buildFutureEventPayload();
+      const futureEventRes = await api('/api/mysql/events', {
+        method: 'POST',
+        body: futureEventPayload,
+      });
+
+      assert(
+        futureEventRes.status === 201 && futureEventRes.json?.id,
+        `No se pudo crear evento futuro temporal para el canario (status ${futureEventRes.status}): ${futureEventRes.text}`,
+      );
+
+      futureEvent = { id: futureEventRes.json.id, ...futureEventPayload };
+      createdFutureEventId = futureEvent.id;
+    }
+
     assert(futureEvent, 'No hay evento futuro para validar el bloqueo de activación de turnos.');
 
     const createFuture = await api('/api/mysql/shifts', {
@@ -251,6 +295,10 @@ async function run() {
         startedAt: new Date().toISOString(),
       },
     });
+
+    if (createFuture.status === 201 && createFuture.json?.id) {
+      createdFutureShiftId = createFuture.json.id;
+    }
 
     assert(createFuture.status === 400, `Evento futuro debería bloquear y devolvió status ${createFuture.status}: ${createFuture.text}`);
 
@@ -272,7 +320,13 @@ async function run() {
       }),
     );
   } finally {
+    if (createdFutureShiftId) {
+      await api(`/api/mysql/shifts/${createdFutureShiftId}`, { method: 'DELETE' });
+    }
     await api(`/api/mysql/shifts/${createdShiftId}`, { method: 'DELETE' });
+    if (createdFutureEventId) {
+      await api(`/api/mysql/events/${createdFutureEventId}`, { method: 'DELETE' });
+    }
   }
 }
 
