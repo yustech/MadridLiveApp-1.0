@@ -5,10 +5,14 @@
 ### 🔒 Added: login rate-limiting, correct client-IP derivation, safe HOST default
 Follow-up to the 2026-07-12 `HOST` exposure incident, from code review of PR #17.
 
-- **`POST /api/auth/login` now rate-limited:** 5 attempts / 15 min per IP
-  (mirrors the existing limiter on `/api/test-mariadb`, now shared via a
-  generic `isRateLimited(store, key, windowMs, maxRequests)`). Previously
-  there was no brute-force protection at all on the admin login.
+- **`POST /api/auth/login` now locks out an IP after 5 *failed* attempts /
+  15 min** (successful logins reset the counter and never count against it).
+  Previously there was no brute-force protection at all on the admin login.
+  First attempt counted every request (like the existing `/api/test-mariadb`
+  limiter) and broke the e2e CI job, because several specs each perform an
+  independent, valid login against the same running instance and tripped
+  the limit with zero actual attack traffic — caught by CI before merge,
+  fixed by only counting failed attempts.
 - **Fixed spoofable client-IP derivation:** `getClientIp` used to trust the
   first hop of `X-Forwarded-For` directly, which nginx's
   `$proxy_add_x_forwarded_for` lets a client control (defeating both rate

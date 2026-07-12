@@ -12,11 +12,11 @@ dotenv.config();
 const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60_000;
-const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_MAX_FAILED_ATTEMPTS = 5;
 const AUTH_COOKIE_NAME = "ml_admin_session";
 const AUTH_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const dbTestRateLimits = new Map<string, { count: number; windowStart: number }>();
-const loginRateLimits = new Map<string, { count: number; windowStart: number }>();
+const loginFailureTracker = new Map<string, { count: number; windowStart: number }>();
 const historyFilterTelemetry = new Map<string, number>();
 
 // Requires app.set("trust proxy", ...) so req.ip reflects the real client
@@ -40,6 +40,30 @@ function isRateLimited(
 
   entry.count += 1;
   return entry.count > maxRequests;
+}
+
+// Only failed attempts count against the login lockout -- repeated
+// successful logins (e.g. multiple e2e tests, multiple browser tabs) must
+// never trip this, only actual brute-force guessing should.
+function isLoginLocked(ip: string) {
+  const entry = loginFailureTracker.get(ip);
+  if (!entry) return false;
+  if (Date.now() - entry.windowStart > LOGIN_WINDOW_MS) return false;
+  return entry.count >= LOGIN_MAX_FAILED_ATTEMPTS;
+}
+
+function recordFailedLogin(ip: string) {
+  const now = Date.now();
+  const entry = loginFailureTracker.get(ip);
+  if (!entry || now - entry.windowStart > LOGIN_WINDOW_MS) {
+    loginFailureTracker.set(ip, { count: 1, windowStart: now });
+    return;
+  }
+  entry.count += 1;
+}
+
+function clearLoginFailures(ip: string) {
+  loginFailureTracker.delete(ip);
 }
 
 function getCookieValue(req: express.Request, name: string) {
@@ -174,7 +198,7 @@ async function startServer() {
 
   app.post("/api/auth/login", (req, res) => {
     const clientIp = getClientIp(req);
-    if (isRateLimited(loginRateLimits, clientIp, LOGIN_WINDOW_MS, LOGIN_MAX_ATTEMPTS)) {
+    if (isLoginLocked(clientIp)) {
       return res.status(429).json({
         success: false,
         message: "Demasiados intentos. Inténtalo de nuevo más tarde.",
@@ -198,12 +222,14 @@ async function startServer() {
     const passwordMatches = timingSafeEqualString(password, configuredPassword);
 
     if (!emailMatches || !passwordMatches) {
+      recordFailedLogin(clientIp);
       return res.status(401).json({
         success: false,
         message: "Invalid credentials.",
       });
     }
 
+    clearLoginFailures(clientIp);
     const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
     const sessionValue = buildSessionValue(email, expiresAt);
     if (!sessionValue) {
