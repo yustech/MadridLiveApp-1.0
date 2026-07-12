@@ -233,6 +233,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
 ## Notas de estado (contexto para quien ejecute)
 
 - **Deuda de esquema ya saneada**: prod y staging tienen exactamente `staff`, `events`, `shifts`, `alerts`. No recrear `supervisors` (ver AGENTS.md).
+- **⚠️ Datos de producción = semilla demo (6 staff), NO datos reales todavía.** El 2026-07-12 se reseteó producción al dataset demo estándar (6 staff / 4 eventos / 8 turnos / 1 alerta), igual que staging, tras eliminar los fixtures QA que el CI antiguo dejaba. **Cuando se introduzca el personal real**, el conteo de staff cambiará y HAY QUE reajustar en consecuencia, o el watchdog alertará (compara exacto) y `smoke:prod` fallará: (1) `WATCHDOG_EXPECTED_STAFF_COUNT` en `/opt/madridlive-app/.env`; (2) el default `6` en `scripts/production-watchdog.sh`, `scripts/smoke-test-prod.sh` y `scripts/deploy-staging-first.sh` (o pasar el valor por env var). Staging usa `6` (STAGING_EXPECTED_STAFF_COUNT). Antes de tocar datos de producción: backup + confirmación del owner.
 - **Restart de servicios**: hoy se hace por señal (`kill` al MainPID → systemd relanza) porque no hay `sudo` no interactivo. La tarea #6 aborda esto.
 - **Deploy**: usar `npm run deploy:staging-first` / `deploy:staging-first:prod`. Verificar con `npm run smoke:prod` / `smoke:staging`.
 - **Backups**: prod en `/opt/madridlive-app/backups` (cron 03:10 + sync Drive 03:25). Staging aún sin cron (tarea #4).
