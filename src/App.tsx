@@ -34,10 +34,8 @@ const isDatabaseManagerEnabled =
 function selectDefaultActiveEvent(events: LiveEvent[]): string {
   const ordered = sortEventsByDate(events);
   const today = ordered.find((event) => getEventTemporalState(event) === 'today');
-  const future = ordered.find((event) => getEventTemporalState(event) === 'future');
-  const past = sortEventsByDate(events, 'desc').find((event) => getEventTemporalState(event) === 'past');
 
-  return today?.id || future?.id || past?.id || events[0]?.id || '';
+  return today?.id || '';
 }
 
 export default function App() {
@@ -73,11 +71,15 @@ export default function App() {
 
   // Sync activeEventId with loaded events
   useEffect(() => {
-    if (events.length > 0 && !activeEventId) {
-      setActiveEventId(selectDefaultActiveEvent(events));
-    } else if (events.length === 0 && activeEventId) {
-      setActiveEventId('');
+    if (events.length === 0) {
+      if (activeEventId) setActiveEventId('');
+      return;
     }
+
+    if (activeEventId && events.some((event) => event.id === activeEventId)) return;
+
+    const defaultActiveEventId = selectDefaultActiveEvent(events);
+    if (activeEventId !== defaultActiveEventId) setActiveEventId(defaultActiveEventId);
   }, [events, activeEventId]);
 
   useEffect(() => {
@@ -256,8 +258,8 @@ export default function App() {
     if (!worker) return false;
 
     const isCurrentlyIn = worker.status === 'IN';
-    const activeEvent = events.find(e => e.id === activeEventId) || events[0];
-    const eventTitle = activeEvent?.title || 'Evento activo';
+    const activeEvent = events.find(e => e.id === activeEventId) || null;
+    const eventTitle = activeEvent?.title || 'Evento operativo';
 
     try {
       if (isCurrentlyIn) {
@@ -363,8 +365,7 @@ export default function App() {
       await deleteEvent(eventId);
       setActiveEventId((prev) => {
         if (prev !== eventId) return prev;
-        const fallback = events.find((event) => event.id !== eventId);
-        return fallback?.id || '';
+        return selectDefaultActiveEvent(events.filter((event) => event.id !== eventId));
       });
     } catch (err) {
       console.error('Failed to delete past event and related shifts: ', err);

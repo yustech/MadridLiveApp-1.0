@@ -78,7 +78,7 @@ export default function ScannerScreen({
   onScanWorkerToggle,
   onNavigateToWorker
 }: ScannerScreenProps) {
-  const activeEvent = events.find(e => e.id === activeEventId) || events[0] || null;
+  const activeEvent = events.find(e => e.id === activeEventId) || null;
   const activeEventState = getEventTemporalState(activeEvent);
   const isActiveEventOperable = activeEventState === 'today';
   const orderedEvents = sortEventsByDate(events);
@@ -344,6 +344,11 @@ export default function ScannerScreen({
               <span>{getEventStatusLabel(activeEvent)} · {formatEventDate(activeEvent)}</span>
             </div>
           )}
+          {!activeEvent && (
+            <p className="mt-2 text-[11px] font-mono text-amber-300">
+              No hay evento operativo seleccionado. Las entradas requieren elegir un evento de hoy.
+            </p>
+          )}
           {!isActiveEventOperable && activeEvent && (
             <p className="mt-2 text-[11px] font-mono text-amber-300">
               Entradas bloqueadas: solo se inician turnos en eventos de hoy.
@@ -359,6 +364,9 @@ export default function ScannerScreen({
             onChange={(e) => setActiveEventId(e.target.value)}
             className="bg-[#120f26] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-indigo-400 w-full md:w-64 cursor-pointer"
           >
+            <option value="" disabled className="bg-[#0A051A] text-white/60">
+              Sin evento operativo hoy
+            </option>
             {orderedEvents.map((ev) => (
               <option key={ev.id} value={ev.id} className="bg-[#0A051A] text-white">
                 {getEventStatusLabel(ev)} · {ev.title} · {formatEventDate(ev)} · {ev.location}
