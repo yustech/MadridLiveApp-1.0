@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SITE_URL="${SITE_URL:-https://inmosubastas.top}"
-EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-6}"
+MIN_STAFF_COUNT="${MIN_STAFF_COUNT:-${EXPECTED_STAFF_COUNT:-1}}"
 EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-}"
 SMOKE_CHECK_FRONTEND_BUNDLE="${SMOKE_CHECK_FRONTEND_BUNDLE:-true}"
 
@@ -41,16 +41,16 @@ fi
 
 actions_staff="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/staff")"
 staff_count="$(printf '%s' "$actions_staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);process.stdout.write(String(a.length));});")"
-if ! [[ "$EXPECTED_STAFF_COUNT" =~ ^[0-9]+$ ]]; then
-  echo "Invalid EXPECTED_STAFF_COUNT value: $EXPECTED_STAFF_COUNT"
+if ! [[ "$MIN_STAFF_COUNT" =~ ^[0-9]+$ ]]; then
+  echo "Invalid MIN_STAFF_COUNT value: $MIN_STAFF_COUNT"
   exit 1
 fi
 if ! [[ "$staff_count" =~ ^[0-9]+$ ]]; then
   echo "Invalid staff count payload: $staff_count"
   exit 1
 fi
-if (( staff_count < EXPECTED_STAFF_COUNT )); then
-  echo "Unexpected staff count: got $staff_count, minimum expected $EXPECTED_STAFF_COUNT"
+if (( staff_count < MIN_STAFF_COUNT )); then
+  echo "Staff floor check failed: got $staff_count, minimum $MIN_STAFF_COUNT"
   exit 1
 fi
 

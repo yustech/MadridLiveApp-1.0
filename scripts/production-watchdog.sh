@@ -5,7 +5,10 @@ site_url="${WATCHDOG_SITE_URL:-${DEPLOY_URL:-https://inmosubastas.top}}"
 local_base_url="${WATCHDOG_LOCAL_BASE_URL:-http://127.0.0.1:3000}"
 health_url="${WATCHDOG_HEALTH_URL:-$local_base_url/api/health}"
 staff_url="${WATCHDOG_STAFF_URL:-$local_base_url/api/mysql/staff}"
-expected_staff_count="${WATCHDOG_EXPECTED_STAFF_COUNT:-6}"
+# Minimum-floor check, not an exact count: the real roster grows/varies over
+# time, so we only alert on catastrophic loss (endpoint down, empty, or garbage),
+# not on legitimate changes. Configurable via WATCHDOG_MIN_STAFF_COUNT.
+min_staff_count="${WATCHDOG_MIN_STAFF_COUNT:-1}"
 alert_webhook="${WATCHDOG_ALERT_WEBHOOK:-${DEPLOY_ALERT_WEBHOOK:-}}"
 alert_contact="${WATCHDOG_ALERT_CONTACT:-cyuste@gmail.com}"
 service_name="${WATCHDOG_SERVICE_NAME:-madridlive-app.service}"
@@ -72,8 +75,8 @@ check_staff() {
   response="$(fetch_url "staff" "$staff_url")"
   count="$(printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const a=JSON.parse(s);process.stdout.write(String(Array.isArray(a)?a.length:-1));}catch{process.stdout.write('-1');}})")"
 
-  if [[ "$count" != "$expected_staff_count" ]]; then
-    notify_failure "[madridlive-watchdog] staff count check failed for $service_name at $(redact_url "$staff_url") (expected $expected_staff_count, got $count; contact $alert_contact)"
+  if ! [[ "$count" =~ ^[0-9]+$ ]] || (( count < min_staff_count )); then
+    notify_failure "[madridlive-watchdog] staff floor check failed for $service_name at $(redact_url "$staff_url") (min $min_staff_count, got $count; contact $alert_contact)"
     printf '%s\n' "staff count response length: ${#response}" >&2
     exit 1
   fi
