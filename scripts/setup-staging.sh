@@ -165,6 +165,21 @@ if [[ -z "$MYSQL_CLIENT" ]]; then
   exit 1
 fi
 
+if [[ ! -f dist/build-info.json ]]; then
+  build_info_sha="${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"
+  build_info_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  build_info_run="${GITHUB_RUN_ID:-local}"
+  cat > dist/build-info.json <<META
+{
+  "commitSha": "${build_info_sha}",
+  "generatedAt": "${build_info_ts}",
+  "source": "staging-setup-script",
+  "runId": "${build_info_run}"
+}
+META
+  echo "[staging] generated_build_info=dist/build-info.json"
+fi
+
 mysql_user="$(get_env_value MYSQL_USER)"
 if [[ -z "$mysql_user" ]]; then
   echo "[staging] MYSQL_USER missing in $SOURCE_ENV" >&2
