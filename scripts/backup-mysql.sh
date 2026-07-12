@@ -83,10 +83,13 @@ LOG_FILE="$BACKUP_DIR/backup-${STAMP}.log"
 
   echo "[backup] created $(basename "$DB_DUMP")"
 
-  # Retention by newest-first count.
-  ls -1t "$BACKUP_DIR"/db-*.sql.gz 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f
-  ls -1t "$BACKUP_DIR"/env-*.tar.gz 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f
-  ls -1t "$BACKUP_DIR"/backup-*.log 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f
+  # Retention by newest-first count. `|| true` guards against `ls` exiting
+  # non-zero when a directory has zero matches yet (e.g. first-ever run, or
+  # env snapshots disabled) -- under `set -o pipefail` that would otherwise
+  # abort the whole backup after the dump already succeeded.
+  ls -1t "$BACKUP_DIR"/db-*.sql.gz 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f || true
+  ls -1t "$BACKUP_DIR"/env-*.tar.gz 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f || true
+  ls -1t "$BACKUP_DIR"/backup-*.log 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | xargs -r rm -f || true
 
   echo "[backup] done $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } | tee "$LOG_FILE"
