@@ -146,8 +146,12 @@ async function run() {
     const rowCountInitial = await page.locator('table tbody tr').count();
     assert(rowCountInitial > 0, 'Historial sin filas iniciales para validar canario.');
 
-    const calendarButtons = await page.getByLabel(/Abrir calendario/i).count();
-    assert(calendarButtons === 2, `Se esperaban 2 botones de calendario y hay ${calendarButtons}.`);
+    const fromDateInput = page.getByLabel(/^Fecha desde$/i);
+    const toDateInput = page.getByLabel(/^Fecha hasta$/i);
+    const fromDateInputCount = await fromDateInput.count();
+    const toDateInputCount = await toDateInput.count();
+    assert(fromDateInputCount === 1, `Se esperaba 1 input accesible "Fecha desde" y hay ${fromDateInputCount}.`);
+    assert(toDateInputCount === 1, `Se esperaba 1 input accesible "Fecha hasta" y hay ${toDateInputCount}.`);
 
     const dateInputs = await page.locator('input[type="date"]').count();
     assert(dateInputs === 2, `Se esperaban 2 inputs de fecha y hay ${dateInputs}.`);
@@ -170,9 +174,8 @@ async function run() {
     const isAscending = oldestTimestamps.every((v, i, arr) => i === 0 || arr[i - 1] <= v);
     assert(isAscending, `Orden Más antiguo no ascendente: ${JSON.stringify(oldestDates)}.`);
 
-    const dateRangeInputs = page.locator('input[type="date"]');
-    await dateRangeInputs.nth(0).fill('2026-06-01');
-    await dateRangeInputs.nth(1).fill('2026-06-30');
+    await fromDateInput.fill('2026-06-01');
+    await toDateInput.fill('2026-06-30');
     await page.waitForTimeout(700);
     const rowCountRange = await page.locator('table tbody tr').count();
     assert(rowCountRange >= 0 && rowCountRange <= rowCountInitial, `Rango personalizado no afectó como se esperaba (${rowCountRange} vs ${rowCountInitial}).`);
