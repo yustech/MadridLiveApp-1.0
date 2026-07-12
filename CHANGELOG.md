@@ -26,6 +26,24 @@ Follow-up to the 2026-07-12 `HOST` exposure incident, from code review of PR #17
   `ADMIN_LOGIN_PASSWORD`, and restricting `/api/test-mariadb`'s `isValidHost`
   against private/metadata IP ranges.
 
+## [security] - 2026-07-12
+
+### 🔒 Fixed: production backend exposed on public IP without TLS
+- **Root cause:** `server.ts` defaulted `HOST` to `0.0.0.0` when unset;
+  production's `.env` never set `HOST`, unlike staging. Backend was
+  reachable on the host's public IP at port 3000 — plain HTTP, full app
+  including `/api/auth/login`, bypassing nginx/TLS/domain routing entirely.
+- **Fix:** added `HOST=127.0.0.1` to `/opt/madridlive-app/.env`, restarted
+  `madridlive-app.service`. Verified port 3000 now bound to loopback only;
+  public domain (`https://inmosubastas.top`) unaffected.
+- **Docs:** full writeup in `docs/PRODUCTION_OBSERVABILITY.md` ("Deploy
+  Incident Closure 2026-07-12"); standing rule added to `AGENTS.md` and
+  `.github/copilot-instructions.md`; `HOST` documented in `.env.example`.
+- **Follow-ups not yet done:** consider firewalling port 3000 from external
+  networks as defense-in-depth, add `helmet`/rate-limiting to `server.ts`
+  (done above, same day), and add a pre-deploy check that fails if a target
+  `.env` is missing `HOST`.
+
 ## [v1.0.0-prod-deploy] - 2026-07-07
 
 ### 🚀 Production Deployment
