@@ -34,6 +34,25 @@ Expected response:
 - HTTP 200
 - Body contains `{"status":"ok"}`
 
+## Monitorización activa (estado tras la consolidación 2026-07-12)
+
+**El único monitor de producción activo es el watchdog systemd** (`madridlive-watchdog.timer`, cada 5 min). Comprueba tres cosas:
+
+- **Salud**: `/api/health` devuelve `{"status":"ok"}`.
+- **Memoria**: `MemAvailable` por encima de `WATCHDOG_MIN_MEMAVAILABLE_KIB` (default 512 MiB).
+- **Staff (suelo, no exacto)**: `/api/mysql/staff` responde con una lista no vacía y ≥ `WATCHDOG_MIN_STAFF_COUNT` (default 1). No es un conteo exacto: tolera que la plantilla crezca. Ver el incidente del conteo exacto más abajo.
+
+Los **workflows programados de GitHub Actions están desactivados** (schedule quitado, solo `workflow_dispatch`) desde 2026-07-12, porque la app aún no está en uso real y duplicaban este watchdog o presuponían operación en vivo. Detalle y justificación por workflow en `docs/CI_CONSOLIDATION_PLAN.md`. `health-audit.yml` se eliminó por redundancia total con el watchdog.
+
+### Runbook: reactivar monitorización al go-live
+
+Cuando la app entre en uso real (personal y eventos reales), reactivar reponiendo el bloque `schedule:` (cada workflow lleva su cron original en un comentario `RE-ENABLE`):
+
+1. `active-shift-watchdog.yml` — integridad de turnos activos duplicados (requiere fichajes reales).
+2. `ops-weekly-integrity-report.yml` — KPI de deriva de ocupación (requiere ocupación real).
+3. Reconsiderar `e2e-prod-nightly.yml` / `e2e-staging-nightly.yml` y `ops-watchdog.yml` según haga falta.
+4. Revisar `WATCHDOG_MIN_STAFF_COUNT` en `/opt/madridlive-app/.env`: subirlo de 1 a un suelo realista (p. ej. un mínimo por debajo de la plantilla habitual) si se quiere detectar pérdidas parciales, no solo el vaciado total.
+
 ## Release Verification
 
 After each deploy, verify:
