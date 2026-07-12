@@ -53,11 +53,14 @@ export default function DashboardScreen({
   const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
-  // Focus card follows the selected event, but its temporal state is shown explicitly.
-  const liveEvent = events.find(e => e.id === activeEventId) || events[0] || null;
+  // Focus card follows the selected event. If there is no event today, keep the
+  // operational focus empty instead of auto-promoting a future planning event.
+  const liveEvent = events.find(e => e.id === activeEventId) || null;
   const liveEventState = getEventTemporalState(liveEvent);
   const isOperationalFocus = liveEventState === 'today';
-  const liveEventStatusLabel = liveEventState === 'today' ? 'PRODUCCIÓN DE HOY' : getEventStatusLabel(liveEvent);
+  const liveEventStatusLabel = liveEvent
+    ? (liveEventState === 'today' ? 'PRODUCCIÓN DE HOY' : getEventStatusLabel(liveEvent))
+    : 'SIN EVENTO OPERATIVO';
   const nonLiveEvents = useMemo(() => {
     return (liveEvent ? events.filter(e => e.id !== liveEvent.id) : [...events]);
   }, [events, liveEvent]);
@@ -119,6 +122,14 @@ export default function DashboardScreen({
   }, [staff, pendingNowCount, isOperationalFocus]);
 
   const getCoverageStats = (event: LiveEvent | null) => {
+    if (!event) {
+      return {
+        label: 'Sin evento de hoy',
+        tone: 'text-white/50 border-white/15 bg-white/5',
+        coveragePct: 0,
+      };
+    }
+
     const required = event?.requiredStaff ?? event?.totalStaffNeeded ?? 0;
     const temporalState = getEventTemporalState(event);
     const active = event
@@ -226,21 +237,21 @@ export default function DashboardScreen({
         {/* Active Event Focus Card */}
         <div 
           onClick={() => liveEvent && setSelectedDetailEvent(liveEvent)}
-          className="md:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 hover:border-indigo-400/30 transition-all duration-300 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[280px] shadow-hud-glow cursor-pointer group"
+          className={`md:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 transition-all duration-300 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[280px] shadow-hud-glow ${liveEvent ? 'hover:border-indigo-400/30 cursor-pointer group' : 'cursor-default'}`}
         >
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-4 pr-0 md:pr-28">
               <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-mono border ${getEventStatusTone(liveEvent)}`}>
                 <Activity className="w-3.5 h-3.5" />
-                <span>{liveEventStatusLabel} (CLICK VER)</span>
+                <span>{liveEvent ? `${liveEventStatusLabel} (CLICK VER)` : liveEventStatusLabel}</span>
               </div>
               <div className="bg-white/10 border border-white/10 px-2.5 py-1 rounded-full text-xs font-mono text-white/70">
-                ID: {liveEvent?.id || 'SIN-EVENTO'}
+                ID: {liveEvent?.id || 'SIN EVENTO'}
               </div>
             </div>
 
             <h2 className="text-2xl font-display font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
-              {liveEvent?.title || "Sin Evento Activo"}
+              {liveEvent?.title || "Sin evento operativo hoy"}
             </h2>
             {liveEvent && (
               <p className="text-xs text-indigo-300 mb-1 font-mono">
@@ -249,7 +260,7 @@ export default function DashboardScreen({
             )}
             <p className="text-sm text-white/60 flex items-center mb-3">
               <MapPin className="w-4 h-4 mr-2 text-indigo-400" />
-              {liveEvent?.location || "Ubicación No Especificada"}
+              {liveEvent?.location || "Selecciona un evento de hoy cuando empiece la operación."}
             </p>
             <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-wider ${liveCoverage.tone}`}>
               <Users className="w-3.5 h-3.5" />
@@ -305,7 +316,9 @@ export default function DashboardScreen({
               Iniciar Escáner
             </h3>
             <p className="text-xs text-white/60 max-w-[180px]">
-              Cambiar al modo de control de accesos rápido en la Puerta A.
+              {isOperationalFocus
+                ? 'Cambiar al modo de control de accesos rápido en la Puerta A.'
+                : 'Consultar el lector; las entradas se activan solo con un evento de hoy.'}
             </p>
           </button>
 
@@ -352,16 +365,18 @@ export default function DashboardScreen({
       <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-mono font-bold text-white/40 uppercase tracking-widest">
-            {isOperationalFocus ? 'Pendientes ahora' : 'Planificación de cobertura'}
+            {isOperationalFocus ? 'Pendientes ahora' : liveEvent ? 'Planificación de cobertura' : 'Sin evento operativo hoy'}
           </h3>
           <span className="text-sm font-display font-bold text-amber-300">
-            {isOperationalFocus ? pendingNowCount : activeRequiredStaff}
+            {isOperationalFocus ? pendingNowCount : liveEvent ? activeRequiredStaff : 0}
           </span>
         </div>
         <p className="text-xs text-white/60">
           {isOperationalFocus
             ? `Fichajes pendientes para cubrir el evento activo (${checkedInStaffCount}/${activeRequiredStaff}).`
-            : 'Este evento no pertenece al día operativo; no se cuentan fichajes como activos ahora.'}
+            : liveEvent
+              ? 'Este evento no pertenece al día operativo; no se cuentan fichajes como activos ahora.'
+              : 'No hay un evento fechado para hoy. Los próximos conciertos siguen disponibles como planificación.'}
         </p>
         <div className="flex flex-wrap gap-2">
           {pendingNowCount > 0 ? (
@@ -372,7 +387,7 @@ export default function DashboardScreen({
             ))
           ) : (
             <span className="text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1 text-emerald-300">
-              {isOperationalFocus ? 'Cobertura completa ahora mismo' : 'Sin conteo operativo hasta el día del evento'}
+              {isOperationalFocus ? 'Cobertura completa ahora mismo' : liveEvent ? 'Sin conteo operativo hasta el día del evento' : 'Sin conteo operativo activo'}
             </span>
           )}
         </div>
@@ -607,7 +622,7 @@ export default function DashboardScreen({
                 }}
                 className="w-full h-11 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Establecer como Evento Principal</span>
+                <span>{getEventTemporalState(selectedDetailEvent) === 'today' ? 'Establecer como Evento Operativo' : 'Usar como foco de planificación'}</span>
               </button>
 
               <button
