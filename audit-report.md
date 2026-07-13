@@ -64,18 +64,16 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   **Única recomendación viva (no bloqueante)**: no reutilizar esa contraseña en email u otras cuentas importantes, ya que sigue un patrón personal. Si es única para esta app, no hay acción pendiente.
   **Agentes**: no reabrir ni ejecutar esta tarea salvo que el owner lo pida explícitamente.
 
-- [ ] **2. Restringir `isValidHost` contra SSRF en `/api/test-mariadb`.**
-  **Modelo/Effort**: Opus 4.8 · high.
-  **Por qué**: hoy `isValidHost` solo valida formato; un admin autenticado (o alguien con el token filtrado) puede sondear la red interna, incluida la IP de metadata de nube `169.254.169.254`.
-  **Prompt**:
-  ```
-  En server.ts, endurece isValidHost (usado por /api/test-mariadb) para bloquear por defecto
-  loopback, rangos privados (10/8, 172.16/12, 192.168/16), link-local y la IP de metadata de
-  nube 169.254.169.254, además del formato ya validado. IMPORTANTE: el caso de uso legítimo del
-  endpoint apunta a 127.0.0.1 (MYSQL_HOST real), así que permite un allowlist explícito por env
-  var para no romperlo. Añade un test que cubra el bloqueo de 169.254.169.254 y el permitir de
-  127.0.0.1. Documenta la regla en AGENTS.md. Trabaja en rama, PR, CI verde.
-  ```
+- [~] **2. Restringir `isValidHost` contra SSRF en `/api/test-mariadb`. — DESCARTADO (decisión del owner, 2026-07-13).**
+  **Estado**: NO ejecutar. El owner decidió descartarla tras revisar el riesgo real.
+  **Justificación**: el endpoint ya exige autenticación de admin y tiene rate-limit; un atacante
+  con token de admin ya controla la app entera, así que el sondeo de red añade poco. El escenario
+  de metadata de nube (`169.254.169.254`) no aplica: el endpoint solo habla protocolo MySQL (no
+  HTTP, no puede leer la metadata) y la máquina es un VPS con HestiaCP, no una instancia de nube
+  con credenciales en metadata. Backend solo accesible vía nginx+TLS; 3-4 usuarios de confianza.
+  **Reevaluar solo si**: la app se migra a una nube con servicio de metadata, o el endpoint pasa
+  a hacer peticiones HTTP a hosts arbitrarios.
+  **Agentes**: no reabrir ni ejecutar esta tarea salvo que el owner lo pida explícitamente.
 
 - [ ] **3. Añadir cabeceras de seguridad (helmet) y CORS explícito.**
   **Modelo/Effort**: Sonnet 5 · medium.
