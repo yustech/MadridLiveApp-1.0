@@ -88,7 +88,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   el flag Secure de las cookies existentes. Rama, PR, CI verde, deploy staging-first.
   ```
 
-- [ ] **15. Exigir autenticación en los endpoints de lectura `/api/mysql/*`. — BLOQUEANTE antes de cargar datos reales.** *(añadida 2026-07-13, análisis Codex, verificada: `GET /api/mysql/staff` devuelve 200 público)*
+- [x] **15. Exigir autenticación en los endpoints de lectura `/api/mysql/*`.** *(PR #40 de Codex, revisado por Claude, desplegado y verificado en staging y prod el 2026-07-13 — commit `f71e722`: los 6 GET devuelven 401 sin auth, smokes/watchdogs migrados a `/api/mysql/health-count` público sin datos personales. Ya se puede cargar personal real.)*
   **Modelo/Effort**: Opus 4.8 · high.
   **Por qué**: staff/events/shifts/alerts son legibles sin auth por HTTPS. Con la semilla demo es inocuo; con plantilla real expone nombres, emails y teléfonos a cualquiera con la URL.
   **Prompt**:
