@@ -59,9 +59,10 @@ E2E regresión disponible con Playwright:
    - `npm run test:e2e`
 2. Producción readonly (sin levantar server local):
    - `PLAYWRIGHT_BASE_URL=https://madridliveapp.top npm run test:e2e:readonly`
-3. Staging full:
-   - `PLAYWRIGHT_BASE_URL=https://staging.madridliveapp.top npm run test:e2e`
-4. Login UI tests require `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD`; admin API mutation checks require `PLAYWRIGHT_ADMIN_API_TOKEN` or `ADMIN_API_TOKEN`.
+3. Staging readonly:
+   - `PLAYWRIGHT_BASE_URL=https://staging.madridliveapp.top npm run test:e2e:readonly`
+4. Full e2e/regression suites mutate data and must run only against the isolated local CI app.
+5. Login UI tests require `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD`; admin API mutation checks require `PLAYWRIGHT_ADMIN_API_TOKEN` or `ADMIN_API_TOKEN`.
 
 Workflows:
 

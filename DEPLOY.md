@@ -1,7 +1,7 @@
 # Guía de Despliegue en Producción 🚀
 ### Sistema de Control de Accesos y Registro QR de Personal - Madrid Live Access
 
-Esta guía resume el flujo real de producción actual: frontend estático, backend Node/Express, MySQL/MariaDB y publicación opcional del frontend público.
+Esta guía resume el flujo real de producción actual: nginx proxya todo al backend Node/Express, que sirve la API y el frontend compilado desde `dist/`; MySQL/MariaDB es la persistencia activa. `public_html` está retirado del flujo normal.
 
 ---
 
@@ -10,7 +10,7 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
 *   **Frontend:** React (Vite + TypeScript + Tailwind CSS). Se compila a `dist/`.
 *   **API / Backend:** Node.js + Express (`server.ts`) con endpoints de salud, versión y CRUD para personal, eventos, turnos y alertas.
 *   **Base de Datos:** MySQL/MariaDB como persistencia activa.
-*   **Publicación web:** `dist/` se sirve desde `public_html` o la ruta estática equivalente de tu host.
+*   **Publicación web:** nginx proxya todo al proceso Node; Node sirve `dist/` y las rutas `/api/*`.
 *   **Lector QR:** `html5-qrcode` integrado directamente en la cámara del navegador móvil.
 
 ---
@@ -43,7 +43,7 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
    ```bash
    npm run smoke:prod
    ```
-6. Comprueba la salud y la versión públicas:
+4. Comprueba la salud y la versión públicas:
    ```bash
    curl -fsS https://madridliveapp.top/api/health
    curl -fsS https://madridliveapp.top/api/version
