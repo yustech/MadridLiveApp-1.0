@@ -57,21 +57,23 @@ Debe devolver:
 
 ```text
 staging_smoke=ok
-staff_count=6
+staff_count=7
 ```
 
 ## URL Publica
 
-Actualmente `staging.inmosubastas.top` no resuelve. Para exponer staging publicamente falta:
+Staging publico usa `https://staging.madridliveapp.top` y proxyea todo el
+trafico al Node interno en `127.0.0.1:3001`.
 
-1. Crear DNS externo `staging.inmosubastas.top -> 82.223.139.217`.
-   - El dominio usa AliDNS (`ns7.alidns.com`, `ns8.alidns.com`), asi que crear registros DNS en Hestia local no basta.
+Si hubiera que recrearlo:
+
+1. Crear DNS externo `staging.madridliveapp.top` apuntando al host de produccion.
 2. Crear vhost/proxy hacia `http://127.0.0.1:3001`.
 3. Emitir certificado TLS cuando el DNS ya resuelva.
 4. Ejecutar smoke:
 
 ```bash
-SITE_URL=https://staging.inmosubastas.top npm run smoke:staging
+SITE_URL=https://staging.madridliveapp.top npm run smoke:staging
 ```
 
 Hasta tener HTTPS, el login UI en navegador puede fallar contra `http://127.0.0.1:3001` porque las cookies de sesion se marcan como `Secure` cuando `NODE_ENV=production`.
@@ -88,11 +90,12 @@ Aplicar proxy HTTP publico:
 sudo npm run ops:staging-public:apply
 ```
 
-Mientras el DNS no exista, se puede probar el proxy con resolucion local forzada:
+Mientras el DNS no exista, se puede probar el proxy con resolucion local forzada
+usando la IP publica real del host sin escribirla en el repo:
 
 ```bash
-curl --resolve staging.inmosubastas.top:80:82.223.139.217 \
-  -fsS http://staging.inmosubastas.top/api/health
+curl --resolve staging.madridliveapp.top:80:$(curl -s ifconfig.me) \
+  -fsS http://staging.madridliveapp.top/api/health
 ```
 
 Cuando el DNS ya resuelva, emitir el certificado TLS:
@@ -114,8 +117,8 @@ El script instala `certbot` si falta, emite el certificado por `webroot` en
 Verificacion publica tras TLS:
 
 ```bash
-curl -I https://staging.inmosubastas.top
-SITE_URL=https://staging.inmosubastas.top npm run smoke:staging
+curl -I https://staging.madridliveapp.top
+SITE_URL=https://staging.madridliveapp.top npm run smoke:staging
 ```
 
 El plan distingue ahora entre certificado ausente y ruta inaccesible por

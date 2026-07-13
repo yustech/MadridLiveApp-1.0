@@ -2,7 +2,7 @@
 
 ## Scope
 
-Operational release flow for Madrid Live Access with dual-mode deploy validation.
+Operational release flow for Madrid Live Access with full-proxy deploy validation.
 
 ## Preconditions
 
@@ -22,32 +22,28 @@ Operational release flow for Madrid Live Access with dual-mode deploy validation
 3. Push commit(s) to `main`
 - `git push origin HEAD:main`
 
-4. Launch dual-mode validation workflow
-- Run `Deploy Dual-Mode Validation` manually (or wait for schedule).
+4. Launch deploy validation workflow
+- Run `Deploy Full-Proxy Validation` manually.
 
-5. Verify frontend publish mode
-- Job: `Deploy (publish_public_frontend=true) / deploy`
+5. Verify full-proxy mode
+- Job: `Deploy (DEPLOY_PUBLIC_FRONTEND=false) / deploy`
 - Must finish `Success`.
 
-6. Verify backend-only mode
-- Job: `Deploy (publish_public_frontend=false) / deploy`
-- Must finish `Success`.
-
-7. Check notification job behavior
+6. Check notification job behavior
 - `notify_failure` should be `skipped` on success.
 - If it runs, inspect email/webhook delivery.
 
-8. Health verification
-- `https://inmosubastas.top/api/health`
-- `https://inmosubastas.top/api/mysql/staff`
+7. Health verification
+- `https://madridliveapp.top/api/health`
+- `https://madridliveapp.top/api/mysql/staff`
 
-9. Smoke verification
+8. Smoke verification
 - `npm run smoke:prod`
 
-10. Record run evidence
+9. Record run evidence
 - Save run URL and duration in ops notes.
 
-11. Tag stable state (optional but recommended)
+10. Tag stable state (optional but recommended)
 - `git tag -a <tag-name> <sha> -m "..."`
 - `git push origin <tag-name>`
 
@@ -65,11 +61,12 @@ Rollback immediately if any deploy mode fails and cannot be remediated within th
 Use this checklist when CI or canary reports shift-integrity failures.
 
 1. Quick regression check
-- `API_BASE_URL=https://inmosubastas.top npm run test:api:shifts:regression`
+- `npm run test:api:shifts:regression`
 - Expected flags in output: `duplicateActiveBlocked=true`, `overlapRangeBlocked=true`, `contiguousRangeAllowed=true`.
+- This command mutates data and must run against the isolated local app, never against deployed production/staging.
 
 2. Validate active-shift uniqueness
-- `curl -s https://inmosubastas.top/api/mysql/shifts | jq '[.[] | select(.status=="Active") | .workerId] | group_by(.) | map(select(length>1)) | length'`
+- `curl -s https://madridliveapp.top/api/mysql/shifts | jq '[.[] | select(.status=="Active") | .workerId] | group_by(.) | map(select(length>1)) | length'`
 - Expected: `0` (no worker with more than one active shift).
 
 3. Interpret common backend responses

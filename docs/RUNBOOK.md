@@ -4,10 +4,10 @@ Guia corta para operar Madrid Live App en produccion sin depender de memoria tri
 
 ## Alcance
 
-- URL publica: `https://inmosubastas.top`
+- URL publica: `https://madridliveapp.top`
 - Backend systemd: `madridlive-app.service`
 - Backend path: `/opt/madridlive-app`
-- Frontend publico: `/home/netiadmin/web/inmosubastas.top/public_html`
+- Frontend publico: servido por Node detras de nginx; `public_html` esta retirado.
 - Base de datos: MySQL/MariaDB unicamente.
 - Los secretos viven fuera del repo, principalmente en `/opt/madridlive-app/.env` y GitHub Secrets.
 
@@ -19,9 +19,9 @@ Produccion esta sana si pasan estos checks:
 
 ```bash
 npm run smoke:prod
-curl -fsS https://inmosubastas.top/api/health
-curl -fsS https://inmosubastas.top/api/version
-curl -fsS https://inmosubastas.top/api/mysql/schema-check
+curl -fsS https://madridliveapp.top/api/health
+curl -fsS https://madridliveapp.top/api/version
+curl -fsS https://madridliveapp.top/api/mysql/schema-check
 ```
 
 El smoke valida health, version, staff minimo, schema y que el bundle publico usa `/api/mysql` sin referencias a Firebase.
@@ -33,8 +33,11 @@ En la rama de trabajo:
 ```bash
 npm run lint
 npm run build
-API_BASE_URL=https://inmosubastas.top npm run test:api:shifts:regression
+npm run test:api:shifts:regression
 ```
+
+`test:api:shifts:regression` muta datos de prueba y debe ejecutarse contra
+una instancia local aislada, nunca contra produccion o staging desplegados.
 
 Si se toca CI, deploy o auth, anadir en el PR:
 
@@ -58,11 +61,12 @@ El primer comando solo publica y valida staging. El segundo repite staging y
 solo despliega produccion si staging pasa smoke local y publico con el SHA
 exacto esperado.
 
-Deploy remoto directo, reservado para rollback controlado o emergencia:
+Deploy remoto directo, reservado para rollback controlado o emergencia. Mantener
+siempre `DEPLOY_PUBLIC_FRONTEND=false`:
 
 ```bash
 npm run build
-DEPLOY_PUBLIC_FRONTEND=true npm run deploy
+npm run deploy
 npm run smoke:prod
 ```
 
@@ -72,7 +76,7 @@ El script:
 - Guarda snapshots en `/opt/madridlive-app/releases`.
 - Reinicia `madridlive-app.service` o senala el proceso si no hay sudo no interactivo.
 - Valida health local y publico.
-- Si `DEPLOY_PUBLIC_FRONTEND=true`, publica assets en `public_html` y guarda backup del frontend.
+- No publica assets en `public_html`; el frontend se sirve desde `dist/` por Node detras de nginx.
 
 Si deploy falla, parar nuevas tareas y estabilizar deploy antes de seguir.
 
@@ -82,7 +86,7 @@ Comandos utiles:
 systemctl status madridlive-app.service --no-pager
 journalctl -u madridlive-app.service --since "30 min ago" --no-pager | tail -n 200
 curl -fsS http://127.0.0.1:3000/api/health
-curl -fsS https://inmosubastas.top/api/health
+curl -fsS https://madridliveapp.top/api/health
 ```
 
 ## Rollback
@@ -151,22 +155,28 @@ Comandos locales habituales:
 
 ```bash
 npm run test:e2e:readonly
-PLAYWRIGHT_BASE_URL=https://inmosubastas.top npm run test:e2e:prod
-API_BASE_URL=https://inmosubastas.top npm run test:api:shifts:regression
+PLAYWRIGHT_BASE_URL=https://madridliveapp.top npm run test:e2e:prod
+npm run test:api:shifts:regression
 ```
+
+Los e2e contra produccion/staging deben ser readonly. Las pruebas que crean,
+actualizan o borran staff/eventos/turnos solo se lanzan contra el arnes local
+aislado de CI o una instancia local preparada para ello.
 
 ## Incidentes
 
 Orden recomendado:
 
-1. Health publico: `https://inmosubastas.top/api/health`
-2. Version: `https://inmosubastas.top/api/version`
+1. Health publico: `https://madridliveapp.top/api/health`
+2. Version: `https://madridliveapp.top/api/version`
 3. Health local: `http://127.0.0.1:3000/api/health`
 4. Estado systemd y logs.
 5. Schema check: `/api/mysql/schema-check`
 6. Rollback si el problema empezo tras deploy.
 
-Si la DB esta accesible pero la UI falla, revisar primero el bundle servido en `public_html`. Si backend falla localmente, no seguir tocando frontend hasta recuperar el servicio.
+Si la DB esta accesible pero la UI falla, revisar primero el bundle servido por
+Node en `/assets/`. Si backend falla localmente, no seguir tocando frontend hasta
+recuperar el servicio.
 
 ## Presion De Memoria Del Host
 
