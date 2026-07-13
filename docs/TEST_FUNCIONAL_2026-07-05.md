@@ -4,6 +4,10 @@ Fecha: 2026-07-05
 Entorno: local (http://127.0.0.1:3000) + producción (https://inmosubastas.top)
 Objetivo: validar funcionamiento end-to-end de autenticación, navegación, módulos operativos y API MySQL.
 
+Nota 2026-07-13: este informe es historico. Desde el hardening de lecturas MySQL,
+los GET de datos (`staff`, `events`, `shifts`, `alerts`) requieren sesion admin o
+`x-admin-token`; los smokes publicos deben usar `/api/mysql/health-count`.
+
 ## Resumen Ejecutivo
 
 Estado global: APROBADO

@@ -17,7 +17,7 @@ Production also runs a local systemd watchdog every 5 minutes:
 It checks both:
 
 - `https://madridliveapp.top/api/health`
-- `https://madridliveapp.top/api/mysql/staff`
+- `https://madridliveapp.top/api/mysql/health-count`
 
 If a check fails, it logs an error to journald and, when configured, can send a webhook alert via `WATCHDOG_ALERT_WEBHOOK` or `DEPLOY_ALERT_WEBHOOK`.
 
@@ -40,7 +40,7 @@ Expected response:
 
 - **Salud**: `/api/health` devuelve `{"status":"ok"}`.
 - **Memoria**: `MemAvailable` por encima de `WATCHDOG_MIN_MEMAVAILABLE_KIB` (default 512 MiB).
-- **Staff (suelo, no exacto)**: `/api/mysql/staff` responde con una lista no vacía y ≥ `WATCHDOG_MIN_STAFF_COUNT` (default 1). No es un conteo exacto: tolera que la plantilla crezca. Ver el incidente del conteo exacto más abajo.
+- **Staff (suelo, no exacto)**: `/api/mysql/health-count` responde con `counts.staff` ≥ `WATCHDOG_MIN_STAFF_COUNT` (default 1). No expone filas ni datos personales y no es un conteo exacto de validacion funcional: tolera que la plantilla crezca. Ver el incidente del conteo exacto más abajo.
 
 Los **workflows programados de GitHub Actions están desactivados** (schedule quitado, solo `workflow_dispatch`) desde 2026-07-12, porque la app aún no está en uso real y duplicaban este watchdog o presuponían operación en vivo. Detalle y justificación por workflow en `docs/CI_CONSOLIDATION_PLAN.md`. `health-audit.yml` se eliminó por redundancia total con el watchdog.
 
@@ -60,7 +60,7 @@ After each deploy, verify:
 1. `npm run smoke:prod`
 2. `https://madridliveapp.top/api/health`
 3. `https://madridliveapp.top/api/version`
-4. `https://madridliveapp.top/api/mysql/staff`
+4. `https://madridliveapp.top/api/mysql/health-count`
 5. The public bundle should reference `/api/mysql`
 
 ## Rollback Drill
@@ -78,7 +78,7 @@ Run a rollback drill periodically:
 If health fails:
 
 1. Check the public version endpoint.
-2. Check the staff endpoint.
+2. Check the MySQL health-count endpoint.
 3. Compare the current bundle name with the one in the last successful deploy.
 4. If needed, run rollback immediately.
 
@@ -86,7 +86,7 @@ If health fails:
 
 - Weekly: smoke test production and confirm the external monitor is UP.
 - Monthly: run a rollback drill.
-- After every deploy: verify health, version, staff count, and bundle target.
+- After every deploy: verify health, version, MySQL health-count, and bundle target.
 
 ## Memory Pressure Hardening
 

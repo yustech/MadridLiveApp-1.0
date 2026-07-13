@@ -11,8 +11,8 @@ fuente de verdad unica.
 4. No recrear tablas legacy fuera de `staff`, `events`, `shifts` y `alerts`.
 
 ## Ejecución
-1. Verifica API MySQL: `curl -sS http://127.0.0.1:3000/api/mysql/status`
-2. Inicializa esquema: `curl -sS -X POST http://127.0.0.1:3000/api/mysql/init`
+1. Verifica API MySQL: `curl -sS -H "x-admin-token: $ADMIN_API_TOKEN" http://127.0.0.1:3000/api/mysql/status`
+2. Inicializa esquema: `curl -sS -X POST -H "x-admin-token: $ADMIN_API_TOKEN" http://127.0.0.1:3000/api/mysql/init`
 3. Ejecuta migraciones de esquema solo con autorizacion admin y staging-first.
 4. Valida conteos en SQL: staff/events/shifts/alerts.
 

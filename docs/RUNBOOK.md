@@ -21,10 +21,10 @@ Produccion esta sana si pasan estos checks:
 npm run smoke:prod
 curl -fsS https://madridliveapp.top/api/health
 curl -fsS https://madridliveapp.top/api/version
-curl -fsS https://madridliveapp.top/api/mysql/schema-check
+curl -fsS https://madridliveapp.top/api/mysql/health-count
 ```
 
-El smoke valida health, version, staff minimo, schema y que el bundle publico usa `/api/mysql` sin referencias a Firebase.
+El smoke valida health, version, staff minimo via `health-count`, schema y que el bundle publico usa `/api/mysql` sin referencias a Firebase.
 
 ## Antes De Merge
 
@@ -171,7 +171,7 @@ Orden recomendado:
 2. Version: `https://madridliveapp.top/api/version`
 3. Health local: `http://127.0.0.1:3000/api/health`
 4. Estado systemd y logs.
-5. Schema check: `/api/mysql/schema-check`
+5. MySQL health-count publico: `/api/mysql/health-count`; para schema detallado usa `/api/mysql/schema-check` con `x-admin-token`.
 6. Rollback si el problema empezo tras deploy.
 
 Si la DB esta accesible pero la UI falla, revisar primero el bundle servido por

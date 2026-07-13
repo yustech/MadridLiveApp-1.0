@@ -24,7 +24,7 @@ Configuracion operativa simplificada para una app usada por 3 personas.
 
 ## Cuándo escalar
 - Dos fallos seguidos del watchdog.
-- Cualquier 5xx en `/api/mysql/shifts`.
+- Cualquier 5xx en `/api/mysql/health-count` o, con token admin, en `/api/mysql/shifts`.
 - Historial vacio con health en verde.
 
 En esos casos, seguir `docs/HISTORIAL_VACIO_RUNBOOK.md`.

@@ -35,7 +35,7 @@ Operational release flow for Madrid Live Access with full-proxy deploy validatio
 
 7. Health verification
 - `https://madridliveapp.top/api/health`
-- `https://madridliveapp.top/api/mysql/staff`
+- `https://madridliveapp.top/api/mysql/health-count`
 
 8. Smoke verification
 - `npm run smoke:prod`
@@ -66,7 +66,7 @@ Use this checklist when CI or canary reports shift-integrity failures.
 - This command mutates data and must run against the isolated local app, never against deployed production/staging.
 
 2. Validate active-shift uniqueness
-- `curl -s https://madridliveapp.top/api/mysql/shifts | jq '[.[] | select(.status=="Active") | .workerId] | group_by(.) | map(select(length>1)) | length'`
+- `curl -s -H "x-admin-token: $ADMIN_API_TOKEN" https://madridliveapp.top/api/mysql/shifts | jq '[.[] | select(.status=="Active") | .workerId] | group_by(.) | map(select(length>1)) | length'`
 - Expected: `0` (no worker with more than one active shift).
 
 3. Interpret common backend responses
@@ -75,7 +75,7 @@ Use this checklist when CI or canary reports shift-integrity failures.
 - `400 Cannot activate shifts for future event ...`: future-event guard works.
 
 4. If data drift is suspected in occupancy widgets
-- Compare `/api/mysql/staff` `status=="IN"` count vs unique active workers from `/api/mysql/shifts`.
+- Compare authenticated `/api/mysql/staff` `status=="IN"` count vs unique active workers from authenticated `/api/mysql/shifts`.
 - If drift exists, run controlled reconciliation and clean duplicate active shifts before next release window.
 
 5. Daily proactive duplicate guard

@@ -17,7 +17,7 @@ Tablas activas:
 
 Patron de acceso:
 
-- Lectura por polling desde `dbService.ts`.
+- Lectura por polling desde `dbService.ts` con cookie de sesion admin same-origin.
 - Escritura mediante endpoints Express en `mysqlApi.ts`.
 - Validacion y saneamiento de payloads en `src/validators.ts`.
 - Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL.
@@ -33,6 +33,8 @@ Archivos clave:
 
 - Browser admin: `POST /api/auth/login` crea una cookie HTTP-only firmada.
 - Scripts/CI: pueden usar `x-admin-token` con `ADMIN_API_TOKEN`.
+- Las lecturas de datos de negocio (`staff`, `events`, `shifts`, `alerts`) y las lecturas administrativas (`status`, `schema-check`) requieren cookie admin o `x-admin-token`.
+- `/api/mysql/health-count` queda publico solo para smokes/watchdogs: devuelve conteos y estado de esquema, sin filas ni datos personales.
 - El frontend no debe exponer tokens admin mediante variables `VITE_*`.
 
 Variables relevantes:
@@ -107,7 +109,7 @@ flowchart LR
 ## Implicaciones Operativas
 
 1. Un problema en MySQL afecta a la operacion normal de la app.
-2. Las mutaciones admin requieren cookie de sesion valida o `x-admin-token` en scripts/CI.
+2. Las lecturas y mutaciones admin requieren cookie de sesion valida o `x-admin-token` en scripts/CI.
 3. `DELETE /staff` debe permanecer protegido en CI por defecto.
 4. Cualquier cambio de esquema debe pasar por migracion controlada y validacion de `npm run test:api:shifts:regression`.
 
