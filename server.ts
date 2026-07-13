@@ -2,6 +2,8 @@ import fs from "fs";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
+import helmet from "helmet";
+import cors from "cors";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import mysql from "mysql2/promise";
@@ -192,6 +194,66 @@ async function startServer() {
   // Trust exactly one hop (nginx on this box) so req.ip / req.secure reflect
   // the real client instead of a spoofable X-Forwarded-For header.
   app.set("trust proxy", 1);
+
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // Security headers. The CSP is only enforced in production: the Vite dev
+  // middleware needs inline scripts, eval and websockets for HMR.
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProduction
+        ? {
+            useDefaults: false,
+            directives: {
+              "default-src": ["'self'"],
+              "script-src": ["'self'"],
+              // 'unsafe-inline' covers React/Tailwind style attributes;
+              // Google Fonts is @import-ed from src/index.css.
+              "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+              "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
+              // Demo avatars (Unsplash / Google) + QR images (api.qrserver.com);
+              // blob:/data: for camera frames and generated previews.
+              "img-src": [
+                "'self'",
+                "data:",
+                "blob:",
+                "https://images.unsplash.com",
+                "https://lh3.googleusercontent.com",
+                "https://api.qrserver.com",
+              ],
+              "connect-src": ["'self'"],
+              // html5-qrcode decodes camera frames in blob: workers.
+              "worker-src": ["'self'", "blob:"],
+              "media-src": ["'self'", "blob:"],
+              "object-src": ["'none'"],
+              "base-uri": ["'self'"],
+              "form-action": ["'self'"],
+              "frame-ancestors": ["'self'"],
+            },
+          }
+        : false,
+    })
+  );
+
+  // Explicit CORS for the API: only the real browser origins may do
+  // cross-origin calls. Same-origin and non-browser requests (curl, CI
+  // smoke tests) carry no Origin header and pass through untouched.
+  const corsAllowlist = (process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (corsAllowlist.length === 0) {
+    corsAllowlist.push("https://inmosubastas.top", "https://staging.inmosubastas.top");
+  }
+  app.use(
+    "/api",
+    cors({
+      origin: (origin, callback) => {
+        callback(null, !origin || corsAllowlist.includes(origin));
+      },
+      credentials: true,
+    })
+  );
 
   // Middleware to parse JSON
   app.use(express.json());

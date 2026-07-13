@@ -1,5 +1,20 @@
 # Changelog
 
+## [security] - 2026-07-13 (security headers & CORS)
+
+### 🔒 helmet CSP + explicit CORS allowlist on /api
+- `server.ts` now sends security headers via `helmet`. The CSP (production
+  only — Vite HMR needs inline/eval in dev) is a closed allowlist covering the
+  app's real external resources: Google Fonts, demo avatar hosts, QR image
+  API, and `blob:` workers/media for the html5-qrcode camera scanner. Adding
+  a new external resource to the frontend now requires allowlisting its
+  origin in `server.ts` (see AGENTS.md).
+- `/api` routes send explicit CORS: only `CORS_ALLOWED_ORIGINS` (default
+  prod + staging domains) get cross-origin access; originless requests
+  (same-origin, curl, CI) are unaffected. Cookie flags untouched.
+- Audit task #2 (SSRF hardening of `isValidHost`) marked discarded by owner
+  decision — rationale recorded in `audit-report.md`.
+
 ## [ops] - 2026-07-12 (data reset, monitoring & CI consolidation)
 
 ### 🔄 Production data reset to the demo seed
