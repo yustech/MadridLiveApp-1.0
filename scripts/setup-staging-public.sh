@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MODE="${1:---plan}"
-STAGING_DOMAIN="${STAGING_DOMAIN:-staging.inmosubastas.top}"
+STAGING_DOMAIN="${STAGING_DOMAIN:-staging.madridliveapp.top}"
 PUBLIC_IP="${PUBLIC_IP:-82.223.139.217}"
 STAGING_TARGET="${STAGING_TARGET:-http://127.0.0.1:3001}"
 NGINX_CONF="${NGINX_CONF:-/etc/nginx/conf.d/madridlive-staging.conf}"

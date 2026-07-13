@@ -86,7 +86,7 @@ jobs:
         if: ${{ inputs.publish_public_frontend == 'true' }}
         id: served_bundle
         env:
-          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
         run: |
           set -euo pipefail
           expected='${{ steps.expected_bundle.outputs.bundle }}'
@@ -136,7 +136,7 @@ jobs:
       - name: Smoke test production
         if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
-          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
           EXPECTED_STAFF_COUNT: ${{ vars.PROD_EXPECTED_STAFF_COUNT || '9' }}
           EXPECTED_COMMIT_SHA: ${{ github.sha }}
           SMOKE_CHECK_FRONTEND_BUNDLE: ${{ inputs.publish_public_frontend }}
@@ -149,7 +149,7 @@ jobs:
       - name: Production history canary
         if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
-          PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
           PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
           PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
         run: npm run test:e2e:history:canary

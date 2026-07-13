@@ -10,7 +10,7 @@ jobs:
   production_watchdog:
     runs-on: ubuntu-latest
     env:
-      BASE_URL: ${{ vars.PROD_BASE_URL || 'https://inmosubastas.top' }}
+      BASE_URL: ${{ vars.PROD_BASE_URL || 'https://madridliveapp.top' }}
       ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
       MAX_HEALTH_LATENCY_MS: ${{ vars.WATCHDOG_MAX_HEALTH_LATENCY_MS || '2000' }}
       MAX_SHIFTS_LATENCY_MS: ${{ vars.WATCHDOG_MAX_SHIFTS_LATENCY_MS || '2500' }}
