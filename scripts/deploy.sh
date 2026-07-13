@@ -214,7 +214,7 @@ fi
 
 echo "Saving deployed release snapshot and pruning old releases..."
 ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
-  "set -e; mkdir -p '$RELEASES_DIR'; ts=\$(date -u +%Y%m%dT%H%M%SZ); snap='$RELEASES_DIR/release-'\"\$ts\"'-${BUILD_INFO_SHA}'; mkdir -p \"\$snap\"; cp -a '$DEPLOY_PATH/dist' \"\$snap/dist\"; echo \"Saved deployed snapshot: \$snap\"; mapfile -t all_releases < <(ls -1dt '$RELEASES_DIR'/release-* 2>/dev/null || true); if (( \${#all_releases[@]} > $KEEP_RELEASES )); then for old in \"\${all_releases[@]:$KEEP_RELEASES}\"; do rm -rf \"\$old\"; echo \"Pruned old release: \$old\"; done; fi"
+  "set -e; mkdir -p '$RELEASES_DIR'; ts=\$(date -u +%Y%m%dT%H%M%SZ); snap='$RELEASES_DIR/release-'\"\$ts\"'-${BUILD_INFO_SHA}'; mkdir -p \"\$snap\"; cp -a '$DEPLOY_PATH/dist' \"\$snap/dist\"; echo \"Saved deployed snapshot: \$snap\"; mapfile -t all_releases < <(ls -1d '$RELEASES_DIR'/release-* 2>/dev/null | sort -r || true); if (( \${#all_releases[@]} > $KEEP_RELEASES )); then for old in \"\${all_releases[@]:$KEEP_RELEASES}\"; do rm -rf \"\$old\"; echo \"Pruned old release: \$old\"; done; fi"
 
 echo "Deploy completed successfully."
 exit 0
