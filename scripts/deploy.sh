@@ -71,6 +71,23 @@ if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH_OK" >/dev/null; 
   exit 255
 fi
 
+# Preflight: refuse to deploy onto an .env that would bind the backend on the
+# public IP (HOST unset or 0.0.0.0) — see AGENTS.md "Binding de red (CRÍTICO)"
+# and the 2026-07-12 exposure incident. Mirrors scripts/validate-env-file.sh,
+# which deploy-staging-first.sh already runs for local deploys.
+echo "Preflight: checking HOST binding in remote .env..."
+remote_host_value="$(ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+  "grep -E '^[[:space:]]*HOST=' '$DEPLOY_PATH/.env' 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '\"'\''\t\r ' || true")"
+if [[ -z "$remote_host_value" ]]; then
+  echo "ABORT: remote $DEPLOY_PATH/.env does not set HOST. Add HOST=127.0.0.1 (see AGENTS.md, binding rule)." >&2
+  exit 1
+fi
+if [[ "$remote_host_value" != "127.0.0.1" && "$remote_host_value" != "localhost" ]]; then
+  echo "ABORT: remote HOST=$remote_host_value is not loopback; deploying would expose the backend publicly on :3000 (see AGENTS.md)." >&2
+  exit 1
+fi
+echo "Preflight: host_binding=ok (HOST=$remote_host_value)"
+
 echo "Saving predeploy snapshot (if dist exists)..."
 ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
   "set -e; mkdir -p '$RELEASES_DIR'; if [[ -d '$DEPLOY_PATH/dist' ]]; then ts=\$(date -u +%Y%m%dT%H%M%SZ); snap='$RELEASES_DIR/release-'\"\$ts\"'-predeploy'; mkdir -p \"\$snap\"; cp -a '$DEPLOY_PATH/dist' \"\$snap/dist\"; echo \"Saved predeploy snapshot: \$snap\"; fi"
