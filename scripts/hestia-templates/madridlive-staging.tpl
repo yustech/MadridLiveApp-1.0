@@ -1,6 +1,6 @@
 #=========================================================================#
-# MadridLive Reverse Proxy Template (HTTP)                                #
-# Proxies everything to the node app on 127.0.0.1:3000 so security        #
+# MadridLive STAGING Reverse Proxy Template (HTTP)                                #
+# Proxies everything to the STAGING node app on 127.0.0.1:3001 so security        #
 # headers (helmet CSP) reach the browser. Modeled on n8n.tpl.             #
 #=========================================================================#
 
@@ -20,7 +20,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 300;
         proxy_send_timeout 300;
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3001;
     }
 
     location /error/ {
