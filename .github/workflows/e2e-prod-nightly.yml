@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      PLAYWRIGHT_ADMIN_API_TOKEN: ${{ secrets.PLAYWRIGHT_ADMIN_API_TOKEN || secrets.ADMIN_API_TOKEN }}
       PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
       PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
 
@@ -39,7 +38,7 @@ jobs:
       - name: Validate admin E2E credentials
         run: |
           missing=0
-          for name in PLAYWRIGHT_ADMIN_API_TOKEN PLAYWRIGHT_ADMIN_EMAIL PLAYWRIGHT_ADMIN_PASSWORD; do
+          for name in PLAYWRIGHT_ADMIN_EMAIL PLAYWRIGHT_ADMIN_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::${name} is required for E2E auth coverage."
               missing=1
@@ -57,9 +56,6 @@ jobs:
 
       - name: Run production history canary
         run: npm run test:e2e:history:canary
-
-      - name: Run production shifts guard canary
-        run: npm run test:e2e:shifts:guard:canary
 
       - name: Run production readonly regression
         run: npm run test:e2e:readonly
@@ -86,7 +82,7 @@ jobs:
         if: always()
         run: |
           echo "## E2E Prod Nightly" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Scope: history canary + shifts guard canary + readonly" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: history canary + readonly" >> "$GITHUB_STEP_SUMMARY"
           echo "- Base URL: $PLAYWRIGHT_BASE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Run ID: ${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifacts: playwright-report-prod-${{ github.run_id }}, junit-prod-${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

@@ -19,7 +19,7 @@ Configuracion operativa simplificada para una app usada por 3 personas.
 2. Ejecutar manualmente:
    - `npm run smoke:prod`
    - `npm run test:e2e:history:canary`
-3. Confirmar que `https://inmosubastas.top/api/health` responde `status=ok`.
+3. Confirmar que `https://madridliveapp.top/api/health` responde `status=ok`.
 4. Verificar que Historial muestra filas y filtro `Hoy` funciona.
 
 ## Cuándo escalar

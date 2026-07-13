@@ -6,7 +6,7 @@ This checklist keeps production verification simple and repeatable for Madrid Li
 
 Set up an external HTTP monitor on:
 
-- `https://inmosubastas.top/api/health`
+- `https://madridliveapp.top/api/health`
 ## Internal Watchdog
 
 Production also runs a local systemd watchdog every 5 minutes:
@@ -16,8 +16,8 @@ Production also runs a local systemd watchdog every 5 minutes:
 
 It checks both:
 
-- `https://inmosubastas.top/api/health`
-- `https://inmosubastas.top/api/mysql/staff`
+- `https://madridliveapp.top/api/health`
+- `https://madridliveapp.top/api/mysql/staff`
 
 If a check fails, it logs an error to journald and, when configured, can send a webhook alert via `WATCHDOG_ALERT_WEBHOOK` or `DEPLOY_ALERT_WEBHOOK`.
 
@@ -58,9 +58,9 @@ Cuando la app entre en uso real (personal y eventos reales), reactivar reponiend
 After each deploy, verify:
 
 1. `npm run smoke:prod`
-2. `https://inmosubastas.top/api/health`
-3. `https://inmosubastas.top/api/version`
-4. `https://inmosubastas.top/api/mysql/staff`
+2. `https://madridliveapp.top/api/health`
+3. `https://madridliveapp.top/api/version`
+4. `https://madridliveapp.top/api/mysql/staff`
 5. The public bundle should reference `/api/mysql`
 
 ## Rollback Drill
@@ -168,7 +168,7 @@ sudo systemctl show madridlive-app.service -p MemoryCurrent -p MemoryHigh -p Mem
 
 Summary of production deploy instability and final remediation:
 
-- Root cause 1: UI canaries were still running when `publish_public_frontend=false`, but public `index.html` could point to non-published hashed assets, causing blank page and selector timeouts.
+- Root cause 1: UI canaries were still running when `publish_public_frontend=false` in the old static-frontend architecture, but public `index.html` could point to non-published hashed assets, causing blank page and selector timeouts.
 - Root cause 2: Frontend publish path removed `public_html/assets` (`rm -rf`) and failed in some hosts due to ownership/permission mismatch.
 - Root cause 3: `e2e-shifts-guard-canary` used date assumptions that were sensitive to runtime day-boundary/timezone and event catalog composition.
 
@@ -183,9 +183,9 @@ Validation runs:
 - Deploy success (`publish_public_frontend=true`): https://github.com/yustech/MadridLiveApp-1.0/actions/runs/28764537338
 - Deploy success (`publish_public_frontend=false`): https://github.com/yustech/MadridLiveApp-1.0/actions/runs/28764609900
 
-Operational takeaway:
+Historical operational takeaway:
 
-- Treat `publish_public_frontend=false` as backend-only mode; do not run UI Playwright canaries in this mode.
+- This applied to the retired static-frontend architecture. In the current full-proxy architecture, `publish_public_frontend=false` is the normal deploy mode and post-deploy UI canaries should run.
 - Avoid destructive cleanup in shared `public_html` trees unless ownership is guaranteed.
 
 ## Weekly Integrity KPI Report
@@ -209,13 +209,12 @@ Any threshold breach marks the run as failed and triggers configured email/webho
 Summary: production backend was reachable directly from the public internet,
 unencrypted, bypassing nginx/TLS entirely.
 
-- Root cause: `server.ts` defaults `HOST` to `0.0.0.0` when the env var is
-  unset (`const HOST = process.env.HOST || "0.0.0.0"`). Staging's `.env` set
-  `HOST=127.0.0.1` explicitly; production's `.env` never set it, so prod fell
-  back to binding all interfaces.
+- Root cause: an older `server.ts` defaulted `HOST` to `0.0.0.0` when the env
+  var was unset. Staging's `.env` set `HOST=127.0.0.1` explicitly; production's
+  `.env` never set it, so prod fell back to binding all interfaces.
 - Impact confirmed live: the host's public IP on port 3000 served the full
   app directly — including `/api/auth/login` — over plain HTTP, with none of
-  the protections the `inmosubastas.top` vhost provides (TLS, domain
+  the protections the public vhost provides (TLS, domain
   routing, and only the `/api/` path proxied). The app has no
   `helmet`/rate-limiting of its own, so this was the only layer of defense
   and it was bypassable. (Exact reproduction details intentionally omitted
@@ -226,14 +225,15 @@ unencrypted, bypassing nginx/TLS entirely.
   restart` isn't available in this shell — see `DEPLOY_RESTART_STRATEGY` in
   `DEPLOY.md`).
 - Validation: `ss -tlnp` shows the app now listening on `127.0.0.1:3000`
-  only, no longer reachable from the public IP; `https://inmosubastas.top/api/health`
+  only, no longer reachable from the public IP; `https://madridliveapp.top/api/health`
   and `http://127.0.0.1:3000/api/health` both still return `{"status":"ok"}`.
 
 Operational takeaway — **read this before touching `HOST`, deploy scripts, or
 any production `.env`**:
 
 - Production `.env` MUST always set `HOST=127.0.0.1`. Never remove this line
-  or let it fall back to the `server.ts` default of `0.0.0.0`.
+  or rely only on the `server.ts` default. The current default is also
+  `127.0.0.1`, but explicit `.env` is the operational guardrail.
 - `.env.example` now documents `HOST` for this reason — copy it into any new
   environment's `.env` verbatim, don't skip vars that "look optional."
 - If you ever need the backend reachable directly from outside `127.0.0.1`

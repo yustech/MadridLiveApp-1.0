@@ -7,9 +7,10 @@ visible regardless of which instruction file a given tool prioritizes.
 
 ## Critical: production network binding (incident 2026-07-12)
 
-`server.ts` binds with `HOST = process.env.HOST || "0.0.0.0"`. Production's
-`/opt/madridlive-app/.env` was missing `HOST`, so the backend defaulted to
-`0.0.0.0` and was reachable directly on the public IP at port 3000 —
+`server.ts` binds with `HOST = process.env.HOST || "127.0.0.1"`. That safe
+default is defense in depth after the 2026-07-12 incident: production's
+`/opt/madridlive-app/.env` was missing `HOST` and an older default of
+`0.0.0.0` exposed the backend directly on the public IP at port 3000 —
 unencrypted, bypassing nginx/TLS, including `/api/auth/login`.
 
 Rules going forward:

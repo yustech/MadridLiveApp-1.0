@@ -1,7 +1,7 @@
 # Audit Report — MadridLiveApp-1.0
 
 > Auditoría de optimización generada el **2026-07-12**. Estado del código base: rama `main` @ `c37f0ed`.
-> App: control de acceso QR de personal para eventos (React 19 + Vite + Express + MySQL/MariaDB), desplegada en `inmosubastas.top` (prod) y `staging.inmosubastas.top` (staging) vía systemd + nginx (HestiaCP).
+> App: control de acceso QR de personal para eventos (React 19 + Vite + Express + MySQL/MariaDB), desplegada en `madridliveapp.top` (prod) y `staging.madridliveapp.top` (staging) vía systemd + nginx (HestiaCP).
 
 ---
 
@@ -82,8 +82,8 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   ```
   Añade helmet a server.ts con una CSP conservadora compatible con el frontend actual (Vite +
   html5-qrcode usa la cámara: revisa que no rompa getUserMedia ni los estilos inline de Tailwind).
-  Configura CORS explícito restringido a los orígenes reales (inmosubastas.top,
-  staging.inmosubastas.top) para las rutas /api. Verifica en un arranque aislado que /api/health,
+  Configura CORS explícito restringido a los orígenes reales (madridliveapp.top,
+  staging.madridliveapp.top) para las rutas /api. Verifica en un arranque aislado que /api/health,
   el login y el escáner siguen funcionando y que las cabeceras aparecen. No relajes SameSite ni
   el flag Secure de las cookies existentes. Rama, PR, CI verde, deploy staging-first.
   ```

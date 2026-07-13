@@ -1,11 +1,27 @@
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://madridliveapp.top';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 const RUN_STARTED_AT_MS = Date.now();
 const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN || '';
+const LOCAL_MUTATION_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function assertLocalMutationTarget() {
+  let hostname = '';
+
+  try {
+    hostname = new URL(BASE_URL).hostname;
+  } catch {
+    throw new Error(`Invalid PLAYWRIGHT_BASE_URL for shifts guard canary: ${BASE_URL}`);
+  }
+
+  assert(
+    LOCAL_MUTATION_HOSTS.has(hostname),
+    `Refusing to run mutating shifts guard canary against deployed URL ${BASE_URL}. Run it only against an isolated local app.`,
+  );
 }
 
 const MONTH_TO_INDEX = {
@@ -104,6 +120,8 @@ async function api(path, options = {}) {
 }
 
 async function run() {
+  assertLocalMutationTarget();
+
   const [eventsRes, staffRes, shiftsRes] = await Promise.all([
     api('/api/mysql/events'),
     api('/api/mysql/staff'),

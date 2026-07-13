@@ -41,7 +41,7 @@ Acción propuesta: **quitar el bloque `schedule:` (dejar `workflow_dispatch`)**.
 | `health-audit.yml` | ~~semanal (lun)~~ | Salud + versión. Totalmente subsumido por el watchdog systemd. | ✅ **ELIMINADO 2026-07-12** (paso 3). |
 | `active-shift-watchdog.yml` | 2×/día | Detecta turnos activos duplicados. **Solo tiene sentido con turnos reales** (ahora 0 fichajes reales). | **Bajo** hasta go-live. Reactivar al empezar eventos reales. |
 | `ops-weekly-integrity-report.yml` | semanal (lun) | KPI de deriva de ocupación. **Sin ocupación real, el informe no significa nada.** | **Bajo** hasta go-live. |
-| `deploy-dual-mode-validation.yml` | diario 03:15 | Valida el modo dual de deploy a diario. Nicho; el deploy ya se valida en cada release. | **Bajo.** |
+| `deploy-dual-mode-validation.yml` | diario 03:15 | Valida el deploy full-proxy a diario. Nicho; el deploy ya se valida en cada release. | **Bajo.** |
 | `e2e-prod-nightly.yml` | diario 02:30 | e2e **readonly** contra prod demo. Inofensivo pero de poco valor sin datos reales. | **Muy bajo.** Readonly. |
 | `e2e-staging-nightly.yml` | diario 03:00 | e2e contra staging. Redundante con e2e de PR + nightly prod. | **Bajo.** |
 
