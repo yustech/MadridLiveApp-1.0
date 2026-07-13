@@ -102,7 +102,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   Documenta la cadencia en docs/OPERATIONS_CHECKLIST.md.
   ```
 
-- [ ] **5. Check pre-deploy que falle si el `.env` destino no define `HOST`.**
+- [x] **5. Check pre-deploy que falle si el `.env` destino no define `HOST`.** *(cubierta en su mayoría por PR #30 — validate-env-file.sh + preflight en deploy-staging-first.sh y ops:env:validate; el hueco restante, el path SSH de deploy.sh, cerrado el 2026-07-13 con un preflight remoto equivalente.)*
   **Modelo/Effort**: Sonnet 5 · medium.
   **Por qué**: el incidente del puerto 3000 fue por un `HOST` ausente. Un guard automático evita la reincidencia mejor que la documentación.
   **Prompt**:
