@@ -189,7 +189,7 @@ jobs:
             -H "x-admin-token: $ADMIN_API_TOKEN" \
             "$INTEGRITY_LOCAL_BASE_URL/api/mysql/reset-initial"
 
-          curl -fsS "$INTEGRITY_LOCAL_BASE_URL/api/mysql/staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const rows=JSON.parse(s); if (!Array.isArray(rows) || rows.length === 0) { throw new Error('Local integrity fixture has no staff rows.'); } console.log('staff_count=' + rows.length);});"
+          curl -fsS "$INTEGRITY_LOCAL_BASE_URL/api/mysql/health-count" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const payload=JSON.parse(s); const count=Number(payload?.counts?.staff ?? payload?.staffCount ?? 0); if (!Number.isFinite(count) || count <= 0) { throw new Error('Local integrity fixture has no staff rows.'); } console.log('staff_count=' + count);});"
 
       - name: Run shifts API regression
         id: api_regression

@@ -1,4 +1,5 @@
 const BASE_URL = process.env.BASE_URL || process.env.API_BASE_URL || 'https://madridliveapp.top';
+const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || '';
 
 function normalizeBase(url) {
   return String(url || '').replace(/\/+$/, '');
@@ -12,8 +13,12 @@ function buildMysqlPath(base, resource) {
 }
 
 async function fetchJson(url) {
+  if (!ADMIN_API_TOKEN) {
+    throw new Error('ADMIN_API_TOKEN is required for protected active-shift watchdog reads.');
+  }
+
   const response = await fetch(url, {
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-admin-token': ADMIN_API_TOKEN },
   });
 
   const text = await response.text();

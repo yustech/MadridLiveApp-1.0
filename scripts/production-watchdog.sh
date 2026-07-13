@@ -4,7 +4,7 @@ set -euo pipefail
 site_url="${WATCHDOG_SITE_URL:-${DEPLOY_URL:-https://madridliveapp.top}}"
 local_base_url="${WATCHDOG_LOCAL_BASE_URL:-http://127.0.0.1:3000}"
 health_url="${WATCHDOG_HEALTH_URL:-$local_base_url/api/health}"
-staff_url="${WATCHDOG_STAFF_URL:-$local_base_url/api/mysql/staff}"
+staff_url="${WATCHDOG_STAFF_URL:-$local_base_url/api/mysql/health-count}"
 # Minimum-floor check, not an exact count: the real roster grows/varies over
 # time, so we only alert on catastrophic loss (endpoint down, empty, or garbage),
 # not on legitimate changes. Configurable via WATCHDOG_MIN_STAFF_COUNT.
@@ -73,7 +73,7 @@ check_memory_pressure() {
 check_staff() {
   local response count
   response="$(fetch_url "staff" "$staff_url")"
-  count="$(printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const a=JSON.parse(s);process.stdout.write(String(Array.isArray(a)?a.length:-1));}catch{process.stdout.write('-1');}})")"
+  count="$(printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const x=JSON.parse(s);process.stdout.write(String(x?.counts?.staff ?? x?.staffCount ?? -1));}catch{process.stdout.write('-1');}})")"
 
   if ! [[ "$count" =~ ^[0-9]+$ ]] || (( count < min_staff_count )); then
     notify_failure "[madridlive-watchdog] staff floor check failed for $service_name at $(redact_url "$staff_url") (min $min_staff_count, got $count; contact $alert_contact)"

@@ -269,7 +269,9 @@ curl --connect-timeout 3 --max-time 20 -fsS \
   -H "x-admin-token: $admin_token" \
   "$STAGING_BASE_URL/api/mysql/reset-initial" >/dev/null
 
-curl --connect-timeout 3 --max-time 10 -fsS "$STAGING_BASE_URL/api/mysql/schema-check" | grep -q '"success":true'
+curl --connect-timeout 3 --max-time 10 -fsS \
+  -H "x-admin-token: $admin_token" \
+  "$STAGING_BASE_URL/api/mysql/schema-check" | grep -q '"success":true'
 
 echo "[staging] setup=ok"
 echo "[staging] service=$STAGING_SERVICE"

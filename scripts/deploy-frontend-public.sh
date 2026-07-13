@@ -49,7 +49,7 @@ if [[ "$STRICT_NO_FIREBASE" == "true" ]] && [[ "$BUNDLE_CONTENT" == *"firebase"*
   exit 1
 fi
 
-STAFF_COUNT="$(curl -fsS "$SITE_URL/api/mysql/staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);process.stdout.write(String(a.length));});")"
+STAFF_COUNT="$(curl -fsS "$SITE_URL/api/mysql/health-count" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(x?.counts?.staff ?? x?.staffCount ?? -1));});")"
 
 echo "Frontend deploy OK"
 echo "backup=$BACKUP_DIR"

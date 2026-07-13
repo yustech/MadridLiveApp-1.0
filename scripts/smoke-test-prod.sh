@@ -39,8 +39,8 @@ if [[ -n "$EXPECTED_COMMIT_SHA" && "$version_commit" != "$EXPECTED_COMMIT_SHA" ]
   exit 1
 fi
 
-actions_staff="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/staff")"
-staff_count="$(printf '%s' "$actions_staff" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);process.stdout.write(String(a.length));});")"
+mysql_health_response="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/health-count")"
+staff_count="$(printf '%s' "$mysql_health_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(x?.counts?.staff ?? x?.staffCount ?? -1));});")"
 if ! [[ "$MIN_STAFF_COUNT" =~ ^[0-9]+$ ]]; then
   echo "Invalid MIN_STAFF_COUNT value: $MIN_STAFF_COUNT"
   exit 1
@@ -54,10 +54,9 @@ if (( staff_count < MIN_STAFF_COUNT )); then
   exit 1
 fi
 
-schema_response="$(curl --connect-timeout 5 --max-time 10 -fsS "$SITE_URL/api/mysql/schema-check")"
-schema_ok="$(printf '%s' "$schema_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(Boolean(x.success)));});")"
+schema_ok="$(printf '%s' "$mysql_health_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(Boolean(x.success)));});")"
 if [[ "$schema_ok" != "true" ]]; then
-  echo "Schema check failed: $schema_response"
+  echo "Schema check failed: $mysql_health_response"
   exit 1
 fi
 
