@@ -140,6 +140,18 @@ async function run() {
     assert(events.length > 0, 'No hay eventos para ejecutar regresión de shifts API.');
     assert(staff.length > 0, 'No hay staff para ejecutar regresión de shifts API.');
 
+    const futureSeedShiftIds = shiftsSnapshot
+      .filter((shift) => {
+        const startedAt = new Date(String(shift.startedAt || '')).getTime();
+        return Number.isFinite(startedAt) && startedAt > Date.now() + 5 * 60 * 1000;
+      })
+      .map((shift) => shift.id);
+
+    assert(
+      futureSeedShiftIds.length === 0,
+      `La fixture inicial contiene turnos con startedAt futuro y puede bloquear check-ins: ${futureSeedShiftIds.join(', ')}`,
+    );
+
     const activeWorkerIds = new Set(
       shiftsSnapshot
         .filter((shift) => shift.status === 'Active')

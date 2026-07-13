@@ -456,19 +456,83 @@ async function insertAlertRecord(db: any, id: string, sanitized: Record<string, 
   );
 }
 
+function formatSeedClock(date: Date) {
+  return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getSeedClockParts(timespan: string) {
+  const match = timespan.match(/(\d{1,2}):(\d{2})/);
+  return {
+    hour: match ? Number(match[1]) : 10,
+    minute: match ? Number(match[2]) : 0,
+  };
+}
+
+function buildSeedCompletedStart(timespan: string, daysAgo: number) {
+  const { hour, minute } = getSeedClockParts(timespan);
+  const startedAt = new Date();
+  startedAt.setDate(startedAt.getDate() - daysAgo);
+  startedAt.setHours(Number.isFinite(hour) ? hour : 10, Number.isFinite(minute) ? minute : 0, 0, 0);
+  return startedAt;
+}
+
+function buildSeedActiveStart(index: number) {
+  const startedAt = new Date(Date.now() - (90 + index * 20) * 60 * 1000);
+  startedAt.setSeconds(0, 0);
+  return startedAt;
+}
+
 function normalizeInitialShiftForSeed(shift: (typeof INITIAL_SHIFTS)[number], index: number) {
-  const startedAt = shift.startedAt || new Date(Date.UTC(2026, 9, 20 + index, 10, 0, 0)).toISOString();
-  const endedAt = shift.status === 'Completed'
-    ? (shift.endedAt || new Date(Date.parse(startedAt) + 2 * 60 * 60 * 1000).toISOString())
+  const isActive = shift.status === 'Active';
+  const parsedStartedAt = shift.startedAt ? new Date(shift.startedAt) : null;
+  const startedAtDate = parsedStartedAt && !Number.isNaN(parsedStartedAt.getTime())
+    ? parsedStartedAt
+    : isActive
+      ? buildSeedActiveStart(index)
+      : buildSeedCompletedStart(shift.timespan, index + 1);
+  const endedAtDate = isActive
+    ? null
+    : shift.endedAt
+      ? new Date(shift.endedAt)
+      : new Date(startedAtDate.getTime() + 2 * 60 * 60 * 1000);
+  const endedAt = endedAtDate && !Number.isNaN(endedAtDate.getTime())
+    ? endedAtDate.toISOString()
     : null;
   const event = INITIAL_EVENTS.find((candidate) => candidate.title === shift.eventTitle);
+  const startLabel = formatSeedClock(startedAtDate);
+  const endLabel = endedAtDate && !Number.isNaN(endedAtDate.getTime())
+    ? formatSeedClock(endedAtDate)
+    : 'Presente';
 
   return {
     ...shift,
-    dateString: shift.dateString.includes('T') ? shift.dateString : startedAt,
+    dateString: startedAtDate.toISOString(),
     eventId: shift.eventId || event?.id,
-    startedAt,
+    timespan: `${startLabel} - ${isActive ? 'Presente' : endLabel}`,
+    startedAt: startedAtDate.toISOString(),
     endedAt,
+  };
+}
+
+function normalizeInitialStaffForSeed(
+  staff: (typeof INITIAL_STAFF)[number],
+  normalizedShifts: ReturnType<typeof normalizeInitialShiftForSeed>[]
+) {
+  const activeShift = normalizedShifts.find((shift) => shift.workerId === staff.id && shift.status === 'Active');
+  if (activeShift) {
+    return {
+      ...staff,
+      status: 'IN' as const,
+      checkedInTime: activeShift.startedAt,
+    };
+  }
+
+  return {
+    ...staff,
+    status: 'OUT' as const,
+    checkedInTime: '',
+    currentShiftHours: 0,
+    currentShiftMins: 0,
   };
 }
 
@@ -485,8 +549,10 @@ async function resetInitialData() {
     await conn.query('DELETE FROM events');
     await conn.query('DELETE FROM staff');
 
+    const normalizedInitialShifts = INITIAL_SHIFTS.map(normalizeInitialShiftForSeed);
+
     for (const staff of INITIAL_STAFF) {
-      const validation = validateStaffPayload(staff);
+      const validation = validateStaffPayload(normalizeInitialStaffForSeed(staff, normalizedInitialShifts));
       if (!validation.valid) {
         throw new Error(`Initial staff seed failed validation: ${validation.errors.map((error) => error.field).join(', ')}`);
       }
@@ -509,7 +575,7 @@ async function resetInitialData() {
       await insertAlertRecord(conn, alert.id, validation.sanitized!);
     }
 
-    for (const shift of INITIAL_SHIFTS.map(normalizeInitialShiftForSeed)) {
+    for (const shift of normalizedInitialShifts) {
       const validation = validateShiftPayload(shift);
       if (!validation.valid) {
         throw new Error(`Initial shift seed failed validation: ${validation.errors.map((error) => error.field).join(', ')}`);
