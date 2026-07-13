@@ -90,7 +90,7 @@ jobs:
       - name: Validate served bundle hash (post-deploy)
         id: served_bundle
         env:
-          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
+          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://www.madridliveapp.top' }}
         run: |
           set -euo pipefail
           expected='${{ steps.expected_bundle.outputs.bundle }}'
@@ -139,7 +139,7 @@ jobs:
 
       - name: Smoke test production
         env:
-          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
+          SITE_URL: ${{ secrets.DEPLOY_URL || 'https://www.madridliveapp.top' }}
           MIN_STAFF_COUNT: ${{ vars.PROD_MIN_STAFF_COUNT || vars.PROD_EXPECTED_STAFF_COUNT || '1' }}
           EXPECTED_COMMIT_SHA: ${{ github.sha }}
           SMOKE_CHECK_FRONTEND_BUNDLE: "true"
@@ -150,7 +150,7 @@ jobs:
 
       - name: Production history canary
         env:
-          PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://www.madridliveapp.top' }}
           PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
           PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
         run: npm run test:e2e:history:canary

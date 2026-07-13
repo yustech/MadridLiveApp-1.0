@@ -6,7 +6,7 @@ on:
       base_url:
         description: 'Base URL for production regression'
         required: false
-        default: 'https://madridliveapp.top'
+        default: 'https://www.madridliveapp.top'
   # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
   # Readonly e2e against prod demo data has little value until there's real data.
   # RE-ENABLE AT GO-LIVE: restore `schedule:` with cron '30 2 * * *'.
@@ -51,7 +51,7 @@ jobs:
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
             echo "PLAYWRIGHT_BASE_URL=${{ github.event.inputs.base_url }}" >> "$GITHUB_ENV"
           else
-            echo "PLAYWRIGHT_BASE_URL=${{ vars.PROD_URL || 'https://madridliveapp.top' }}" >> "$GITHUB_ENV"
+            echo "PLAYWRIGHT_BASE_URL=${{ vars.PROD_URL || 'https://www.madridliveapp.top' }}" >> "$GITHUB_ENV"
           fi
 
       - name: Run production history canary

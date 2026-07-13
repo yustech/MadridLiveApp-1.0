@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://madridliveapp.top';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://www.madridliveapp.top';
 const RUN_STARTED_AT_MS = Date.now();
 const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.ADMIN_LOGIN_EMAIL || '';
 const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || '';

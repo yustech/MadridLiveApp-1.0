@@ -24,7 +24,7 @@ jobs:
   drill:
     runs-on: ubuntu-latest
     env:
-      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
+      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://www.madridliveapp.top' }}
       RUN_ROLLBACK: ${{ inputs.run_rollback }}
       ROLLBACK_RELEASE: ${{ inputs.release_name }}
       SMTP_HOST: ${{ secrets.SMTP_HOST }}

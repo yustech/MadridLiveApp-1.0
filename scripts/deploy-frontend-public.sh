@@ -3,7 +3,7 @@ set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$(pwd)/dist}"
 DST_DIR="${DST_DIR:-/home/netiadmin/web/madridliveapp.top/public_html}"
-SITE_URL="${SITE_URL:-https://madridliveapp.top}"
+SITE_URL="${SITE_URL:-https://www.madridliveapp.top}"
 BACKUP_BASE="${BACKUP_BASE:-$(pwd)/deploy_backups_local}"
 STRICT_NO_FIREBASE="${STRICT_NO_FIREBASE:-true}"
 

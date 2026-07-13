@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-site_url="${WATCHDOG_SITE_URL:-${DEPLOY_URL:-https://madridliveapp.top}}"
+site_url="${WATCHDOG_SITE_URL:-${DEPLOY_URL:-https://www.madridliveapp.top}}"
 local_base_url="${WATCHDOG_LOCAL_BASE_URL:-http://127.0.0.1:3000}"
 health_url="${WATCHDOG_HEALTH_URL:-$local_base_url/api/health}"
 staff_url="${WATCHDOG_STAFF_URL:-$local_base_url/api/mysql/health-count}"
