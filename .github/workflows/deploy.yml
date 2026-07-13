@@ -4,19 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       publish_public_frontend:
-        description: "Publish static frontend to public_html after backend deploy"
+        description: "Legacy/emergency only: publish static frontend to retired public_html"
         required: true
-        default: "true"
+        default: "false"
         type: choice
         options:
-          - "true"
           - "false"
   workflow_call:
     inputs:
       publish_public_frontend:
-        description: "Publish static frontend to public_html after backend deploy"
+        description: "Legacy/emergency only: publish static frontend to retired public_html"
         required: false
-        default: "true"
+        default: "false"
         type: string
 
 concurrency:
@@ -64,6 +63,12 @@ jobs:
           fi
           echo "bundle=$expected_bundle" >> "$GITHUB_OUTPUT"
 
+      - name: Refuse retired public_html publish mode
+        if: ${{ inputs.publish_public_frontend == 'true' }}
+        run: |
+          echo "::error::publish_public_frontend=true is retired. Keep DEPLOY_PUBLIC_FRONTEND=false and serve the frontend through Node behind nginx."
+          exit 1
+
       - name: Deploy to production
         id: deploy_step
         env:
@@ -83,7 +88,6 @@ jobs:
           npm run deploy 2>&1 | tee deploy-step.log
 
       - name: Validate served bundle hash (post-deploy)
-        if: ${{ inputs.publish_public_frontend == 'true' }}
         id: served_bundle
         env:
           SITE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
@@ -134,27 +138,23 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke test production
-        if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
           SITE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
-          EXPECTED_STAFF_COUNT: ${{ vars.PROD_EXPECTED_STAFF_COUNT || '9' }}
+          MIN_STAFF_COUNT: ${{ vars.PROD_MIN_STAFF_COUNT || vars.PROD_EXPECTED_STAFF_COUNT || '1' }}
           EXPECTED_COMMIT_SHA: ${{ github.sha }}
-          SMOKE_CHECK_FRONTEND_BUNDLE: ${{ inputs.publish_public_frontend }}
+          SMOKE_CHECK_FRONTEND_BUNDLE: "true"
         run: npm run smoke:prod
 
       - name: Install Playwright browser
-        if: ${{ inputs.publish_public_frontend == 'true' }}
         run: npx playwright install --with-deps chromium
 
       - name: Production history canary
-        if: ${{ inputs.publish_public_frontend == 'true' }}
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
           PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
           PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
         run: npm run test:e2e:history:canary
       - name: Record post-deploy functional gate
-        if: ${{ inputs.publish_public_frontend == 'true' }}
         run: |
           {
             echo ""

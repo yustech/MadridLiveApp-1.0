@@ -1,4 +1,4 @@
-name: Deploy Dual-Mode Validation
+name: Deploy Full-Proxy Validation
 
 on:
   workflow_dispatch:
@@ -7,32 +7,23 @@ on:
   # To re-enable: restore `schedule:` with cron '15 3 * * *'.
 
 concurrency:
-  group: deploy-dual-mode-validation
+  group: deploy-full-proxy-validation
   cancel-in-progress: false
 
 jobs:
-  deploy_with_frontend:
-    name: Deploy (publish_public_frontend=true)
-    uses: ./.github/workflows/deploy.yml
-    with:
-      publish_public_frontend: 'true'
-    secrets: inherit
-
-  deploy_backend_only:
-    name: Deploy (publish_public_frontend=false)
-    needs: deploy_with_frontend
+  deploy_full_proxy:
+    name: Deploy (DEPLOY_PUBLIC_FRONTEND=false)
     uses: ./.github/workflows/deploy.yml
     with:
       publish_public_frontend: 'false'
     secrets: inherit
 
   notify_failure:
-    name: Notify dual-mode validation failure
+    name: Notify full-proxy validation failure
     runs-on: ubuntu-latest
     needs:
-      - deploy_with_frontend
-      - deploy_backend_only
-    if: ${{ always() && (needs.deploy_with_frontend.result == 'failure' || needs.deploy_backend_only.result == 'failure') }}
+      - deploy_full_proxy
+    if: ${{ always() && needs.deploy_full_proxy.result == 'failure' }}
     env:
       SMTP_HOST: ${{ secrets.SMTP_HOST }}
       SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
@@ -66,25 +57,23 @@ jobs:
           secure: false
           username: ${{ env.SMTP_USERNAME }}
           password: ${{ env.SMTP_PASSWORD }}
-          subject: "Dual-mode deploy validation FAILED - ${{ github.repository }}"
+          subject: "Full-proxy deploy validation FAILED - ${{ github.repository }}"
           to: "cyuste@gmail.com"
           from: ${{ env.SMTP_FROM }}
           body: |
-            Dual-mode deploy validation failed.
+            Full-proxy deploy validation failed.
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
-            with_frontend result: ${{ needs.deploy_with_frontend.result }}
-            backend_only result: ${{ needs.deploy_backend_only.result }}
+            deploy result: ${{ needs.deploy_full_proxy.result }}
             Run URL: ${{ env.RUN_URL }}
 
       - name: Notify failure webhook
         if: ${{ env.DEPLOY_ALERT_WEBHOOK != '' }}
         run: |
-          payload=$(printf '{"text":"Deploy dual-mode validation FAILED for %s on %s. true=%s, false=%s. Run: %s"}' \
+          payload=$(printf '{"text":"Deploy full-proxy validation FAILED for %s on %s. result=%s. Run: %s"}' \
             "${{ github.repository }}" \
             "${{ github.ref_name }}" \
-            "${{ needs.deploy_with_frontend.result }}" \
-            "${{ needs.deploy_backend_only.result }}" \
+            "${{ needs.deploy_full_proxy.result }}" \
             "$RUN_URL")
 
           curl -fsS -X POST "$DEPLOY_ALERT_WEBHOOK" \
