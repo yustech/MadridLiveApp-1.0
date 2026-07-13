@@ -90,7 +90,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
 
 ## Fase 2 — Fiabilidad y operaciones
 
-- [ ] **4. Cron de backup automático para staging.**
+- [x] **4. Cron de backup automático para staging.** *(aplicado 2026-07-13: crons 03:40/03:55 UTC en opsadmin, verificado con ejecución manual y archivo en Drive. Bonus: `backup-sync-gdrive.sh` ahora excluye siempre `.env*`/`*.env.bak*` del sync — un `.env.bak` ad-hoc se había colado a Drive por el filtro antiguo; eliminado de Drive y las copias ad-hoc viven en `<app>/env-backups/`. Docs en OPERATIONS_CHECKLIST.md.)*
   **Modelo/Effort**: Sonnet 5 · low.
   **Por qué**: producción tiene backup nocturno + sync a Drive, pero **staging no tiene ninguno recurrente** (el de hoy fue manual). Cualquier corrupción en staging es irrecuperable automáticamente.
   **Prompt**:

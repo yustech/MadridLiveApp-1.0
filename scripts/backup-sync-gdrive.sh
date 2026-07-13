@@ -36,6 +36,11 @@ fi
   rclone_args=(
     --exclude "cron.log" \
     --exclude "gdrive-sync-*.log" \
+    # Raw env files must never reach Drive regardless of SYNC_ENV_SNAPSHOTS
+    # (that flag only governs the deliberate env-*.tar.gz snapshots). Ad-hoc
+    # .env.bak-* copies belong in <app>/env-backups/, outside the synced dir.
+    --exclude ".env*" \
+    --exclude "*.env.bak*" \
     --transfers 4 \
     --checkers 8 \
     --drive-stop-on-upload-limit
