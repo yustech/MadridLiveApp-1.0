@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$(pwd)/dist}"
-DST_DIR="${DST_DIR:-/home/netiadmin/web/inmosubastas.top/public_html}"
-SITE_URL="${SITE_URL:-https://inmosubastas.top}"
+DST_DIR="${DST_DIR:-/home/netiadmin/web/madridliveapp.top/public_html}"
+SITE_URL="${SITE_URL:-https://madridliveapp.top}"
 BACKUP_BASE="${BACKUP_BASE:-$(pwd)/deploy_backups_local}"
 STRICT_NO_FIREBASE="${STRICT_NO_FIREBASE:-true}"
 
@@ -18,7 +18,7 @@ if [[ ! -d "$DST_DIR" ]]; then
 fi
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
-BACKUP_DIR="$BACKUP_BASE/inmosubastas.top_frontend_$TS"
+BACKUP_DIR="$BACKUP_BASE/madridliveapp.top_frontend_$TS"
 mkdir -p "$BACKUP_DIR"
 
 # Backup current live static files before replacing.

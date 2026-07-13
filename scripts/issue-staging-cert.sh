@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MODE="${1:---plan}"
-STAGING_DOMAIN="${STAGING_DOMAIN:-staging.inmosubastas.top}"
+STAGING_DOMAIN="${STAGING_DOMAIN:-staging.madridliveapp.top}"
 ACME_ROOT="${ACME_ROOT:-/var/www/letsencrypt}"
 CERT_PATH="${CERT_PATH:-/etc/letsencrypt/live/$STAGING_DOMAIN/fullchain.pem}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

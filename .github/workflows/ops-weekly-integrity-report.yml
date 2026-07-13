@@ -14,7 +14,7 @@ jobs:
   report:
     runs-on: ubuntu-latest
     env:
-      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://inmosubastas.top' }}
+      BASE_URL: ${{ secrets.DEPLOY_URL || 'https://madridliveapp.top' }}
       SMTP_HOST: ${{ secrets.SMTP_HOST }}
       SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
       SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}

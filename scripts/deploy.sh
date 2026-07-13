@@ -11,13 +11,13 @@ fi
 : "${DEPLOY_SSH_KEY:?Set DEPLOY_SSH_KEY}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/madridlive-app}"
-DEPLOY_URL="${DEPLOY_URL:-https://inmosubastas.top}"
+DEPLOY_URL="${DEPLOY_URL:-https://madridliveapp.top}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-false}"
 KEEP_RELEASES="${KEEP_RELEASES:-8}"
 DEPLOY_SERVICE_NAME="${DEPLOY_SERVICE_NAME:-madridlive-app.service}"
 DEPLOY_RESTART_STRATEGY="${DEPLOY_RESTART_STRATEGY:-auto}"
 DEPLOY_PUBLIC_FRONTEND="${DEPLOY_PUBLIC_FRONTEND:-false}"
-PUBLIC_HTML_PATH="${PUBLIC_HTML_PATH:-/home/netiadmin/web/inmosubastas.top/public_html}"
+PUBLIC_HTML_PATH="${PUBLIC_HTML_PATH:-/home/netiadmin/web/madridliveapp.top/public_html}"
 PUBLIC_FRONTEND_BACKUP_BASE="${PUBLIC_FRONTEND_BACKUP_BASE:-/home/opsadmin/MadridLiveApp-1.0/deploy_backups_local}"
 STRICT_NO_FIREBASE="${STRICT_NO_FIREBASE:-true}"
 
@@ -174,7 +174,7 @@ if [[ "$DEPLOY_PUBLIC_FRONTEND" == "true" ]]; then
     [[ -f \"\$src/index.html\" && -d \"\$src/assets\" ]] || { echo \"Missing dist/index.html or dist/assets on remote host\"; exit 1; }; \
     [[ -d \"\$dst\" ]] || { echo \"Destination web root not found: \$dst\"; exit 1; }; \
     ts=\$(date -u +%Y%m%dT%H%M%SZ); \
-    backup_dir=\"\$backup_base/inmosubastas.top_frontend_\$ts\"; \
+    backup_dir=\"\$backup_base/madridliveapp.top_frontend_\$ts\"; \
     mkdir -p \"\$backup_dir\"; \
     cp -a \"\$dst\"/. \"\$backup_dir\"/; \
     mkdir -p \"\$dst/assets\"; \

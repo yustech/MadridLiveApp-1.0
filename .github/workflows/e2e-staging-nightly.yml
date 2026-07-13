@@ -6,7 +6,7 @@ on:
       base_url:
         description: 'Base URL for staging regression'
         required: false
-        default: 'https://staging.inmosubastas.top'
+        default: 'https://staging.madridliveapp.top'
   # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
   # Redundant with PR e2e + prod nightly; low value against staging demo data.
   # RE-ENABLE AT GO-LIVE: restore `schedule:` with cron '0 3 * * *'.
@@ -54,7 +54,7 @@ jobs:
           elif [ -n "${{ vars.STAGING_URL }}" ]; then
             echo "PLAYWRIGHT_BASE_URL=${{ vars.STAGING_URL }}" >> "$GITHUB_ENV"
           else
-            echo "PLAYWRIGHT_BASE_URL=https://staging.inmosubastas.top" >> "$GITHUB_ENV"
+            echo "PLAYWRIGHT_BASE_URL=https://staging.madridliveapp.top" >> "$GITHUB_ENV"
           fi
 
       - name: Preflight staging DNS

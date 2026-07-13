@@ -1,4 +1,4 @@
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://inmosubastas.top';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://madridliveapp.top';
 const RUN_STARTED_AT_MS = Date.now();
 const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN || '';
 
