@@ -3,12 +3,16 @@ set -euo pipefail
 
 MODE="${1:---plan}"
 STAGING_DOMAIN="${STAGING_DOMAIN:-staging.madridliveapp.top}"
-PUBLIC_IP="${PUBLIC_IP:-82.223.139.217}"
+PUBLIC_IP="${PUBLIC_IP:-}"
 STAGING_TARGET="${STAGING_TARGET:-http://127.0.0.1:3001}"
 NGINX_CONF="${NGINX_CONF:-/etc/nginx/conf.d/madridlive-staging.conf}"
 ACME_ROOT="${ACME_ROOT:-/var/www/letsencrypt}"
 CERT_PATH="${CERT_PATH:-/etc/letsencrypt/live/$STAGING_DOMAIN/fullchain.pem}"
 CERT_KEY_PATH="${CERT_KEY_PATH:-/etc/letsencrypt/live/$STAGING_DOMAIN/privkey.pem}"
+
+if [[ -z "$PUBLIC_IP" ]] && command -v curl >/dev/null 2>&1; then
+  PUBLIC_IP="$(curl --connect-timeout 3 --max-time 5 -fsS https://ifconfig.me 2>/dev/null || true)"
+fi
 
 usage() {
   cat <<USAGE
@@ -132,7 +136,8 @@ fi
 print_plan
 
 if [[ "$MODE" == "--plan" ]]; then
-  if [[ "$(dig +short A "$STAGING_DOMAIN" 2>/dev/null | head -n 1 || true)" == "$PUBLIC_IP" ]]; then
+  current_a_record="$(dig +short A "$STAGING_DOMAIN" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$PUBLIC_IP" && "$current_a_record" == "$PUBLIC_IP" ]]; then
     echo "[staging-public] dns_status=ready"
   else
     echo "[staging-public] dns_status=missing_or_not_propagated"
@@ -148,7 +153,21 @@ if [[ "$MODE" == "--plan" ]]; then
 fi
 
 if [[ "$EUID" -ne 0 ]]; then
-  exec sudo "$0" --apply
+  exec sudo \
+    STAGING_DOMAIN="$STAGING_DOMAIN" \
+    PUBLIC_IP="$PUBLIC_IP" \
+    STAGING_TARGET="$STAGING_TARGET" \
+    NGINX_CONF="$NGINX_CONF" \
+    ACME_ROOT="$ACME_ROOT" \
+    CERT_PATH="$CERT_PATH" \
+    CERT_KEY_PATH="$CERT_KEY_PATH" \
+    "$0" --apply
+fi
+
+if [[ -z "$PUBLIC_IP" ]]; then
+  echo "[staging-public] public_ip_status=missing"
+  echo "Set PUBLIC_IP explicitly or install curl so the script can detect it." >&2
+  exit 1
 fi
 
 install -d -m 0755 "$ACME_ROOT"

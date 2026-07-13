@@ -30,6 +30,25 @@ const MONTH_TO_INDEX: Record<string, number> = {
 };
 
 const MONTH_LABELS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const LOCAL_MUTATION_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+function assertLocalMutationTarget() {
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173';
+  let hostname = '';
+
+  try {
+    hostname = new URL(baseUrl).hostname;
+  } catch {
+    throw new Error(`Invalid PLAYWRIGHT_BASE_URL for mutating E2E checks: ${baseUrl}`);
+  }
+
+  if (!LOCAL_MUTATION_HOSTS.has(hostname)) {
+    throw new Error(
+      `Refusing to run mutating E2E checks against deployed URL ${baseUrl}. ` +
+      'Run these checks only against the isolated local CI app.'
+    );
+  }
+}
 
 function parseEventDate(event: any): Date | null {
   const day = Number(event?.dateDay);
@@ -127,7 +146,8 @@ async function loginWithAdmin(page: import('@playwright/test').Page) {
 }
 
 test.describe('Phase 1 - business edge coverage', () => {
-  test('[readonly] shifts API allows current events and blocks future events', async ({ request }) => {
+  test('shifts API allows current events and blocks future events', async ({ request }) => {
+    assertLocalMutationTarget();
     test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for admin API mutation checks.');
 
     const createdShiftIds: string[] = [];
@@ -412,6 +432,7 @@ test.describe('Phase 1 - business edge coverage', () => {
   });
 
   test('scanner supports immediate manual check-in and check-out without reload', async ({ page, request }) => {
+    assertLocalMutationTarget();
     test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for scanner mutation checks.');
 
     const idCode = `FAST${Date.now()}`.slice(0, 20);
@@ -515,6 +536,7 @@ test.describe('Phase 1 - business edge coverage', () => {
   });
 
   test('scanner warns before manual check-in on a past event', async ({ page, request }) => {
+    assertLocalMutationTarget();
     test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for scanner mutation checks.');
 
     const idCode = `PAST${Date.now()}`.slice(0, 20);
