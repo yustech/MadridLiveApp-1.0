@@ -88,6 +88,21 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   el flag Secure de las cookies existentes. Rama, PR, CI verde, deploy staging-first.
   ```
 
+- [ ] **15. Exigir autenticación en los endpoints de lectura `/api/mysql/*`. — BLOQUEANTE antes de cargar datos reales.** *(añadida 2026-07-13, análisis Codex, verificada: `GET /api/mysql/staff` devuelve 200 público)*
+  **Modelo/Effort**: Opus 4.8 · high.
+  **Por qué**: staff/events/shifts/alerts son legibles sin auth por HTTPS. Con la semilla demo es inocuo; con plantilla real expone nombres, emails y teléfonos a cualquiera con la URL.
+  **Prompt**:
+  ```
+  Exige sesión de admin (cookie) o x-admin-token también en los GET de /api/mysql/* en
+  mysqlApi.ts. CUIDADO con las piezas que hoy leen sin token y hay que actualizar en el mismo
+  cambio: smoke-test-staging.sh y smoke-test-prod.sh (conteo de staff), production-watchdog.sh,
+  los canaries e2e readonly, y el polling del frontend (es same-origin con cookie de sesión, así
+  que debería funcionar, pero verifícalo con login real + escáner). Valora un endpoint público
+  mínimo de salud tipo /api/mysql/health-count (solo conteos, sin datos personales) para
+  watchdog/smoke sin token. Rama, PR, CI verde, deploy staging-first ANTES de introducir datos
+  reales.
+  ```
+
 ## Fase 2 — Fiabilidad y operaciones
 
 - [x] **4. Cron de backup automático para staging.** *(aplicado 2026-07-13: crons 03:40/03:55 UTC en opsadmin, verificado con ejecución manual y archivo en Drive. Bonus: `backup-sync-gdrive.sh` ahora excluye siempre `.env*`/`*.env.bak*` del sync — un `.env.bak` ad-hoc se había colado a Drive por el filtro antiguo; eliminado de Drive y las copias ad-hoc viven en `<app>/env-backups/`. Docs en OPERATIONS_CHECKLIST.md.)*
@@ -136,6 +151,28 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   ojo con este bug conocido) a una función reutilizable y aplícala también en el flujo de deploy
   local/staging-first, no solo en el path SSH. Incluye poda de dist.prev-* dejando solo el más
   reciente. Añade un test o dry-run. Rama, PR, CI verde.
+  ```
+
+- [ ] **16. Endpoint atómico de check-in/check-out.** *(añadida 2026-07-13, análisis Codex)*
+  **Modelo/Effort**: Sonnet 5 · high.
+  **Por qué**: el frontend actualiza staff y shifts en llamadas separadas (App.tsx ~271); si una falla a mitad, quedan inconsistentes (turno sin estado, o estado sin turno).
+  **Prompt**:
+  ```
+  Crea un endpoint transaccional POST /api/mysql/checkin (y /checkout) en mysqlApi.ts que haga
+  el cambio de estado del staff y la creación/cierre del shift en una sola transacción MySQL.
+  Migra App.tsx a usarlo manteniendo la UX actual. Cubre con un e2e el caso de doble check-in.
+  Rama, PR, CI verde, staging-first.
+  ```
+
+- [ ] **17. Añadir año al modelo de eventos.** *(añadida 2026-07-13, análisis Codex)*
+  **Modelo/Effort**: Opus 4.8 · high.
+  **Por qué**: los eventos solo guardan día/mes/hora (types.ts ~35); en el cambio de año la ordenación e historial se rompen — los propios e2e saltan ese borde.
+  **Prompt**:
+  ```
+  Diseña la migración para que events guarde fecha completa con año (columna nueva, backfill
+  asumiendo el año actual, staging-first con backup y confirmación del owner antes de tocar el
+  esquema de prod). Actualiza types.ts, formularios y ordenaciones. Elimina el skip del borde de
+  año en los e2e y añade un caso que lo cubra. Entrega el diseño antes de ejecutar.
   ```
 
 ## Fase 3 — Rendimiento
@@ -191,6 +228,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   ```
 
 - [ ] **12. Trocear los ficheros monolíticos (`mysqlApi.ts` 1358 líneas, `DatabaseManagerScreen.tsx` 1359).**
+  **Nota (2026-07-13, análisis Codex)**: al extraer los bloques de ejemplo de DatabaseManagerScreen, eliminar también las cuentas ficticias de supervisor (~líneas 96 y 873) y corregir el DDL copiable para que coincida con el esquema real de 4 tablas — ese SQL de ejemplo ya causó el incidente de la tabla `supervisors` en prod.
   **Modelo/Effort**: Sonnet 5 · high.
   **Por qué**: dos ficheros de >1300 líneas concentran el riesgo de regresión y dificultan el trabajo de agentes. `DatabaseManagerScreen` además arrastra mucho código de ejemplo solo-visual.
   **Prompt**:

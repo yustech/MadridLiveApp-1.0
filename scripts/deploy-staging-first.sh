@@ -2,6 +2,16 @@
 set -euo pipefail
 
 MODE="${1:---staging-only}"
+# `npm run deploy:staging-first:prod -- --plan` appends --plan AFTER the
+# script's own --production argument; the old "$1"-only parsing silently
+# ignored it and went straight to a real production deploy. A --plan or
+# --help anywhere in the args now always wins over the deploy modes.
+for _arg in "$@"; do
+  case "$_arg" in
+    --plan) MODE="--plan" ;;
+    --help|-h) MODE="--help" ;;
+  esac
+done
 RUN_BUILD="${RUN_BUILD:-true}"
 REQUIRE_CLEAN_WORKTREE="${REQUIRE_CLEAN_WORKTREE:-true}"
 VERIFY_PUBLIC_STAGING="${VERIFY_PUBLIC_STAGING:-true}"

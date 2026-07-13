@@ -15,7 +15,7 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
    `npm install`
 2. Run the app:
    `npm run dev`
-   - To inspect the same records as production from localhost (sin CORS): `VITE_MYSQL_API_BASE=/api/mysql VITE_DEV_PROXY_MYSQL_TARGET=https://inmosubastas.top ALLOW_PROD_DEV=1 npm run dev`.
+   - To inspect the same records as production from localhost (sin CORS): `VITE_MYSQL_API_BASE=/api/mysql VITE_DEV_PROXY_MYSQL_TARGET=https://madridliveapp.top ALLOW_PROD_DEV=1 npm run dev`.
    - On Linux hosts with `madridlive-app.service` active, this command is blocked by default to avoid port collisions with production.
    - For emergency debugging on production hosts only: `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
 3. Build for production:
@@ -30,7 +30,7 @@ Aplicación de control de accesos, personal y escaneo QR para producciones en vi
 
 1. Build the app with `npm run build`.
 2. Serve the generated `dist/` folder behind your host or CDN.
-3. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md). You can also run `npm run deploy:full` once the `DEPLOY_*` environment variables are set. The deploy now finishes with a health check against `DEPLOY_URL` (default `https://inmosubastas.top`).
+3. If you want GitHub Actions to publish the app to the live server, follow the workflow documented in [DEPLOY.md](DEPLOY.md). You can also run `npm run deploy:staging-first:prod` once the `DEPLOY_*` environment variables are set (`deploy:full` is retired). The deploy now finishes with a health check against `DEPLOY_URL` (default `https://madridliveapp.top`).
 4. Optional: configure SMTP secrets in GitHub to receive email notifications at `cyuste@gmail.com` on deploy success or failure.
 5. Optional: configure `DEPLOY_ALERT_WEBHOOK` in GitHub Secrets to receive a webhook message when a deploy fails.
 6. Automatic release snapshots are stored on the server after each successful deploy. Use `npm run rollback` to restore the previous snapshot quickly.
@@ -58,10 +58,11 @@ E2E regresión disponible con Playwright:
 1. Local (levanta server automáticamente):
    - `npm run test:e2e`
 2. Producción readonly (sin levantar server local):
-   - `PLAYWRIGHT_BASE_URL=https://inmosubastas.top npm run test:e2e:readonly`
-3. Staging full:
-   - `PLAYWRIGHT_BASE_URL=https://staging.inmosubastas.top npm run test:e2e`
-4. Login UI tests require `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD`; admin API mutation checks require `PLAYWRIGHT_ADMIN_API_TOKEN` or `ADMIN_API_TOKEN`.
+   - `PLAYWRIGHT_BASE_URL=https://madridliveapp.top npm run test:e2e:readonly`
+3. Staging readonly:
+   - `PLAYWRIGHT_BASE_URL=https://staging.madridliveapp.top npm run test:e2e:readonly`
+4. Full e2e/regression suites mutate data and must run only against the isolated local CI app.
+5. Login UI tests require `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD`; admin API mutation checks require `PLAYWRIGHT_ADMIN_API_TOKEN` or `ADMIN_API_TOKEN`.
 
 Workflows:
 
