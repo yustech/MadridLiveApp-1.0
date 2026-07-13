@@ -6,11 +6,12 @@ Diagnosticar en menos de 5 minutos si el historial vacio viene de backend, contr
 ## Comandos rapidos
 1. `curl -fsS https://madridliveapp.top/api/health`
 2. `curl -fsS https://madridliveapp.top/api/version`
-3. `curl -fsS https://madridliveapp.top/api/mysql/schema-check`
-4. `curl -fsS https://madridliveapp.top/api/mysql/shifts | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);console.log('rows',a.length,'hasLocation',a.some(x=>Object.prototype.hasOwnProperty.call(x,'location')),'missingEventFields',a.some(x=>!(Object.prototype.hasOwnProperty.call(x,'eventId')&&Object.prototype.hasOwnProperty.call(x,'eventTitle'))));});"`
-5. `npm run smoke:prod`
-6. `npm run test:e2e:history:canary`
-7. `npm run test:e2e:prod`
+3. `curl -fsS https://madridliveapp.top/api/mysql/health-count`
+4. `curl -fsS -H "x-admin-token: $ADMIN_API_TOKEN" https://madridliveapp.top/api/mysql/schema-check`
+5. `curl -fsS -H "x-admin-token: $ADMIN_API_TOKEN" https://madridliveapp.top/api/mysql/shifts | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);console.log('rows',a.length,'hasLocation',a.some(x=>Object.prototype.hasOwnProperty.call(x,'location')),'missingEventFields',a.some(x=>!(Object.prototype.hasOwnProperty.call(x,'eventId')&&Object.prototype.hasOwnProperty.call(x,'eventTitle'))));});"`
+6. `npm run smoke:prod`
+7. `npm run test:e2e:history:canary`
+8. `npm run test:e2e:prod`
 
 ## Interpretacion
 - Si `api/health` falla: incidencia de servicio, revisar restart y logs del backend.

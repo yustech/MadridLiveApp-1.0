@@ -34,6 +34,15 @@ function isMysqlConfigured() {
   return Boolean(process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_DATABASE);
 }
 
+function unauthorizedResponse(res: express.Response) {
+  return res.status(401).json({ success: false, message: "Unauthorized." });
+}
+
+function parseCount(value: unknown) {
+  const count = Number(value ?? 0);
+  return Number.isFinite(count) ? count : 0;
+}
+
 let pool: any = null;
 
 function getPool() {
@@ -684,7 +693,55 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     ? options.isAdminAuthorized(req)
     : isAdminAuthorized(req);
 
-  app.get(`${MYSQL_PREFIX}/status`, async (_req, res) => {
+  const requireAuthorizedRead = (req: express.Request, res: express.Response) => {
+    if (isAuthorized(req)) return true;
+    unauthorizedResponse(res);
+    return false;
+  };
+
+  app.get(`${MYSQL_PREFIX}/health-count`, async (_req, res) => {
+    if (!isMysqlConfigured()) {
+      return res.status(503).json({
+        success: false,
+        configured: false,
+        message: "MySQL is not configured in environment variables.",
+      });
+    }
+
+    try {
+      const db = getPool();
+      const [rows] = await db.query(`
+        SELECT
+          (SELECT COUNT(*) FROM staff) AS staffCount,
+          (SELECT COUNT(*) FROM events) AS eventsCount,
+          (SELECT COUNT(*) FROM shifts) AS shiftsCount,
+          (SELECT COUNT(*) FROM alerts) AS alertsCount
+      `);
+      const row = (Array.isArray(rows) ? rows[0] : {}) as Record<string, unknown>;
+      const counts = {
+        staff: parseCount(row.staffCount),
+        events: parseCount(row.eventsCount),
+        shifts: parseCount(row.shiftsCount),
+        alerts: parseCount(row.alertsCount),
+      };
+      const status = await getSchemaStatus(db);
+
+      return res.json({
+        success: status.ok,
+        configured: true,
+        counts,
+        staffCount: counts.staff,
+        required: status.required,
+        missing: status.missing,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, configured: true, message: error.message });
+    }
+  });
+
+  app.get(`${MYSQL_PREFIX}/status`, async (req, res) => {
+    if (!requireAuthorizedRead(req, res)) return;
+
     if (!isMysqlConfigured()) {
       return res.status(503).json({
         success: false,
@@ -702,7 +759,9 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
   });
 
-  app.get(`${MYSQL_PREFIX}/schema-check`, async (_req, res) => {
+  app.get(`${MYSQL_PREFIX}/schema-check`, async (req, res) => {
+    if (!requireAuthorizedRead(req, res)) return;
+
     if (!isMysqlConfigured()) {
       return res.status(503).json({
         success: false,
@@ -727,7 +786,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/schema-migrate`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -748,7 +807,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/init`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: "Unauthorized." });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -761,7 +820,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/reset-initial`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: "Unauthorized." });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -772,7 +831,9 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
   });
 
-  app.get(`${MYSQL_PREFIX}/staff`, async (_req, res) => {
+  app.get(`${MYSQL_PREFIX}/staff`, async (req, res) => {
+    if (!requireAuthorizedRead(req, res)) return;
+
     try {
       const db = getPool();
       const [rows] = await db.query(`
@@ -809,7 +870,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/staff`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -838,7 +899,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.patch(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     const allowed = [
@@ -885,7 +946,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.delete(`${MYSQL_PREFIX}/staff/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -897,7 +958,9 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
   });
 
-  app.get(`${MYSQL_PREFIX}/events`, async (_req, res) => {
+  app.get(`${MYSQL_PREFIX}/events`, async (req, res) => {
+    if (!requireAuthorizedRead(req, res)) return;
+
     try {
       const db = getPool();
       const [rows] = await db.query(`
@@ -923,7 +986,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/events`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -951,7 +1014,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.patch(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     const allowed = [
@@ -1001,7 +1064,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.delete(`${MYSQL_PREFIX}/events/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -1028,7 +1091,9 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
   });
 
-  app.get(`${MYSQL_PREFIX}/shifts`, async (_req, res) => {
+  app.get(`${MYSQL_PREFIX}/shifts`, async (req, res) => {
+    if (!requireAuthorizedRead(req, res)) return;
+
     try {
       const db = getPool();
       const [rows] = await db.query(`
@@ -1055,7 +1120,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/shifts`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     let conn: any = null;
@@ -1141,7 +1206,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.patch(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     const allowed = ["worker_id", "date_string", "timespan", "duration_label", "event_id", "event_title", "status", "started_at", "ended_at"];
@@ -1245,7 +1310,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
   });
   app.delete(`${MYSQL_PREFIX}/shifts/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -1257,7 +1322,9 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
   });
 
-  app.get(`${MYSQL_PREFIX}/alerts`, async (_req, res) => {
+  app.get(`${MYSQL_PREFIX}/alerts`, async (req, res) => {
+    if (!requireAuthorizedRead(req, res)) return;
+
     try {
       const db = getPool();
       const [rows] = await db.query(`
@@ -1277,7 +1344,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.post(`${MYSQL_PREFIX}/alerts`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {
@@ -1302,7 +1369,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.patch(`${MYSQL_PREFIX}/alerts/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     const allowed = ["message", "zone", "timestamp_label", "severity"];
@@ -1344,7 +1411,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
   app.delete(`${MYSQL_PREFIX}/alerts/:id`, async (req, res) => {
     if (!isAuthorized(req)) {
-      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+      return unauthorizedResponse(res);
     }
 
     try {

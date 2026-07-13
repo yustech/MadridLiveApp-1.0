@@ -138,14 +138,17 @@ fi
 
 echo "Checking remote schema status (and migrating only if needed)..."
 if ! ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "set -euo pipefail; \
-  schema_before=\$(curl --connect-timeout 3 --max-time 8 -fsS http://127.0.0.1:3000/api/mysql/schema-check || true); \
+  env_file='$DEPLOY_PATH/.env'; \
+  admin_token=\$(grep -E '^ADMIN_API_TOKEN=' \"\$env_file\" | tail -n 1 | cut -d '=' -f2-); \
+  [[ -n \"\$admin_token\" ]] || { echo 'ADMIN_API_TOKEN missing in remote env'; exit 1; }; \
+  schema_before=\$(curl --connect-timeout 3 --max-time 8 -fsS -H \"x-admin-token: \$admin_token\" http://127.0.0.1:3000/api/mysql/schema-check || true); \
   if echo \"\$schema_before\" | grep -q '\"success\":true'; then \
     echo 'Schema already up to date; migration skipped.'; \
     exit 0; \
   fi; \
   echo 'Schema not ready; attempting migration hook...'; \
-  curl --connect-timeout 3 --max-time 12 -fsS -X POST http://127.0.0.1:3000/api/mysql/schema-migrate >/dev/null; \
-  schema_after=\$(curl --connect-timeout 3 --max-time 8 -fsS http://127.0.0.1:3000/api/mysql/schema-check); \
+  curl --connect-timeout 3 --max-time 12 -fsS -X POST -H \"x-admin-token: \$admin_token\" http://127.0.0.1:3000/api/mysql/schema-migrate >/dev/null; \
+  schema_after=\$(curl --connect-timeout 3 --max-time 8 -fsS -H \"x-admin-token: \$admin_token\" http://127.0.0.1:3000/api/mysql/schema-check); \
   echo \"\$schema_after\" | grep -q '\"success\":true'"; then
   echo "Remote schema migration hook failed."
   exit 1
@@ -203,7 +206,7 @@ if [[ "$DEPLOY_PUBLIC_FRONTEND" == "true" ]]; then
     bundle_content=\$(curl -fsS \"\$bundle_url\"); \
     [[ \"\$bundle_content\" == *\"/api/mysql\"* ]] || { echo \"Validation failed: served bundle does not reference /api/mysql\"; echo \"Bundle URL: \$bundle_url\"; exit 1; }; \
     if [[ \"\$strict_no_firebase\" == \"true\" && \"\$bundle_content\" == *\"firebase\"* ]]; then echo \"Validation failed: served bundle still contains firebase references\"; echo \"Bundle URL: \$bundle_url\"; exit 1; fi; \
-    curl -fsS \"\$site_url/api/mysql/staff\" >/dev/null; \
+    curl -fsS \"\$site_url/api/mysql/health-count\" >/dev/null; \
     echo \"Frontend publish OK\"; \
     echo \"frontend_backup=\$backup_dir\"; \
     echo \"served_bundle=\$bundle\""; then

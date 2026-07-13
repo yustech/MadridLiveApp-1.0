@@ -8,17 +8,17 @@ EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-}"
 
 health_url="${SITE_URL%/}/api/health"
 version_url="${SITE_URL%/}/api/version"
-schema_url="${SITE_URL%/}/api/mysql/schema-check"
-staff_url="${SITE_URL%/}/api/mysql/staff"
+mysql_health_url="${SITE_URL%/}/api/mysql/health-count"
 
 curl --connect-timeout 5 --max-time 10 -fsS "$health_url" | grep -q '"status":"ok"'
 version_response="$(curl --connect-timeout 5 --max-time 10 -fsS "$version_url")"
 printf '%s' "$version_response" | grep -q '"status":"ok"'
-curl --connect-timeout 5 --max-time 10 -fsS "$schema_url" | grep -q '"success":true'
+mysql_health_response="$(curl --connect-timeout 5 --max-time 10 -fsS "$mysql_health_url")"
+printf '%s' "$mysql_health_response" | grep -q '"success":true'
 
 staff_count="$(
-  curl --connect-timeout 5 --max-time 10 -fsS "$staff_url" |
-    node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const a=JSON.parse(s);process.stdout.write(String(Array.isArray(a)?a.length:-1));});"
+  printf '%s' "$mysql_health_response" |
+    node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(x?.counts?.staff ?? x?.staffCount ?? -1));});"
 )"
 
 if [[ "$staff_count" != "$EXPECTED_STAFF_COUNT" ]]; then

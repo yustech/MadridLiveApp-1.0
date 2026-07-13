@@ -49,12 +49,12 @@ test.describe('Phase 1 - core functional flows', () => {
   });
 
   test('[readonly] opens profile from header avatar and returns to staff', async ({ page, request }) => {
-    const staffResponse = await request.get('/api/mysql/staff');
-    const staffJson = await staffResponse.json().catch(() => null);
-    const staffPayload = String((staffJson as { message?: string; error?: string } | null)?.message || (staffJson as { message?: string; error?: string } | null)?.error || '');
+    const mysqlHealthResponse = await request.get('/api/mysql/health-count');
+    const mysqlHealthJson = await mysqlHealthResponse.json().catch(() => null);
+    const mysqlHealthPayload = String((mysqlHealthJson as { message?: string; error?: string } | null)?.message || (mysqlHealthJson as { message?: string; error?: string } | null)?.error || '');
 
     test.skip(
-      staffResponse.status() === 500 && isMysqlUnconfiguredMessage(staffPayload),
+      mysqlHealthResponse.status() === 503 && isMysqlUnconfiguredMessage(mysqlHealthPayload),
       'MySQL is not configured in this runner; skipping profile-navigation check that depends on roster data.'
     );
 

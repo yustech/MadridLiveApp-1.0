@@ -93,10 +93,8 @@ async function api(path, options = {}) {
     ...(options.headers || {}),
   };
 
-  if (method !== 'GET') {
-    assert(ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for admin mutation checks.');
-    headers['x-admin-token'] = ADMIN_API_TOKEN;
-  }
+  assert(ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for admin shifts guard checks.');
+  headers['x-admin-token'] = ADMIN_API_TOKEN;
 
   const response = await fetch(`${BASE_URL}${path}`, {
     method,

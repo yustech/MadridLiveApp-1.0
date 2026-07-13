@@ -1,5 +1,6 @@
 // Use native fetch in Node.js 18+
 const API_BASE = process.env.API_URL || 'http://localhost:3000';
+const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || '';
 
 class ValidatorTestSuite {
   constructor() {
@@ -41,7 +42,10 @@ class ValidatorTestSuite {
 async function makeRequest(endpoint, method, payload) {
   const response = await fetch(`${API_BASE}/api/mysql${endpoint}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(ADMIN_API_TOKEN ? { 'x-admin-token': ADMIN_API_TOKEN } : {}),
+    },
     body: JSON.stringify(payload),
   });
   return {
