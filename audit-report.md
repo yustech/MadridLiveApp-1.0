@@ -129,7 +129,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   preflight y uno con HOST pasa. Rama, PR, CI verde.
   ```
 
-- [ ] **6. Unificar la estrategia de reinicio del deploy a systemd (quitar `pkill`/señal).**
+- [x] **6. Unificar la estrategia de reinicio del deploy a systemd (quitar `pkill`/señal).** *(2026-07-13: regla sudoers acotada `/etc/sudoers.d/madridlive-restart` — solo `systemctl restart` de los 2 servicios — aplicada por el owner y verificada (restart sin password OK, `stop` sigue denegado). Nuevo `scripts/restart-service.sh` (systemd + health check, fallback a señal) con atajos `npm run restart:prod|restart:staging`; `deploy.sh` auto→systemd. Documentado en DEPLOY.md.)*
   **Modelo/Effort**: Opus 4.8 · high.
   **Por qué**: `DEPLOY_RESTART_STRATEGY=auto` usa `pkill` cuando no hay sudo sin contraseña, y eso provocó históricamente un crash-loop por `EADDRINUSE`. Requiere decidir la política de sudo.
   **Prompt**:

@@ -1,5 +1,16 @@
 # Changelog
 
+## [ops] - 2026-07-13 (systemd restart strategy, audit #6)
+
+### 🔁 Deploys now restart services via systemd, not process signals
+- Scoped NOPASSWD sudoers rule (`/etc/sudoers.d/madridlive-restart`, applied
+  by the owner) allows opsadmin to run ONLY `systemctl restart` on the two
+  app services. New `scripts/restart-service.sh` (systemd restart + health
+  verification, signal fallback) with `npm run restart:prod|restart:staging`;
+  `deploy.sh`'s auto strategy now always resolves to systemd. Kills the
+  EADDRINUSE race that caused the 2026-07-08 crash-loop.
+
+
 ## [ops] - 2026-07-13 (staging nightly backups + env-file sync guard)
 
 ### 💾 Staging now has nightly backups + Drive sync (audit task #4)

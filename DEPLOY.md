@@ -95,7 +95,18 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    ```bash
    npm run smoke:prod
    ```
-3. Rollback inmediato a la versión anterior:
+3. Reinicio limpio de un servicio (systemd, con verificación de salud):
+   ```bash
+   npm run restart:staging   # o restart:prod
+   ```
+   > **Estrategia de reinicio (desde 2026-07-13, tarea #6 del audit):** existe una
+   > regla sudoers acotada (`/etc/sudoers.d/madridlive-restart`) que permite a
+   > `opsadmin` ejecutar sin contraseña **solo** `systemctl restart` de los dos
+   > servicios de la app. Todos los flujos (helper, `deploy.sh`) usan systemd
+   > como estrategia preferente; el reinicio por señal al MainPID queda solo
+   > como fallback de emergencia, porque tiene una condición de carrera
+   > conocida (`EADDRINUSE`, incidente del 2026-07-08).
+4. Rollback inmediato a la versión anterior:
    ```bash
    npm run rollback
    ```
