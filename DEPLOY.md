@@ -32,27 +32,22 @@ Esta guía resume el flujo real de producción actual: frontend estático, backe
    ```bash
    npm run build
    ```
-2. Despliega backend + frontend público en una sola orden:
+2. Despliega staging primero y producción después (flujo único soportado):
    ```bash
-   npm run deploy:full
+   npm run deploy:staging-first:prod
    ```
-3. Si solo quieres actualizar los estáticos públicos:
-   ```bash
-   npm run deploy:frontend:public
-   ```
-4. Verifica el estado de producción:
+   > `deploy:full` y `deploy:frontend:public` están **retirados**: desde 2026-07-13
+   > nginx proxya todo al Node (full-proxy) y `public_html` ya no forma parte del
+   > deploy. Ambos comandos fallan a propósito con un mensaje explicativo.
+3. Verifica el estado de producción:
    ```bash
    npm run smoke:prod
    ```
-5. Si solo cambias la UI pública de inmosubastas.top, vuelve a publicar con:
-   ```bash
-   npm run deploy:frontend:public
-   ```
 6. Comprueba la salud y la versión públicas:
    ```bash
-   curl -fsS https://inmosubastas.top/api/health
-   curl -fsS https://inmosubastas.top/api/version
-   curl -fsS https://inmosubastas.top/api/mysql/staff
+   curl -fsS https://madridliveapp.top/api/health
+   curl -fsS https://madridliveapp.top/api/version
+   curl -fsS https://madridliveapp.top/api/mysql/staff
    ```
 
 ---
@@ -67,10 +62,10 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
    - `DEPLOY_SSH_KEY`
    - `DEPLOY_PORT` opcional, por defecto `22`
    - `DEPLOY_PATH` opcional, por defecto `/opt/madridlive-app`
-   - `DEPLOY_URL` opcional, por defecto `https://inmosubastas.top`
+   - `DEPLOY_URL` opcional, por defecto `https://madridliveapp.top`
    - `DEPLOY_SERVICE_NAME` opcional, por defecto `madridlive-app.service`
    - `KEEP_RELEASES` opcional, por defecto `8`
-   - `PUBLIC_HTML_PATH` opcional, por defecto `/home/netiadmin/web/inmosubastas.top/public_html`
+   - `PUBLIC_HTML_PATH` opcional, por defecto `/home/netiadmin/web/madridliveapp.top/public_html`
    - `PUBLIC_FRONTEND_BACKUP_BASE` opcional, por defecto `/home/opsadmin/MadridLiveApp-1.0/deploy_backups_local`
    - `SMTP_HOST` opcional para email
    - `SMTP_PORT` opcional para email
@@ -92,9 +87,9 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
 
 ## 🧭 Runbook Rápido (Operación)
 
-1. Deploy completo:
+1. Deploy completo (staging primero, luego producción):
    ```bash
-   npm run deploy:full
+   npm run deploy:staging-first:prod
    ```
 2. Smoke test de producción:
    ```bash
@@ -119,17 +114,17 @@ Si prefieres publicar cada cambio automáticamente desde `main`, usa el workflow
 7. En producción, evita `npm run dev` en el mismo host del servicio para no ocupar el puerto 3000. Si necesitas depurar puntualmente, usa `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
 8. Health/version/staff rápidos:
    ```bash
-   curl -fsS https://inmosubastas.top/api/health
-   curl -fsS https://inmosubastas.top/api/version
-   curl -fsS https://inmosubastas.top/api/mysql/staff
+   curl -fsS https://madridliveapp.top/api/health
+   curl -fsS https://madridliveapp.top/api/version
+   curl -fsS https://madridliveapp.top/api/mysql/staff
    ```
    ```
 6. En producción, evita `npm run dev` en el mismo host del servicio para no ocupar el puerto 3000. Si necesitas depurar puntualmente, usa `ALLOW_PROD_DEV=1 PORT=5173 npm run dev`.
 7. Health/version/staff rápidos:
    ```bash
-   curl -fsS https://inmosubastas.top/api/health
-   curl -fsS https://inmosubastas.top/api/version
-   curl -fsS https://inmosubastas.top/api/mysql/staff
+   curl -fsS https://madridliveapp.top/api/health
+   curl -fsS https://madridliveapp.top/api/version
+   curl -fsS https://madridliveapp.top/api/mysql/staff
    ```
 
 ---
@@ -150,7 +145,7 @@ Configura un monitor HTTP externo para detectar caídas aunque no haya despliegu
 1. Crea cuenta en UptimeRobot.
 2. Add New Monitor -> Monitor Type: `HTTP(s)`.
 3. Friendly Name: `Madrid Live Production Health`.
-4. URL: `https://inmosubastas.top/api/health`.
+4. URL: `https://madridliveapp.top/api/health`.
 5. Intervalo: 5 minutos.
 6. Añade `cyuste@gmail.com` como contacto.
 
