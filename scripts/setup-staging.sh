@@ -196,8 +196,20 @@ fi
 install -d -o "$APP_USER" -g "$APP_GROUP" -m 0750 "$STAGING_APP_DIR"
 install -d -o "$APP_USER" -g "$APP_GROUP" -m 0750 "$STAGING_APP_DIR/dist"
 
+# Rollback backup + auditable snapshot of what we are about to replace, with
+# retention pruning (the manual flow used to accumulate these unboundedly).
+deploy_ts="$(date -u +%Y%m%dT%H%M%SZ)"
+deploy_sha="$(grep -o '"commitSha": *"[^"]*"' dist/build-info.json 2>/dev/null | cut -d'"' -f4 || echo unknown)"
+if [[ -f "$STAGING_APP_DIR/dist/server.cjs" ]]; then
+  cp -a "$STAGING_APP_DIR/dist" "$STAGING_APP_DIR/dist.prev-$deploy_ts"
+fi
+
 rsync -a --delete dist/ "$STAGING_APP_DIR/dist/"
 chown -R "$APP_USER:$APP_GROUP" "$STAGING_APP_DIR/dist"
+
+install -d -o "$APP_USER" -g "$APP_GROUP" -m 0750 "$STAGING_APP_DIR/releases"
+cp -a "$STAGING_APP_DIR/dist" "$STAGING_APP_DIR/releases/release-$deploy_ts-$deploy_sha"
+bash "$(dirname "$0")/prune-releases.sh" "$STAGING_APP_DIR"
 
 if [[ -L "$STAGING_APP_DIR/node_modules" || -e "$STAGING_APP_DIR/node_modules" ]]; then
   rm -rf "$STAGING_APP_DIR/node_modules"

@@ -127,7 +127,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   antes de aplicar. Documenta en DEPLOY.md.
   ```
 
-- [ ] **7. Automatizar la poda de `releases/` y `dist.prev-*` en el flujo de deploy local.**
+- [x] **7. Automatizar la poda de `releases/` y `dist.prev-*` en el flujo de deploy local.** *(2026-07-13: scripts/prune-releases.sh reutilizable con DRY_RUN, ordenación por nombre —no mtime, bug conocido corregido también en el path SSH de deploy.sh—; setup-staging.sh ahora hace backup dist.prev + snapshot en releases/ + poda en cada apply. Testeado con fixture de mtimes falsos.)*
   **Modelo/Effort**: Sonnet 5 · low.
   **Por qué**: la poda de `KEEP_RELEASES` solo corre en el path SSH de `deploy.sh`; los deploys locales manuales acumulan `releases/` y `dist.prev-*` indefinidamente (ya requirió limpieza manual esta sesión).
   **Prompt**:
