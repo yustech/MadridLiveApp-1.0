@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SITE_URL="${SITE_URL:-https://madridliveapp.top}"
+SITE_URL="${SITE_URL:-https://www.madridliveapp.top}"
 MIN_STAFF_COUNT="${MIN_STAFF_COUNT:-${EXPECTED_STAFF_COUNT:-1}}"
 EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-}"
 SMOKE_CHECK_FRONTEND_BUNDLE="${SMOKE_CHECK_FRONTEND_BUNDLE:-true}"

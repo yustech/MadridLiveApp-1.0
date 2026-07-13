@@ -10,7 +10,7 @@ jobs:
   production_watchdog:
     runs-on: ubuntu-latest
     env:
-      BASE_URL: ${{ vars.PROD_BASE_URL || 'https://madridliveapp.top' }}
+      BASE_URL: ${{ vars.PROD_BASE_URL || 'https://www.madridliveapp.top' }}
       ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
       ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
       MAX_HEALTH_LATENCY_MS: ${{ vars.WATCHDOG_MAX_HEALTH_LATENCY_MS || '2000' }}

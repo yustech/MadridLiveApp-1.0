@@ -1,4 +1,4 @@
-const BASE_URL = process.env.BASE_URL || process.env.API_BASE_URL || 'https://madridliveapp.top';
+const BASE_URL = process.env.BASE_URL || process.env.API_BASE_URL || 'https://www.madridliveapp.top';
 const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || '';
 const APPLY = process.argv.includes('--apply');
 

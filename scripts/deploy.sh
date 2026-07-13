@@ -11,7 +11,7 @@ fi
 : "${DEPLOY_SSH_KEY:?Set DEPLOY_SSH_KEY}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/madridlive-app}"
-DEPLOY_URL="${DEPLOY_URL:-https://madridliveapp.top}"
+DEPLOY_URL="${DEPLOY_URL:-https://www.madridliveapp.top}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-false}"
 KEEP_RELEASES="${KEEP_RELEASES:-8}"
 DEPLOY_SERVICE_NAME="${DEPLOY_SERVICE_NAME:-madridlive-app.service}"
