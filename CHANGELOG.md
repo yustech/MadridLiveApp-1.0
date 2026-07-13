@@ -1,5 +1,26 @@
 # Changelog
 
+## [ops] - 2026-07-13 (prod nginx → full proxy; staging seed count 7)
+
+### 🔀 Production nginx now proxies everything to the node app
+- Discovered while deploying #32: prod nginx (HestiaCP) served the SPA
+  statically from `public_html`, so helmet's CSP never reached the browser
+  and the public frontend was a stale build the manual deploy flow never
+  updated. Prod now uses the Hestia proxy template
+  `scripts/hestia-templates/madridlive.tpl` (everything → 127.0.0.1:3000),
+  matching staging's architecture. `public_html` retired (stray `server.cjs`
+  bundle removed from the public web root); `DEPLOY_PUBLIC_FRONTEND` default
+  flipped to `false`.
+- When a deploy adds a runtime dependency, sync `node_modules` +
+  `package.json`/lockfile to the target before restarting — `dist/server.cjs`
+  externalizes packages (staging crash-looped on MODULE_NOT_FOUND until
+  synced).
+
+### 👤 Staging expected staff count is now 7
+- Owner added a staff member by hand via the staging UI on 2026-07-13 and
+  chose to keep it. Exact-count checks updated: script defaults and staging
+  `.env` (`WATCHDOG_EXPECTED_STAFF_COUNT=7`).
+
 ## [security] - 2026-07-13 (security headers & CORS)
 
 ### 🔒 helmet CSP + explicit CORS allowlist on /api

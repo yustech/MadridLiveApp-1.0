@@ -7,12 +7,16 @@ REQUIRE_CLEAN_WORKTREE="${REQUIRE_CLEAN_WORKTREE:-true}"
 VERIFY_PUBLIC_STAGING="${VERIFY_PUBLIC_STAGING:-true}"
 STAGING_LOCAL_URL="${STAGING_LOCAL_URL:-http://127.0.0.1:3001}"
 STAGING_PUBLIC_URL="${STAGING_PUBLIC_URL:-https://staging.inmosubastas.top}"
-STAGING_EXPECTED_STAFF_COUNT="${STAGING_EXPECTED_STAFF_COUNT:-6}"
+# 7 = the 6-row demo seed + 1 staff member the owner added by hand on 2026-07-13.
+STAGING_EXPECTED_STAFF_COUNT="${STAGING_EXPECTED_STAFF_COUNT:-7}"
 PROD_SITE_URL="${PROD_SITE_URL:-https://inmosubastas.top}"
 # Production uses a minimum floor (real roster varies/grows); staging stays an
 # exact seed count above. Passed to smoke:prod, which treats it as a floor.
 PROD_EXPECTED_STAFF_COUNT="${PROD_EXPECTED_STAFF_COUNT:-1}"
-DEPLOY_PUBLIC_FRONTEND="${DEPLOY_PUBLIC_FRONTEND:-true}"
+# Since 2026-07-13 prod nginx proxies EVERYTHING to the node app (Hestia
+# template scripts/hestia-templates/madridlive.tpl), so helmet's CSP reaches
+# the browser. public_html is retired — do not re-enable the static copy.
+DEPLOY_PUBLIC_FRONTEND="${DEPLOY_PUBLIC_FRONTEND:-false}"
 REQUIRE_PUBLIC_HEALTH="${REQUIRE_PUBLIC_HEALTH:-true}"
 STAGING_ENV_FILE="${STAGING_ENV_FILE:-/opt/madridlive-app-staging/.env}"
 PROD_ENV_FILE="${PROD_ENV_FILE:-/opt/madridlive-app/.env}"
