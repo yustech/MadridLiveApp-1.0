@@ -5,6 +5,7 @@ import { URL } from 'url';
 
 const API_BASE_URL = process.argv[2] || 'http://localhost:5174';
 const CONCURRENCY = Math.max(1, Math.min(10, parseInt(process.argv[3] || '5', 10)));
+const ADMIN_API_TOKEN = process.env.ADMIN_API_TOKEN || '';
 const NUM_WORKERS = 5;
 const client = API_BASE_URL.startsWith('https') ? https : http;
 
@@ -45,7 +46,7 @@ class Metrics {
 function makeRequest(method, path, body) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, API_BASE_URL);
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    const opts = { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_API_TOKEN } };
     const req = client.request(url, opts, (res) => {
       let data = '';
       res.on('data', c => data += c);
@@ -117,6 +118,11 @@ async function createShift(wid, metrics) {
 }
 
 async function main() {
+  if (!ADMIN_API_TOKEN) {
+    console.error('ERROR: ADMIN_API_TOKEN is required for shift race probe reads and mutations.');
+    process.exit(1);
+  }
+
   console.log('\nSHIFT RACE PROBE\n');
   const m = new Metrics();
   const workers = [];

@@ -70,7 +70,7 @@ async function api(path, options = {}) {
     method: options.method || 'GET',
     headers: {
       'content-type': 'application/json',
-      ...(options.method && options.method !== 'GET' ? { 'x-admin-token': requireAdminApiToken() } : {}),
+      'x-admin-token': requireAdminApiToken(),
       ...(options.headers || {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -349,6 +349,29 @@ async function run() {
         JSON.stringify({ status: deleteWithoutAuthRes.status, body: deleteWithoutAuthRes.text })
       );
     }
+
+    const protectedReadResults = await Promise.all([
+      apiNoAuth('/api/mysql/staff'),
+      apiNoAuth('/api/mysql/events'),
+      apiNoAuth('/api/mysql/shifts'),
+      apiNoAuth('/api/mysql/alerts'),
+      apiNoAuth('/api/mysql/status'),
+      apiNoAuth('/api/mysql/schema-check'),
+    ]);
+    const protectedReadPaths = [
+      '/api/mysql/staff',
+      '/api/mysql/events',
+      '/api/mysql/shifts',
+      '/api/mysql/alerts',
+      '/api/mysql/status',
+      '/api/mysql/schema-check',
+    ];
+    protectedReadResults.forEach((result, index) => {
+      assert(
+        result.status === 401,
+        `${protectedReadPaths[index]} sin token debe devolver 401 y devolvio ${result.status}: ${result.text}`,
+      );
+    });
 
     const deleteWithAuthRes = await api("/api/mysql/staff/" + authProbeStaffId, {
       method: "DELETE",

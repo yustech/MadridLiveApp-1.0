@@ -112,7 +112,7 @@ async function api(request: import('@playwright/test').APIRequestContext, path: 
     data: options?.body,
     headers: {
       'content-type': 'application/json',
-      ...(options?.method && options.method !== 'GET' ? { 'x-admin-token': ADMIN_API_TOKEN } : {}),
+      ...(ADMIN_API_TOKEN ? { 'x-admin-token': ADMIN_API_TOKEN } : {}),
     },
   });
 

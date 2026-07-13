@@ -18,25 +18,29 @@ async function loginWithAdmin(page: import('@playwright/test').Page) {
 }
 
 test.describe('MadridLiveApp regression', () => {
-  test('[readonly] API health and staff endpoints respond', async ({ request }) => {
+  test('[readonly] API health responds and MySQL data endpoints require auth', async ({ request }) => {
     const health = await request.get('/api/health');
     expect(health.ok()).toBeTruthy();
     await expect(health.json()).resolves.toMatchObject({ status: 'ok' });
 
-    const staff = await request.get('/api/mysql/staff');
-    const staffJson = await staff.json().catch(() => null);
+    const mysqlHealth = await request.get('/api/mysql/health-count');
+    const mysqlHealthJson = await mysqlHealth.json().catch(() => null);
 
-    if (staff.ok()) {
-      expect(Array.isArray(staffJson)).toBeTruthy();
-      expect((staffJson as unknown[]).length).toBeGreaterThan(0);
-      return;
+    if (mysqlHealth.ok()) {
+      const staffCount = Number((mysqlHealthJson as { counts?: { staff?: number }; staffCount?: number } | null)?.counts?.staff ?? (mysqlHealthJson as { staffCount?: number } | null)?.staffCount ?? 0);
+      expect(staffCount).toBeGreaterThan(0);
+    } else {
+      // CI runners may not provide MySQL env vars. Treat this specific
+      // unconfigured backend response as non-regression for UI readonly checks.
+      expect(mysqlHealth.status()).toBe(503);
+      const apiErrorMessage = String((mysqlHealthJson as { message?: string; error?: string } | null)?.message || (mysqlHealthJson as { message?: string; error?: string } | null)?.error || '');
+      expect(apiErrorMessage).toContain('MySQL is not configured');
     }
 
-    // CI runners often don't provide MySQL env vars. Treat this specific
-    // unconfigured backend response as non-regression for UI readonly checks.
-    expect(staff.status()).toBe(500);
-    const apiErrorMessage = String((staffJson as { message?: string; error?: string } | null)?.message || (staffJson as { message?: string; error?: string } | null)?.error || '');
-    expect(apiErrorMessage).toContain('MySQL is not configured');
+    await expect((await request.get('/api/mysql/staff')).status()).toBe(401);
+    await expect((await request.get('/api/mysql/events')).status()).toBe(401);
+    await expect((await request.get('/api/mysql/shifts')).status()).toBe(401);
+    await expect((await request.get('/api/mysql/alerts')).status()).toBe(401);
   });
 
   test('[readonly] denies invalid login', async ({ page }) => {
