@@ -1,5 +1,19 @@
 # Changelog
 
+## [ops] - 2026-07-13 (staging nightly backups + env-file sync guard)
+
+### 💾 Staging now has nightly backups + Drive sync (audit task #4)
+- New opsadmin cron entries: 03:40 UTC `backup-mysql.sh` for staging and
+  03:55 UTC `backup-sync-gdrive.sh` → `gdrive:Backups/MadridLiveApp-1.0-staging`
+  (staggered after prod's 03:10/03:25). Verified with a manual run end-to-end
+  (dump created, file visible in Drive). Cadence documented in
+  `docs/OPERATIONS_CHECKLIST.md`.
+- `backup-sync-gdrive.sh` now always excludes raw env files (`.env*`,
+  `*.env.bak*`) from Drive sync — an ad-hoc `.env.bak` had slipped through the
+  old `env-*.tar.gz`-only filter (caught during verification; removed from
+  Drive). Ad-hoc env copies now live in `<app>/env-backups/`, outside the
+  synced directory.
+
 ## [ops] - 2026-07-13 (prod nginx → full proxy; staging seed count 7)
 
 ### 🔀 Production nginx now proxies everything to the node app

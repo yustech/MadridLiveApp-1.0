@@ -42,7 +42,7 @@ Checklist operativa ligera para MadridLive App (equipo pequeño).
    ```
 2. Confirmar health endpoint público.
    ```bash
-   curl -fsS https://inmosubastas.top/api/health
+   curl -fsS https://madridliveapp.top/api/health
    ```
 3. Confirmar que watchdog sigue activo.
    ```bash
@@ -60,6 +60,22 @@ Checklist operativa ligera para MadridLive App (equipo pequeño).
    sudo journalctl -u madridlive-watchdog.service --since "30 min ago" --no-pager | tail -n 100
    ```
 3. Si el problema apareció tras deploy, ejecutar rollback.
+
+## Backups nocturnos (cron de `opsadmin`)
+
+| Hora (UTC) | Entorno | Qué hace |
+|---|---|---|
+| 03:10 | prod | `backup-mysql.sh` → `/opt/madridlive-app/backups` |
+| 03:25 | prod | `backup-sync-gdrive.sh` → `gdrive:Backups/MadridLiveApp-1.0` |
+| 03:40 | staging | `backup-mysql.sh` → `/opt/madridlive-app-staging/backups` |
+| 03:55 | staging | `backup-sync-gdrive.sh` → `gdrive:Backups/MadridLiveApp-1.0-staging` |
+
+- Retención local: `KEEP_DAILY=14` días (dumps `db-*.sql.gz`).
+- El sync a Drive **excluye siempre** ficheros de env (`.env*`, `*.env.bak*`; los
+  snapshots deliberados `env-*.tar.gz` solo suben con `SYNC_ENV_SNAPSHOTS=true`).
+  Las copias ad-hoc de `.env` van en `<app>/env-backups/` (fuera del dir sincronizado).
+- Verificación rápida: `rclone ls gdrive:Backups/MadridLiveApp-1.0-staging | tail`
+  y `tail /opt/madridlive-app-staging/backups/cron.log`.
 
 ## Seguridad
 
