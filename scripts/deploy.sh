@@ -103,12 +103,13 @@ echo "Restarting application service..."
 remote_service_user="$(ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "systemctl show '$DEPLOY_SERVICE_NAME' -p User --value 2>/dev/null || true")"
 restart_strategy="$DEPLOY_RESTART_STRATEGY"
 
+# auto always resolves to systemd since 2026-07-13 (audit #6): a scoped
+# NOPASSWD sudoers rule (/etc/sudoers.d/madridlive-restart) lets the deploy
+# user run `systemctl restart` on the app services, and the old
+# service-user-owned signal path caused the 2026-07-08 EADDRINUSE crash-loop.
+# The systemd branch below still falls back to signal if sudo -n is missing.
 if [[ "$restart_strategy" == "auto" ]]; then
-  if [[ -n "$remote_service_user" && "$remote_service_user" == "$DEPLOY_USER" ]]; then
-    restart_strategy="signal"
-  else
-    restart_strategy="systemd"
-  fi
+  restart_strategy="systemd"
 fi
 
 if [[ "$restart_strategy" == "signal" ]]; then

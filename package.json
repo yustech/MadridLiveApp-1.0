@@ -11,6 +11,8 @@
     "lint": "tsc --noEmit",
     "deploy": "bash scripts/deploy.sh",
     "rollback": "bash scripts/rollback.sh",
+    "restart:prod": "bash scripts/restart-service.sh prod",
+    "restart:staging": "bash scripts/restart-service.sh staging",
     "reset:mysql:initial": "tsx scripts/reset-mysql-to-initial.ts",
     "watchdog:prod": "bash scripts/production-watchdog.sh",
     "deploy:frontend:public": "echo \"deploy:frontend:public is retired. Production/staging serve the frontend through Node behind nginx.\" && exit 1",
