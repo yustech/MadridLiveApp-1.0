@@ -10,6 +10,7 @@ import {
   validateShiftPayload,
   validateStaffPatchPayload,
   validateStaffPayload,
+  sanitizeLocation,
 } from "./src/validators";
 
 const MYSQL_PREFIX = "/api/mysql";
@@ -287,6 +288,64 @@ function toMysqlDateTimeValue(value: unknown) {
     pad(date.getSeconds())
   );
 }
+
+type MysqlRouteError = Error & { statusCode?: number };
+
+function makeRouteError(statusCode: number, message: string): MysqlRouteError {
+  const error = new Error(message) as MysqlRouteError;
+  error.statusCode = statusCode;
+  return error;
+}
+
+function formatClockLabel(date: Date) {
+  return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getOptionalPayloadString(
+  body: Record<string, unknown>,
+  fieldName: string,
+  maxLength: number
+) {
+  const rawValue = body[fieldName];
+  if (rawValue === undefined || rawValue === null) return "";
+  if (typeof rawValue !== "string") {
+    throw makeRouteError(400, `${fieldName} must be a string.`);
+  }
+
+  const value = rawValue.trim();
+  if (value.length > maxLength) {
+    throw makeRouteError(400, `${fieldName} exceeds max length of ${maxLength}.`);
+  }
+  return value;
+}
+
+function getRequiredPayloadString(
+  body: Record<string, unknown>,
+  fieldName: string,
+  maxLength: number
+) {
+  const value = getOptionalPayloadString(body, fieldName, maxLength);
+  if (!value) {
+    throw makeRouteError(400, `${fieldName} is required.`);
+  }
+  return value;
+}
+
+function normalizeCheckInLocation(value: unknown) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const validation = sanitizeLocation(value);
+  if (!validation.valid) {
+    throw makeRouteError(
+      400,
+      validation.errors.map((error) => `${error.field}: ${error.message}`).join("; ")
+    );
+  }
+  return validation.sanitized || null;
+}
+
 function buildUpdateClause(payload: Record<string, unknown>, allowedFields: string[]) {
   const fields = Object.keys(payload).filter((key) => allowedFields.includes(key));
   if (fields.length === 0) {
@@ -443,6 +502,66 @@ async function insertShiftRecord(db: any, id: string, sanitized: Record<string, 
       toMysqlDateTimeValue(sanitized.endedAt),
     ]
   );
+}
+
+async function selectPublicStaffById(db: any, workerId: string) {
+  const [rows] = await db.query(
+    `
+      SELECT
+        st.id,
+        st.idCode AS idCode,
+        st.name,
+        st.role,
+        st.roleLabel AS roleLabel,
+        CASE WHEN active.worker_id IS NOT NULL THEN 'IN' ELSE 'OUT' END AS status,
+        CASE WHEN active.worker_id IS NOT NULL THEN st.checkedInTime ELSE '' END AS checkedInTime,
+        st.lastSeen AS lastSeen,
+        st.avatar,
+        COALESCE(st.email, '') AS email,
+        COALESCE(st.phone, '') AS phone,
+        CAST(st.totalHours AS DOUBLE) AS totalHours,
+        CASE WHEN active.worker_id IS NOT NULL THEN st.currentShiftHours ELSE 0 END AS currentShiftHours,
+        CASE WHEN active.worker_id IS NOT NULL THEN st.currentShiftMins ELSE 0 END AS currentShiftMins,
+        COALESCE(st.location, '') AS location
+      FROM staff st
+      LEFT JOIN (
+        SELECT worker_id
+        FROM shifts
+        WHERE status = 'Active'
+        GROUP BY worker_id
+      ) active ON active.worker_id = st.id
+      WHERE st.id = ?
+      LIMIT 1
+    `,
+    [workerId]
+  );
+
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function selectPublicShiftById(db: any, shiftId: string) {
+  const [rows] = await db.query(
+    `
+      SELECT
+        id,
+        worker_id AS workerId,
+        date_string AS dateString,
+        timespan,
+        duration_label AS durationLabel,
+        event_id AS eventId,
+        event_title AS eventTitle,
+        status,
+        started_at AS startedAt,
+        ended_at AS endedAt,
+        updated_at AS updatedAt
+      FROM shifts
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [shiftId]
+  );
+
+  return Array.isArray(rows) ? rows[0] || null : null;
 }
 
 async function insertAlertRecord(db: any, id: string, sanitized: Record<string, any>) {
@@ -754,6 +873,171 @@ async function ensureWorkerShiftTimeIntegrity(
     throw new Error('Shift conflict: overlapping time range for worker.');
   }
 }
+
+async function performWorkerCheckIn(conn: any, body: Record<string, unknown>) {
+  const workerId = getRequiredPayloadString(body, "workerId", 96);
+  const eventId = getRequiredPayloadString(body, "eventId", 96);
+  const location = normalizeCheckInLocation(body.location);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const nowMysql = toMysqlDateTimeValue(nowIso);
+  const shiftId = makeId("sh");
+
+  const [staffRows] = await conn.query(
+    `SELECT id, COALESCE(location, '') AS location
+     FROM staff
+     WHERE id = ?
+     LIMIT 1
+     FOR UPDATE`,
+    [workerId]
+  );
+  const staffRow = Array.isArray(staffRows) ? staffRows[0] : null;
+  if (!staffRow) {
+    throw makeRouteError(404, "Worker not found.");
+  }
+
+  const [eventRows] = await conn.query(
+    `SELECT id, title
+     FROM events
+     WHERE id = ?
+     LIMIT 1`,
+    [eventId]
+  );
+  const eventRow = Array.isArray(eventRows) ? eventRows[0] : null;
+  if (!eventRow) {
+    throw makeRouteError(404, "Event not found.");
+  }
+
+  const [activeRows] = await conn.query(
+    `SELECT id
+     FROM shifts
+     WHERE worker_id = ?
+       AND status = 'Active'
+     ORDER BY started_at DESC, updated_at DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [workerId]
+  );
+  if (Array.isArray(activeRows) && activeRows[0]) {
+    throw makeRouteError(409, "Shift conflict: worker already has an active shift.");
+  }
+
+  await ensureShiftNotLinkedToFutureEvent(conn, "Active", eventId, eventRow.title);
+  await ensureWorkerShiftTimeIntegrity(conn, workerId, "Active", nowIso, null);
+
+  await conn.execute(
+    `
+      INSERT INTO shifts (
+        id, worker_id, date_string, timespan, duration_label, event_id, event_title, status, started_at, ended_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      shiftId,
+      workerId,
+      nowIso,
+      `${formatClockLabel(now)} - Presente`,
+      "Active",
+      eventId,
+      eventRow.title,
+      "Active",
+      nowMysql,
+      null,
+    ]
+  );
+
+  await conn.execute(
+    `UPDATE staff
+     SET status = 'IN',
+         checkedInTime = ?,
+         currentShiftHours = 0,
+         currentShiftMins = 0,
+         location = ?
+     WHERE id = ?`,
+    [nowIso, location || staffRow.location || null, workerId]
+  );
+
+  const staff = await selectPublicStaffById(conn, workerId);
+  const shift = await selectPublicShiftById(conn, shiftId);
+
+  return { action: "checkin", staff, shift };
+}
+
+async function performWorkerCheckOut(conn: any, body: Record<string, unknown>) {
+  const workerId = getRequiredPayloadString(body, "workerId", 96);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const nowMysql = toMysqlDateTimeValue(nowIso);
+  const nowLabel = formatClockLabel(now);
+
+  const [staffRows] = await conn.query(
+    `SELECT id, CAST(totalHours AS DOUBLE) AS totalHours
+     FROM staff
+     WHERE id = ?
+     LIMIT 1
+     FOR UPDATE`,
+    [workerId]
+  );
+  const staffRow = Array.isArray(staffRows) ? staffRows[0] : null;
+  if (!staffRow) {
+    throw makeRouteError(404, "Worker not found.");
+  }
+
+  const [activeRows] = await conn.query(
+    `SELECT id, timespan, started_at AS startedAt
+     FROM shifts
+     WHERE worker_id = ?
+       AND status = 'Active'
+     ORDER BY started_at DESC, updated_at DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [workerId]
+  );
+  const activeShift = Array.isArray(activeRows) ? activeRows[0] : null;
+  if (!activeShift) {
+    throw makeRouteError(409, "Shift conflict: worker has no active shift to close.");
+  }
+
+  const startedAtDate = activeShift.startedAt ? new Date(activeShift.startedAt) : now;
+  const startTs = startedAtDate.getTime();
+  const endTs = now.getTime();
+  const elapsedMs = Number.isFinite(startTs) && endTs > startTs ? endTs - startTs : 0;
+  const netAccruedHours = elapsedMs / (1000 * 60 * 60);
+  const finalHours = Number((Number(staffRow.totalHours || 0) + netAccruedHours).toFixed(2));
+  const startLabel = String(activeShift.timespan || "").split(" - ")[0] || formatClockLabel(startedAtDate);
+
+  await conn.execute(
+    `UPDATE shifts
+     SET status = 'Completed',
+         timespan = ?,
+         duration_label = ?,
+         ended_at = ?
+     WHERE id = ?`,
+    [
+      `${startLabel} - ${nowLabel}`,
+      `${netAccruedHours.toFixed(1)}h`,
+      nowMysql,
+      activeShift.id,
+    ]
+  );
+
+  await conn.execute(
+    `UPDATE staff
+     SET status = 'OUT',
+         checkedInTime = NULL,
+         lastSeen = ?,
+         currentShiftHours = 0,
+         currentShiftMins = 0,
+         totalHours = ?
+     WHERE id = ?`,
+    [nowIso, finalHours, workerId]
+  );
+
+  const staff = await selectPublicStaffById(conn, workerId);
+  const shift = await selectPublicShiftById(conn, activeShift.id);
+
+  return { action: "checkout", staff, shift };
+}
+
 export function registerMysqlApi(app: express.Express, options: MysqlApiOptions = {}) {
   const isAuthorized = (req: express.Request) => options.isAdminAuthorized
     ? options.isAdminAuthorized(req)
@@ -894,6 +1178,73 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
       return res.json({ success: true, message: "MySQL data reset to initial dataset." });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  app.post(`${MYSQL_PREFIX}/checkin`, async (req, res) => {
+    if (!isAuthorized(req)) {
+      return unauthorizedResponse(res);
+    }
+
+    let conn: any = null;
+    try {
+      const db = getPool();
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+
+      const result = await performWorkerCheckIn(conn, req.body || {});
+
+      await conn.commit();
+      return res.status(201).json({ success: true, ...result });
+    } catch (error: any) {
+      if (conn) {
+        try {
+          await conn.rollback();
+        } catch {
+          // Keep the original check-in failure.
+        }
+      }
+      const message = error?.message || "Check-in failed.";
+      if (message.startsWith("Cannot activate shifts for future event")) {
+        return res.status(400).json({ success: false, message });
+      }
+      return res.status(error?.statusCode || 500).json({ success: false, message });
+    } finally {
+      if (conn) {
+        conn.release();
+      }
+    }
+  });
+
+  app.post(`${MYSQL_PREFIX}/checkout`, async (req, res) => {
+    if (!isAuthorized(req)) {
+      return unauthorizedResponse(res);
+    }
+
+    let conn: any = null;
+    try {
+      const db = getPool();
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+
+      const result = await performWorkerCheckOut(conn, req.body || {});
+
+      await conn.commit();
+      return res.json({ success: true, ...result });
+    } catch (error: any) {
+      if (conn) {
+        try {
+          await conn.rollback();
+        } catch {
+          // Keep the original check-out failure.
+        }
+      }
+      const message = error?.message || "Check-out failed.";
+      return res.status(error?.statusCode || 500).json({ success: false, message });
+    } finally {
+      if (conn) {
+        conn.release();
+      }
     }
   });
 

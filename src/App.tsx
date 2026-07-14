@@ -8,7 +8,7 @@ import {
   isOperableEvent,
   sortEventsByDate
 } from './utils/events';
-import { getActiveShiftForWorker, isWorkerPresentNow } from './utils/shifts';
+import { isWorkerPresentNow } from './utils/shifts';
 
 
 import {
@@ -16,11 +16,9 @@ import {
   subscribeToStaff,
   subscribeToShifts,
   subscribeToAlerts,
-  updateStaff,
-  updateShift,
-  addShift,
+  checkInWorker,
+  checkOutWorker,
   addStaff,
-  deleteShift,
   deleteEvent
 } from './dbService';
 
@@ -183,20 +181,6 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  // System time helper
-  const getCurrentTimeStr = () => {
-    return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const getTodayDateStr = () => {
-    const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: '2-digit' };
-    const formatted = new Date().toLocaleDateString('es-ES', options); // e.g. "dom, 28 oct"
-    // Convert generic day name "dom, 28 oct" to "Hoy, 28 oct"
-    const parts = formatted.split(', ');
-    const rest = parts[1] || parts[0];
-    return `Hoy, ${rest}`;
-  };
-
   const getIsoForTodayTime = (clockLabel: string) => {
     const [hourRaw, minuteRaw] = clockLabel.split(':');
     const hour = Number(hourRaw);
@@ -256,57 +240,23 @@ export default function App() {
 
   // Check worker toggle IN/OUT
   const handleToggleWorkerStatus = async (workerId: string, customLocation?: string) => {
-    const nowStr = getCurrentTimeStr();
-    const nowIso = new Date().toISOString();
-    const todayDateStr = getTodayDateStr();
-
     const worker = staff.find(w => w.id === workerId);
     if (!worker) return false;
 
     const isCurrentlyIn = worker.status === 'IN';
     const activeEvent = events.find(e => e.id === activeEventId) || null;
-    const eventTitle = activeEvent?.title || 'Evento operativo';
 
     try {
       if (isCurrentlyIn) {
-        const activeShift = getActiveShiftForWorker(shifts, workerId)
-          || shifts.find(sh => sh.workerId === workerId && sh.status === 'Active');
-        const canonicalStartIso = activeShift?.startedAt || worker.checkedInTime || nowIso;
-        const startTs = new Date(canonicalStartIso).getTime();
-        const endTs = new Date(nowIso).getTime();
-        const elapsedMs = Number.isFinite(startTs) && endTs > startTs ? endTs - startTs : 0;
-        const netAccrued = elapsedMs / (1000 * 60 * 60);
-        const finalHours = worker.totalHours + netAccrued;
-        const staffPatch: Partial<StaffMember> = {
-          status: 'OUT',
-          checkedInTime: '',
-          lastSeen: nowIso,
-          currentShiftHours: 0,
-          currentShiftMins: 0,
-          totalHours: finalHours,
-        };
-
-        await updateStaff(workerId, staffPatch);
-
-        if (activeShift) {
-          const startLabel = activeShift.timespan.split(' - ')[0];
-          const shiftPatch: Partial<Shift> = {
-            status: 'Completed',
-            timespan: `${startLabel} - ${nowStr}`,
-            durationLabel: `${netAccrued.toFixed(1)}h`,
-            endedAt: nowIso,
-          };
-          await updateShift(activeShift.id, shiftPatch);
-          setShifts((prev) => prev.map((shift) => (
-            shift.id === activeShift.id ? { ...shift, ...shiftPatch } : shift
-          )));
-        }
-
+        const result = await checkOutWorker(workerId);
         setStaff((prev) => prev.map((staffMember) => (
-          staffMember.id === workerId ? { ...staffMember, ...staffPatch } : staffMember
+          staffMember.id === workerId ? result.staff : staffMember
+        )));
+        setShifts((prev) => prev.map((shift) => (
+          shift.id === result.shift.id ? result.shift : shift
         )));
         setSelectedWorker((prev) => (
-          prev?.id === workerId ? { ...prev, ...staffPatch } : prev
+          prev?.id === workerId ? result.staff : prev
         ));
 
         return true;
@@ -317,38 +267,14 @@ export default function App() {
         return false;
       }
 
-      const newShift: Omit<Shift, 'id'> = {
-        workerId: workerId,
-        dateString: todayDateStr,
-        timespan: `${nowStr} - Presente`,
-        durationLabel: 'Active',
-        eventId: activeEvent?.id,
-        eventTitle,
-        status: 'Active',
-        startedAt: nowIso,
-      };
-      const shiftId = await addShift(newShift);
-
-      try {
-        const staffPatch: Partial<StaffMember> = {
-          status: 'IN',
-          checkedInTime: nowIso,
-          currentShiftHours: 0,
-          currentShiftMins: 0,
-          location: customLocation || worker.location || ''
-        };
-        await updateStaff(workerId, staffPatch);
-        setShifts((prev) => [{ ...newShift, id: shiftId }, ...prev]);
-        setStaff((prev) => prev.map((staffMember) => (
-          staffMember.id === workerId ? { ...staffMember, ...staffPatch } : staffMember
-        )));
-        setSelectedWorker((prev) => (
-          prev?.id === workerId ? { ...prev, ...staffPatch } : prev
-        ));
-      } catch (staffErr) {
-        await deleteShift(shiftId);
-        throw staffErr;
-      }
+      const result = await checkInWorker(workerId, activeEvent.id, customLocation || worker.location || '');
+      setShifts((prev) => [result.shift, ...prev.filter((shift) => shift.id !== result.shift.id)]);
+      setStaff((prev) => prev.map((staffMember) => (
+        staffMember.id === workerId ? result.staff : staffMember
+      )));
+      setSelectedWorker((prev) => (
+        prev?.id === workerId ? result.staff : prev
+      ));
 
       return true;
     } catch (err) {
