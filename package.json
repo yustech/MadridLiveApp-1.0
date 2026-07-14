@@ -21,6 +21,8 @@
     "deploy:staging-first:prod": "bash scripts/deploy-staging-first.sh --production",
     "smoke:prod": "bash scripts/smoke-test-prod.sh",
     "guard:shifts:contract": "bash scripts/guard-shifts-contract.sh",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:prod": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://www.madridliveapp.top} npm run test:e2e:readonly",
@@ -92,6 +94,7 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^3.2.0"
   }
 }
