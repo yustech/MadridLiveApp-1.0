@@ -210,6 +210,9 @@ async function run() {
     let overlapRangeBlocked = false;
     let contiguousRangeAllowed = false;
     let concurrentStartRaceGuarded = false;
+    let atomicCheckinDoubleBlocked = false;
+    let atomicCheckoutClosesShift = false;
+    let atomicCheckoutWithoutActiveBlocked = false;
     let legacyLocationCreateRejected = false;
     let legacyLocationPatchRejected = false;
     let deleteStaffAuthEnforced = false;
@@ -343,6 +346,112 @@ async function run() {
     assert(allowedEvent, 'No se encontró evento permitido para validar alta/cierre.');
     assert(createdShiftIds.length > 0, 'No se recibió id del turno creado.');
     const createdShiftId = createdShiftIds[0];
+
+    const atomicNoAuthRes = await apiNoAuth('/api/mysql/checkin', {
+      method: 'POST',
+      body: {
+        workerId: worker.id,
+        eventId: allowedEvent.id,
+        location: 'Regression Atomic Gate',
+      },
+    });
+    assert(
+      atomicNoAuthRes.status === 401,
+      `POST /checkin sin token debe devolver 401 y devolvió ${atomicNoAuthRes.status}: ${atomicNoAuthRes.text}`,
+    );
+
+    const atomicStaffRes = await api('/api/mysql/staff', {
+      method: 'POST',
+      body: {
+        idCode: (`ATOM${Date.now()}`).slice(0, 20),
+        name: 'Atomic Shift Regression Worker',
+        role: 'Auxiliar',
+        roleLabel: 'AUXILIAR',
+        status: 'OUT',
+        checkedInTime: '',
+        lastSeen: 'Ahora',
+        avatar: '',
+        email: '',
+        phone: '',
+        totalHours: 0,
+        currentShiftHours: 0,
+        currentShiftMins: 0,
+        location: 'Regression Atomic Gate',
+      },
+    });
+
+    assert(
+      atomicStaffRes.status === 201 && atomicStaffRes.json?.id,
+      `No se pudo crear worker temporal para endpoint atomico (${atomicStaffRes.status}): ${atomicStaffRes.text}`,
+    );
+
+    const atomicWorkerId = atomicStaffRes.json.id;
+    createdStaffIds.push(atomicWorkerId);
+
+    const atomicCheckinRes = await api('/api/mysql/checkin', {
+      method: 'POST',
+      body: {
+        workerId: atomicWorkerId,
+        eventId: allowedEvent.id,
+        location: 'Regression Atomic Gate',
+      },
+    });
+
+    assert(
+      atomicCheckinRes.status === 201 && atomicCheckinRes.json?.shift?.id,
+      `Check-in atomico falló (${atomicCheckinRes.status}): ${atomicCheckinRes.text}`,
+    );
+    createdShiftIds.push(atomicCheckinRes.json.shift.id);
+    assert(
+      atomicCheckinRes.json?.staff?.status === 'IN' && atomicCheckinRes.json?.shift?.status === 'Active',
+      `Check-in atomico no devolvió staff IN y shift Active: ${atomicCheckinRes.text}`,
+    );
+
+    const atomicDuplicateRes = await api('/api/mysql/checkin', {
+      method: 'POST',
+      body: {
+        workerId: atomicWorkerId,
+        eventId: allowedEvent.id,
+        location: 'Regression Atomic Gate',
+      },
+    });
+
+    atomicCheckinDoubleBlocked = atomicDuplicateRes.status === 409;
+    assert(
+      atomicCheckinDoubleBlocked,
+      `Doble check-in atomico debería bloquearse con 409 y devolvió ${atomicDuplicateRes.status}: ${atomicDuplicateRes.text}`,
+    );
+
+    const atomicCheckoutRes = await api('/api/mysql/checkout', {
+      method: 'POST',
+      body: {
+        workerId: atomicWorkerId,
+      },
+    });
+
+    atomicCheckoutClosesShift = (
+      atomicCheckoutRes.status === 200
+      && atomicCheckoutRes.json?.staff?.status === 'OUT'
+      && atomicCheckoutRes.json?.shift?.status === 'Completed'
+      && Boolean(atomicCheckoutRes.json?.shift?.endedAt)
+    );
+    assert(
+      atomicCheckoutClosesShift,
+      `Check-out atomico no cerró staff/shift correctamente (${atomicCheckoutRes.status}): ${atomicCheckoutRes.text}`,
+    );
+
+    const atomicSecondCheckoutRes = await api('/api/mysql/checkout', {
+      method: 'POST',
+      body: {
+        workerId: atomicWorkerId,
+      },
+    });
+
+    atomicCheckoutWithoutActiveBlocked = atomicSecondCheckoutRes.status === 409;
+    assert(
+      atomicCheckoutWithoutActiveBlocked,
+      `Segundo check-out atomico debería bloquearse con 409 y devolvió ${atomicSecondCheckoutRes.status}: ${atomicSecondCheckoutRes.text}`,
+    );
 
     const authProbeStaffId = "auth-probe-" + Date.now();
     const deleteWithoutAuthRes = await apiNoAuth("/api/mysql/staff/" + authProbeStaffId, {
@@ -707,6 +816,9 @@ async function run() {
       overlapRangeBlocked,
       contiguousRangeAllowed,
       concurrentStartRaceGuarded,
+      atomicCheckinDoubleBlocked,
+      atomicCheckoutClosesShift,
+      atomicCheckoutWithoutActiveBlocked,
       legacyLocationCreateRejected,
       legacyLocationPatchRejected,
       deleteStaffAuthEnforced,

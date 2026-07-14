@@ -416,6 +416,133 @@ test.describe('Phase 1 - business edge coverage', () => {
     }
   });
 
+  test('atomic check-in rejects duplicate active shifts and checkout closes both records', async ({ request }) => {
+    assertLocalMutationTarget();
+    test.skip(!ADMIN_API_TOKEN, 'PLAYWRIGHT_ADMIN_API_TOKEN or ADMIN_API_TOKEN is required for atomic shift mutation checks.');
+
+    const suffix = String(Date.now()).slice(-8);
+    const idCode = `ATOM${suffix}`.slice(0, 20);
+    const today = new Date();
+    const eventTitle = `Atomic E2E Event ${suffix}`;
+    let staffId = '';
+    let eventId = '';
+
+    try {
+      const createStaffRes = await api(request, '/api/mysql/staff', {
+        method: 'POST',
+        body: {
+          idCode,
+          name: `Atomic E2E Worker ${suffix}`,
+          role: 'Auxiliar',
+          roleLabel: 'AUXILIAR',
+          status: 'OUT',
+          checkedInTime: '',
+          lastSeen: new Date().toISOString(),
+          avatar: '',
+          email: `${idCode.toLowerCase()}@example.test`,
+          phone: '+34910000123',
+          totalHours: 0,
+          currentShiftHours: 0,
+          currentShiftMins: 0,
+          location: 'QA Atomic Gate',
+        },
+      });
+
+      test.skip(
+        createStaffRes.status === 500 && isMysqlUnconfiguredMessage(String(createStaffRes.json?.message || createStaffRes.text || '')),
+        'MySQL is not configured in this runner; skipping atomic shift mutation check.'
+      );
+
+      expect(createStaffRes.status).toBe(201);
+      expect(createStaffRes.json?.id).toBeTruthy();
+      staffId = createStaffRes.json.id;
+
+      const createEventRes = await api(request, '/api/mysql/events', {
+        method: 'POST',
+        body: {
+          title: eventTitle,
+          location: 'QA Atomic Venue',
+          dateDay: String(today.getDate()).padStart(2, '0'),
+          dateMonth: MONTH_LABELS[today.getMonth()],
+          doorsOpen: '08:00',
+          requiredStaff: 1,
+          activeStaff: 0,
+          totalStaffNeeded: 1,
+          scanRate: 0,
+          loadInPercent: 50,
+        },
+      });
+
+      expect(createEventRes.status).toBe(201);
+      expect(createEventRes.json?.id).toBeTruthy();
+      eventId = createEventRes.json.id;
+
+      const firstCheckin = await api(request, '/api/mysql/checkin', {
+        method: 'POST',
+        body: {
+          workerId: staffId,
+          eventId,
+          location: 'QA Atomic Gate',
+        },
+      });
+
+      expect(firstCheckin.status).toBe(201);
+      expect(firstCheckin.json?.staff?.status).toBe('IN');
+      expect(firstCheckin.json?.shift?.status).toBe('Active');
+      expect(firstCheckin.json?.shift?.eventId).toBe(eventId);
+
+      const duplicateCheckin = await api(request, '/api/mysql/checkin', {
+        method: 'POST',
+        body: {
+          workerId: staffId,
+          eventId,
+          location: 'QA Atomic Gate',
+        },
+      });
+
+      expect(duplicateCheckin.status).toBe(409);
+
+      const checkout = await api(request, '/api/mysql/checkout', {
+        method: 'POST',
+        body: {
+          workerId: staffId,
+        },
+      });
+
+      expect(checkout.status).toBe(200);
+      expect(checkout.json?.staff?.status).toBe('OUT');
+      expect(checkout.json?.shift?.status).toBe('Completed');
+      expect(checkout.json?.shift?.endedAt).toBeTruthy();
+
+      const secondCheckout = await api(request, '/api/mysql/checkout', {
+        method: 'POST',
+        body: {
+          workerId: staffId,
+        },
+      });
+
+      expect(secondCheckout.status).toBe(409);
+    } finally {
+      if (staffId) {
+        const shiftsRes = await api(request, '/api/mysql/shifts');
+        const shifts = Array.isArray(shiftsRes.json) ? shiftsRes.json : [];
+        const workerShiftIds = shifts
+          .filter((shift: any) => shift.workerId === staffId)
+          .map((shift: any) => shift.id);
+
+        for (const shiftId of workerShiftIds) {
+          await api(request, `/api/mysql/shifts/${shiftId}`, { method: 'DELETE' });
+        }
+
+        await api(request, `/api/mysql/staff/${staffId}`, { method: 'DELETE' });
+      }
+
+      if (eventId) {
+        await api(request, `/api/mysql/events/${eventId}`, { method: 'DELETE' });
+      }
+    }
+  });
+
   test('[readonly] scanner module remains usable after page refresh', async ({ page }) => {
     await loginWithAdmin(page);
 

@@ -4,6 +4,13 @@ const MYSQL_API_BASE = import.meta.env.VITE_MYSQL_API_BASE || '/api/mysql';
 const POLL_MS = 3000;
 const DEFAULT_STAFF_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
 
+export interface ShiftToggleResult {
+  success: boolean;
+  action: 'checkin' | 'checkout';
+  staff: StaffMember;
+  shift: Shift;
+}
+
 function normalizeStaffAvatar(worker: StaffMember): StaffMember {
   return {
     ...worker,
@@ -148,6 +155,22 @@ export async function updateStaff(workerId: string, workerData: Partial<StaffMem
 
 export async function deleteStaff(workerId: string) {
   await apiJson(`/staff/${workerId}`, { method: 'DELETE' });
+}
+
+// --- ATOMIC SHIFT OPERATIONS ---
+
+export async function checkInWorker(workerId: string, eventId: string, location?: string) {
+  return apiJson<ShiftToggleResult>('/checkin', {
+    method: 'POST',
+    body: JSON.stringify({ workerId, eventId, location }),
+  });
+}
+
+export async function checkOutWorker(workerId: string) {
+  return apiJson<ShiftToggleResult>('/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ workerId }),
+  });
 }
 
 // --- CRUD FOR SHIFTS ---

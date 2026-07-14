@@ -19,6 +19,7 @@ Patron de acceso:
 
 - Lectura por polling desde `dbService.ts` con cookie de sesion admin same-origin.
 - Escritura mediante endpoints Express en `mysqlApi.ts`.
+- Fichaje operativo mediante `POST /api/mysql/checkin` y `POST /api/mysql/checkout`.
 - Validacion y saneamiento de payloads en `src/validators.ts`.
 - Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL.
 
@@ -59,7 +60,7 @@ Lectura:
 Escritura:
 
 - `addStaff`, `addStaffBatch`, `updateStaff`, `deleteStaff`.
-- Actualizacion de estado IN/OUT desde escaner/perfil mediante `updateStaff`.
+- El flujo operativo de escaner/perfil no debe alternar IN/OUT con `updateStaff` directo: usa `checkInWorker` / `checkOutWorker`, que actualizan `staff` y `shifts` en una sola transaccion.
 
 ### events
 
@@ -80,7 +81,7 @@ Lectura:
 Escritura:
 
 - `addShift`, `updateShift`, `deleteShift`.
-- Se crean/cierran turnos al alternar IN/OUT de un trabajador.
+- El CRUD directo queda para herramientas administrativas; la creacion/cierre normal de turnos debe pasar por `checkInWorker` / `checkOutWorker`.
 - Los payloads legacy con `location` estan bloqueados; usar `eventId/eventTitle`.
 
 ### alerts
@@ -112,6 +113,7 @@ flowchart LR
 2. Las lecturas y mutaciones admin requieren cookie de sesion valida o `x-admin-token` en scripts/CI.
 3. `DELETE /staff` debe permanecer protegido en CI por defecto.
 4. Cualquier cambio de esquema debe pasar por migracion controlada y validacion de `npm run test:api:shifts:regression`.
+5. Los flujos de entrada/salida de trabajadores deben ser atomicos; no separar el cambio de estado de `staff` de la creacion/cierre del `shift`.
 
 ## Recomendacion
 
