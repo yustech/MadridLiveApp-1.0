@@ -26,6 +26,9 @@ jobs:
       - name: Type check
         run: npm run lint
 
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Shifts contract guard
         run: npm run guard:shifts:contract
 
