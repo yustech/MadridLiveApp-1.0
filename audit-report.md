@@ -177,7 +177,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
 
 ## Fase 3 — Rendimiento
 
-- [ ] **8. Ejecutar el plan de optimización de bundle (lazy-load de pantallas).**
+- [x] **8. Ejecutar el plan de optimización de bundle (lazy-load de pantallas).** — **HECHO (verificado 2026-07-14, checkbox reconciliado)**: las 7 pantallas usan dynamic imports reales (`lazy(() => import(...))` en `App.tsx`); el chunk de entrada `index-*.js` es ~48KB (el objetivo era -15%, superado con creces); `html5-qrcode`/`scanner-vendor` (~366KB) carga bajo demanda al activar la cámara (commit `ae98cee`); hay guardrail de tamaño de bundle en CI (`ba90067`, `72b368c`). `docs/BUNDLE_OPTIMIZATION_PLAN.md` ejecutado.
   **Modelo/Effort**: Sonnet 5 · high.
   **Por qué**: `react-vendor` (390KB) y `scanner-vendor` (375KB) dominan el payload inicial. Existe `docs/BUNDLE_OPTIMIZATION_PLAN.md` escrito pero sin ejecutar. Objetivo del propio plan: -15% en el chunk de entrada.
   **Prompt**:
@@ -240,7 +240,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   pequeños. Rama, PR, CI verde.
   ```
 
-- [ ] **13. Consolidar/auditar la complejidad de CI (13 workflows, 31 scripts).**
+- [x] **13. Consolidar/auditar la complejidad de CI (13 workflows, 31 scripts).** — **HECHO (verificado 2026-07-14, checkbox reconciliado)**: workflows 13→11, ejecuciones programadas ~30/día→0 (schedule desactivado en 7, solo `workflow_dispatch`), e2e duplicado consolidado en el gate de `ci.yml` (`e2e-regression.yml` eliminado), `health-audit.yml` eliminado (redundante con el watchdog systemd). Plan + runbook de reactivación al go-live en `docs/CI_CONSOLIDATION_PLAN.md` (4 pasos completados). PRs #27–#30.
   **Modelo/Effort**: Opus 4.8 · high.
   **Por qué**: para el tamaño de la app hay 13 workflows (watchdogs, drills, reportes semanales, e2e nocturnos duplicados prod/staging) y 31 scripts. El coste de mantenimiento del pipeline empieza a superar al de la app.
   **Prompt**:
