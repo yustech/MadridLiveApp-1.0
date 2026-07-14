@@ -13,6 +13,19 @@ async function main() {
     database: process.env.MYSQL_DATABASE,
   });
 
+  const getTableColumns = async (tableName: string) => {
+    const [rows] = await db.query(
+      `SELECT column_name AS columnName
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = ?`,
+      [tableName]
+    );
+    return new Set((rows as Array<{ columnName: string }>).map((row) => row.columnName));
+  };
+
+  const eventColumns = await getTableColumns('events');
+
   await db.beginTransaction();
 
   await db.execute('DELETE FROM shifts');
@@ -43,22 +56,37 @@ async function main() {
   }
 
   for (const e of INITIAL_EVENTS) {
+    const insertColumns: string[] = ['id', 'title', 'location'];
+    const insertValues: unknown[] = [e.id, e.title, e.location];
+
+    const pushEventColumnValue = (columnName: string, value: unknown) => {
+      if (!eventColumns.has(columnName)) return;
+      insertColumns.push(columnName);
+      insertValues.push(value);
+    };
+
+    pushEventColumnValue('dateDay', e.dateDay);
+    pushEventColumnValue('date_day', e.dateDay);
+    pushEventColumnValue('dateMonth', e.dateMonth);
+    pushEventColumnValue('date_month', e.dateMonth);
+    pushEventColumnValue('dateYear', e.dateYear);
+    pushEventColumnValue('date_year', e.dateYear);
+    pushEventColumnValue('doorsOpen', e.doorsOpen);
+    pushEventColumnValue('doors_open', e.doorsOpen);
+    pushEventColumnValue('requiredStaff', Number(e.requiredStaff || 0));
+    pushEventColumnValue('required_staff', Number(e.requiredStaff || 0));
+    pushEventColumnValue('activeStaff', Number(e.activeStaff || 0));
+    pushEventColumnValue('active_staff', Number(e.activeStaff || 0));
+    pushEventColumnValue('totalStaffNeeded', Number(e.totalStaffNeeded || 0));
+    pushEventColumnValue('total_staff_needed', Number(e.totalStaffNeeded || 0));
+    pushEventColumnValue('scanRate', Number(e.scanRate || 0));
+    pushEventColumnValue('scan_rate', Number(e.scanRate || 0));
+    pushEventColumnValue('loadInPercent', Number(e.loadInPercent || 0));
+    pushEventColumnValue('load_in_percent', Number(e.loadInPercent || 0));
+
     await db.execute(
-      `INSERT INTO events (id, title, location, date_day, date_month, doors_open, required_staff, active_staff, total_staff_needed, scan_rate, load_in_percent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        e.id,
-        e.title,
-        e.location,
-        e.dateDay,
-        e.dateMonth,
-        e.doorsOpen,
-        Number(e.requiredStaff || 0),
-        Number(e.activeStaff || 0),
-        Number(e.totalStaffNeeded || 0),
-        Number(e.scanRate || 0),
-        Number(e.loadInPercent || 0),
-      ]
+      `INSERT INTO events (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+      insertValues
     );
   }
 

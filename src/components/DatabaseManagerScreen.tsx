@@ -151,7 +151,7 @@ export default function DatabaseManagerScreen({
 
   // Form structured states
   const [eventData, setEventData] = useState<Omit<LiveEvent, 'id'>>({
-    title: '', location: '', dateDay: '', dateMonth: '', doorsOpen: '',
+    title: '', location: '', dateDay: '', dateMonth: '', dateYear: String(new Date().getFullYear()), doorsOpen: '',
     requiredStaff: 0, activeStaff: 0, totalStaffNeeded: 0, scanRate: 0, loadInPercent: 0
   });
 
@@ -251,8 +251,9 @@ export default function DatabaseManagerScreen({
     setEditingId(null);
 
     // Initial default presets
+    const currentYear = String(new Date().getFullYear());
     setEventData({
-      title: 'Nuevo Concierto Madrid', location: 'WiZink Center', dateDay: '18', dateMonth: 'OCT', doorsOpen: '19:30',
+      title: 'Nuevo Concierto Madrid', location: 'WiZink Center', dateDay: '18', dateMonth: 'OCT', dateYear: currentYear, doorsOpen: '19:30',
       requiredStaff: 50, activeStaff: 0, totalStaffNeeded: 50, scanRate: 0, loadInPercent: 0
     });
     setStaffData({
@@ -287,7 +288,7 @@ export default function DatabaseManagerScreen({
     if (activeTab === 'events') {
       const e = record as LiveEvent;
       setEventData({
-        title: e.title, location: e.location, dateDay: e.dateDay, dateMonth: e.dateMonth, doorsOpen: e.doorsOpen,
+        title: e.title, location: e.location, dateDay: e.dateDay, dateMonth: e.dateMonth, dateYear: e.dateYear || String(new Date().getFullYear()), doorsOpen: e.doorsOpen,
         requiredStaff: e.requiredStaff, activeStaff: e.activeStaff, totalStaffNeeded: e.totalStaffNeeded, scanRate: e.scanRate, loadInPercent: e.loadInPercent
       });
     } else if (activeTab === 'staff') {
@@ -751,6 +752,7 @@ CREATE TABLE IF NOT EXISTS events (
   location VARCHAR(150) NOT NULL,
   date_day VARCHAR(10) NOT NULL,
   date_month VARCHAR(10) NOT NULL,
+  date_year VARCHAR(8) NULL,
   doors_open VARCHAR(10) NOT NULL,
   required_staff INT NOT NULL DEFAULT 0,
   active_staff INT NOT NULL DEFAULT 0,
@@ -812,6 +814,7 @@ CREATE TABLE IF NOT EXISTS events (
   location VARCHAR(150) NOT NULL,
   date_day VARCHAR(10) NOT NULL,
   date_month VARCHAR(10) NOT NULL,
+  date_year VARCHAR(8) NULL,
   doors_open VARCHAR(10) NOT NULL,
   required_staff INT NOT NULL DEFAULT 0,
   active_staff INT NOT NULL DEFAULT 0,
@@ -1016,7 +1019,7 @@ app.post('/api/auth/login', async (req, res) => {
                         <div className="text-left">
                           <h4 className="text-sm font-bold text-white">{item.title}</h4>
                           <p className="text-xs text-white/50 font-mono mt-1">
-                            {item.location} • Apertura: {item.doorsOpen} • Día: {item.dateDay} {item.dateMonth}
+                            {item.location} • Apertura: {item.doorsOpen} • Día: {item.dateDay} {item.dateMonth} {item.dateYear}
                           </p>
                           <p className="text-[10px] text-indigo-400 mt-1 font-mono">
                             Personal Requerido: {item.totalStaffNeeded} | Escaneos: {item.scanRate} /min | Montaje: {item.loadInPercent}%
@@ -1116,7 +1119,7 @@ app.post('/api/auth/login', async (req, res) => {
                     <label className="text-[10px] text-white/50 block mb-1">Ubicación</label>
                     <input type="text" required value={eventData.location} onChange={e => setEventData({ ...eventData, location: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div>
                       <label className="text-[10px] text-white/50 block mb-1">Día (Número)</label>
                       <input type="text" required value={eventData.dateDay} onChange={e => setEventData({ ...eventData, dateDay: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. 12" />
@@ -1124,6 +1127,10 @@ app.post('/api/auth/login', async (req, res) => {
                     <div>
                       <label className="text-[10px] text-white/50 block mb-1">Mes (Letras)</label>
                       <input type="text" required value={eventData.dateMonth} onChange={e => setEventData({ ...eventData, dateMonth: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. OCT" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/50 block mb-1">Año</label>
+                      <input type="number" required min="1900" max="2200" value={eventData.dateYear} onChange={e => setEventData({ ...eventData, dateYear: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. 2026" />
                     </div>
                     <div>
                       <label className="text-[10px] text-white/50 block mb-1">Apertura</label>

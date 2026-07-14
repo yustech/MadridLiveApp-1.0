@@ -19,6 +19,9 @@ export interface ValidationResult<T> {
 
 type SanitizedPayload = Record<string, unknown>;
 
+const MIN_EVENT_YEAR = 1900;
+const MAX_EVENT_YEAR = 2200;
+
 function validateStringField(
   value: unknown,
   fieldName: string,
@@ -68,6 +71,64 @@ function validateOptionalNumberField(
   }
 
   return result;
+}
+
+function validateEventYearField(
+  value: unknown,
+  options: { defaultToCurrentYear?: boolean } = {}
+): ValidationResult<string> {
+  const shouldDefault = value === undefined || value === null || String(value).trim() === "";
+  const rawValue = shouldDefault && options.defaultToCurrentYear
+    ? new Date().getFullYear()
+    : value;
+  const result = sanitizeNumber(rawValue, "dateYear", MIN_EVENT_YEAR, MAX_EVENT_YEAR);
+
+  if (!result.valid || result.sanitized === undefined) {
+    return { valid: false, errors: result.errors };
+  }
+
+  if (!Number.isInteger(result.sanitized)) {
+    return {
+      valid: false,
+      errors: [{ field: "dateYear", message: "Expected an integer year", value }],
+    };
+  }
+
+  return {
+    valid: true,
+    errors: [],
+    sanitized: String(result.sanitized),
+  };
+}
+
+function validateMonthField(value: unknown): ValidationResult<string> {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return {
+      valid: false,
+      errors: [{ field: "dateMonth", message: "dateMonth is required", value }],
+    };
+  }
+
+  const rawMonth = String(value).trim().toUpperCase();
+  const monthMap = { JAN: "JAN", FEB: "FEB", MAR: "MAR", APR: "APR", MAY: "MAY", JUN: "JUN", JUL: "JUL", AUG: "AUG", SEP: "SEP", OCT: "OCT", NOV: "NOV", DEC: "DEC", ENE: "ENE", ABR: "ABR", AGO: "AGO", DIC: "DIC" };
+  if (rawMonth in monthMap) {
+    return {
+      valid: true,
+      errors: [],
+      sanitized: monthMap[rawMonth as keyof typeof monthMap],
+    };
+  }
+
+  const monthRes = sanitizeNumber(value, "dateMonth", 1, 12);
+  if (!monthRes.valid || monthRes.sanitized === undefined) {
+    return { valid: false, errors: monthRes.errors };
+  }
+
+  return {
+    valid: true,
+    errors: [],
+    sanitized: String(monthRes.sanitized),
+  };
 }
 
 /**
@@ -1052,21 +1113,19 @@ export function validateEventPayload(body: unknown): ValidationResult<any> {
   }
 
   // dateMonth (required, accepts numeric or month tokens like JAN/OCT/ABR)
-  if (b.dateMonth === undefined || b.dateMonth === null || String(b.dateMonth).trim() === "") {
-    errors.push({ field: "dateMonth", message: "dateMonth is required", value: b.dateMonth });
+  const monthRes = validateMonthField(b.dateMonth);
+  if (!monthRes.valid) {
+    errors.push(...monthRes.errors);
   } else {
-    const rawMonth = String(b.dateMonth).trim().toUpperCase();
-    const monthMap = { 'JAN': 'JAN', 'FEB': 'FEB', 'MAR': 'MAR', 'APR': 'APR', 'MAY': 'MAY', 'JUN': 'JUN', 'JUL': 'JUL', 'AUG': 'AUG', 'SEP': 'SEP', 'OCT': 'OCT', 'NOV': 'NOV', 'DEC': 'DEC', 'ENE': 'ENE', 'ABR': 'ABR', 'AGO': 'AGO', 'DIC': 'DIC' };
-    if (rawMonth in monthMap) {
-      sanitized.dateMonth = monthMap[rawMonth];
-    } else {
-      const monthRes = sanitizeNumber(b.dateMonth, "dateMonth", 1, 12);
-      if (!monthRes.valid) {
-        errors.push(...monthRes.errors);
-      } else {
-        sanitized.dateMonth = String(monthRes.sanitized);
-      }
-    }
+    sanitized.dateMonth = monthRes.sanitized;
+  }
+
+  // dateYear (defaults to current year for backward-compatible API clients)
+  const yearRes = validateEventYearField(b.dateYear, { defaultToCurrentYear: true });
+  if (!yearRes.valid) {
+    errors.push(...yearRes.errors);
+  } else {
+    sanitized.dateYear = yearRes.sanitized;
   }
 
   // doorsOpen (required, max 64, time format)
@@ -1169,19 +1228,15 @@ export function validateEventPatchPayload(body: unknown): ValidationResult<Sanit
   }
 
   if (b.dateMonth !== undefined) {
-    if (b.dateMonth === null || String(b.dateMonth).trim() === "") {
-      errors.push({ field: "dateMonth", message: "dateMonth is required", value: b.dateMonth });
-    } else {
-      const rawMonth = String(b.dateMonth).trim().toUpperCase();
-      const monthMap = { JAN: "JAN", FEB: "FEB", MAR: "MAR", APR: "APR", MAY: "MAY", JUN: "JUN", JUL: "JUL", AUG: "AUG", SEP: "SEP", OCT: "OCT", NOV: "NOV", DEC: "DEC", ENE: "ENE", ABR: "ABR", AGO: "AGO", DIC: "DIC" };
-      if (rawMonth in monthMap) {
-        sanitized.dateMonth = monthMap[rawMonth as keyof typeof monthMap];
-      } else {
-        const result = sanitizeNumber(b.dateMonth, "dateMonth", 1, 12);
-        if (!result.valid) errors.push(...result.errors);
-        else sanitized.dateMonth = String(result.sanitized);
-      }
-    }
+    const result = validateMonthField(b.dateMonth);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.dateMonth = result.sanitized;
+  }
+
+  if (b.dateYear !== undefined) {
+    const result = validateEventYearField(b.dateYear);
+    if (!result.valid) errors.push(...result.errors);
+    else sanitized.dateYear = result.sanitized;
   }
 
   if (b.doorsOpen !== undefined) {

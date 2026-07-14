@@ -38,6 +38,7 @@ export interface LiveEvent {
   location: string;
   dateDay: string; // e.g. '12'
   dateMonth: string; // e.g. 'OCT'
+  dateYear: string; // e.g. '2026'
   doorsOpen: string; // e.g. '19:00'
   requiredStaff: number;
   activeStaff: number;

@@ -169,6 +169,8 @@ export const INITIAL_SHIFTS: Shift[] = [
   }
 ];
 
+const CURRENT_EVENT_YEAR = String(new Date().getFullYear());
+
 export const INITIAL_EVENTS: LiveEvent[] = [
   {
     id: 'ev_01',
@@ -176,6 +178,7 @@ export const INITIAL_EVENTS: LiveEvent[] = [
     location: 'WiZink Center, Madrid',
     dateDay: '08',
     dateMonth: 'JUN',
+    dateYear: CURRENT_EVENT_YEAR,
     doorsOpen: '16:00',
     requiredStaff: 150,
     activeStaff: 142,
@@ -189,6 +192,7 @@ export const INITIAL_EVENTS: LiveEvent[] = [
     location: 'La Riviera • Madrid',
     dateDay: '12',
     dateMonth: 'OCT',
+    dateYear: CURRENT_EVENT_YEAR,
     doorsOpen: '19:00',
     requiredStaff: 45,
     activeStaff: 0,
@@ -202,6 +206,7 @@ export const INITIAL_EVENTS: LiveEvent[] = [
     location: 'Teatro Real • Madrid',
     dateDay: '15',
     dateMonth: 'OCT',
+    dateYear: CURRENT_EVENT_YEAR,
     doorsOpen: '20:00',
     requiredStaff: 80,
     activeStaff: 0,
@@ -215,6 +220,7 @@ export const INITIAL_EVENTS: LiveEvent[] = [
     location: 'IFEMA Madrid',
     dateDay: '22',
     dateMonth: 'OCT',
+    dateYear: CURRENT_EVENT_YEAR,
     doorsOpen: '08:00',
     requiredStaff: 210,
     activeStaff: 0,

@@ -71,6 +71,7 @@ Lectura:
 Escritura:
 
 - `addEvent`, `updateEvent`, `deleteEvent`.
+- El modelo guarda fecha completa separada en `dateDay`, `dateMonth`, `dateYear` y `doorsOpen`; `dateYear` se migra con backfill al año actual para filas legacy.
 
 ### shifts
 

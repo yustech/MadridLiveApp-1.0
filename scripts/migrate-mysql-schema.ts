@@ -5,6 +5,15 @@ dotenv.config();
 
 const apply = process.argv.includes('--apply');
 
+const REQUIRED_COLUMNS = [
+  { key: 'shifts.updated_at', tableName: 'shifts', columnName: 'updated_at' },
+  { key: 'shifts.started_at', tableName: 'shifts', columnName: 'started_at' },
+  { key: 'shifts.ended_at', tableName: 'shifts', columnName: 'ended_at' },
+  { key: 'shifts.event_id', tableName: 'shifts', columnName: 'event_id' },
+  { key: 'shifts.event_title', tableName: 'shifts', columnName: 'event_title' },
+  { key: 'events.dateYear', tableName: 'events', columnName: 'dateYear' },
+];
+
 function required(value: string | undefined, name: string) {
   if (!value) {
     throw new Error(`Missing required env var: ${name}`);
@@ -13,18 +22,93 @@ function required(value: string | undefined, name: string) {
 }
 
 async function getMissingColumns(db: any) {
-  const requiredColumns = ['updated_at', 'started_at', 'ended_at'];
+  const tableNames = [...new Set(REQUIRED_COLUMNS.map((column) => column.tableName))];
+  const columnNames = [...new Set(REQUIRED_COLUMNS.map((column) => column.columnName))];
 
   const [rows] = await db.query(
-    `SELECT column_name AS columnName
+    `SELECT table_name AS tableName, column_name AS columnName
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
-       AND table_name = 'shifts'
-       AND column_name IN ('updated_at', 'started_at', 'ended_at')`
+       AND table_name IN (${tableNames.map(() => '?').join(', ')})
+       AND column_name IN (${columnNames.map(() => '?').join(', ')})`,
+    [...tableNames, ...columnNames]
   );
 
-  const present = new Set((rows as Array<{ columnName: string }>).map((r) => r.columnName));
-  return requiredColumns.filter((column) => !present.has(column));
+  const present = new Set((rows as Array<{ tableName: string; columnName: string }>).map((row) => `${row.tableName}.${row.columnName}`));
+  return REQUIRED_COLUMNS.filter((column) => !present.has(column.key));
+}
+
+async function hasColumn(db: any, tableName: string, columnName: string) {
+  const [rows] = await db.query(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND column_name = ?`,
+    [tableName, columnName]
+  );
+  return Array.isArray(rows) && Number((rows[0] as any)?.total || 0) > 0;
+}
+
+async function applyColumnMigration(db: any, key: string) {
+  if (key === 'shifts.started_at') {
+    await db.query(`ALTER TABLE shifts ADD COLUMN started_at DATETIME NULL`);
+    return;
+  }
+
+  if (key === 'shifts.ended_at') {
+    await db.query(`ALTER TABLE shifts ADD COLUMN ended_at DATETIME NULL`);
+    return;
+  }
+
+  if (key === 'shifts.event_title') {
+    if (await hasColumn(db, 'shifts', 'location')) {
+      await db.query(`ALTER TABLE shifts CHANGE COLUMN location event_title VARCHAR(255) NOT NULL`);
+    } else {
+      await db.query(`ALTER TABLE shifts ADD COLUMN event_title VARCHAR(255) NOT NULL DEFAULT ''`);
+    }
+    return;
+  }
+
+  if (key === 'shifts.event_id') {
+    await db.query(`ALTER TABLE shifts ADD COLUMN event_id VARCHAR(96) NULL`);
+    return;
+  }
+
+  if (key === 'shifts.updated_at') {
+    await db.query(`ALTER TABLE shifts ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`);
+    return;
+  }
+
+  if (key === 'events.dateYear') {
+    await db.query(`ALTER TABLE events ADD COLUMN dateYear VARCHAR(8) NULL AFTER dateMonth`);
+    return;
+  }
+
+  throw new Error(`No migration handler for ${key}`);
+}
+
+function describeDryRunAction(key: string) {
+  if (key === 'shifts.event_title') {
+    return 'ALTER TABLE shifts CHANGE COLUMN location event_title ... OR ADD COLUMN event_title ...';
+  }
+
+  if (key === 'events.dateYear') {
+    return 'ALTER TABLE events ADD COLUMN dateYear VARCHAR(8) NULL AFTER dateMonth; UPDATE events backfill current year';
+  }
+
+  return `ALTER TABLE ${key.split('.')[0]} ADD COLUMN ${key.split('.')[1]}`;
+}
+
+async function backfillEventYears(db: any) {
+  if (!(await hasColumn(db, 'events', 'dateYear'))) return 0;
+
+  const [result] = await db.query(
+    `UPDATE events
+     SET dateYear = CAST(YEAR(CURRENT_DATE()) AS CHAR)
+     WHERE dateYear IS NULL OR TRIM(dateYear) = ''`
+  );
+  return Number((result as { affectedRows?: number })?.affectedRows || 0);
 }
 
 async function main() {
@@ -49,51 +133,32 @@ async function main() {
 
     if (missing.length === 0) {
       console.log('schema_ok=true');
-      console.log('columns=shifts.updated_at,shifts.started_at,shifts.ended_at present=true');
+      console.log(`columns=${REQUIRED_COLUMNS.map((column) => column.key).join(',')} present=true`);
+      if (apply) {
+        const backfilled = await backfillEventYears(db);
+        console.log(`events_dateYear_backfilled=${backfilled}`);
+      }
       return;
     }
 
     console.log('schema_ok=false');
-    console.log(`missing=${missing.map((c) => `shifts.${c}`).join(',')}`);
+    console.log(`missing=${missing.map((column) => column.key).join(',')}`);
 
     if (!apply) {
       console.log('mode=dry-run');
-      if (missing.includes('updated_at')) {
-        console.log('action=ALTER TABLE shifts ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
-      }
-      if (missing.includes('started_at')) {
-        console.log('action=ALTER TABLE shifts ADD COLUMN started_at DATETIME NULL');
-      }
-      if (missing.includes('ended_at')) {
-        console.log('action=ALTER TABLE shifts ADD COLUMN ended_at DATETIME NULL');
+      for (const column of missing) {
+        console.log(`action=${describeDryRunAction(column.key)}`);
       }
       return;
     }
 
-    if (missing.includes('updated_at')) {
-      await db.query(
-        `ALTER TABLE shifts
-         ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
-      );
-      console.log('migration_applied=shifts.updated_at');
+    for (const column of missing) {
+      await applyColumnMigration(db, column.key);
+      console.log(`migration_applied=${column.key}`);
     }
 
-    if (missing.includes('started_at')) {
-      await db.query(
-        `ALTER TABLE shifts
-         ADD COLUMN started_at DATETIME NULL`
-      );
-      console.log('migration_applied=shifts.started_at');
-    }
-
-    if (missing.includes('ended_at')) {
-      await db.query(
-        `ALTER TABLE shifts
-         ADD COLUMN ended_at DATETIME NULL`
-      );
-      console.log('migration_applied=shifts.ended_at');
-    }
-
+    const backfilled = await backfillEventYears(db);
+    console.log(`events_dateYear_backfilled=${backfilled}`);
     console.log('mode=apply');
     console.log('migration_applied=true');
   } finally {
