@@ -153,7 +153,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   reciente. Añade un test o dry-run. Rama, PR, CI verde.
   ```
 
-- [ ] **16. Endpoint atómico de check-in/check-out.** *(añadida 2026-07-13, análisis Codex)*
+- [x] **16. Endpoint atómico de check-in/check-out.** *(añadida 2026-07-13, análisis Codex)* — **HECHO (PR #45, `fe09ed1`)**: `POST /api/mysql/checkin` + `/checkout` transaccionales con `FOR UPDATE` sobre la fila de staff (serializa fichajes concurrentes → 409 en doble check-in). App.tsx migrado a `checkInWorker`/`checkOutWorker`. Cross-review de Claude: atomicidad/concurrencia correctas bajo REPEATABLE READ; e2e cubre 201/409/200/409/401. Desplegado y verificado funcionalmente en staging y prod (worker de prueba limpio).
   **Modelo/Effort**: Sonnet 5 · high.
   **Por qué**: el frontend actualiza staff y shifts en llamadas separadas (App.tsx ~271); si una falla a mitad, quedan inconsistentes (turno sin estado, o estado sin turno).
   **Prompt**:
