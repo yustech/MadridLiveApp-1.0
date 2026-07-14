@@ -164,7 +164,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   Rama, PR, CI verde, staging-first.
   ```
 
-- [ ] **17. Añadir año al modelo de eventos.** *(añadida 2026-07-13, análisis Codex)*
+- [x] **17. Añadir año al modelo de eventos.** *(añadida 2026-07-13, análisis Codex)* — **HECHO (PR #47, `b54cbbd`)**: `LiveEvent` y `events` guardan `dateYear`; migración idempotente con backfill al año actual; formularios, ordenación, estado temporal, seeds/reset y scripts operativos actualizados. Eliminado el skip de borde de año en e2e y CI verde en PR + `main`. **Pendiente operativo**: aplicar en staging-first con backup antes de tocar prod.
   **Modelo/Effort**: Opus 4.8 · high.
   **Por qué**: los eventos solo guardan día/mes/hora (types.ts ~35); en el cambio de año la ordenación e historial se rompen — los propios e2e saltan ese borde.
   **Prompt**:
