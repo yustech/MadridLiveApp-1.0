@@ -202,7 +202,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   usan. Documenta.
   ```
 
-- [ ] **10. Revisar el polling de `dbService` (cada 3s) por pantalla.**
+- [x] **10. Revisar el polling de `dbService` (cada 3s) por pantalla.** — **HECHO (Codex PR #55 → `b38834a`, 2026-07-14)**: nuevo `src/utils/sharedPoller.ts` — un solo loop compartido por recurso (varias suscripciones ya no multiplican requests), pausa con pestaña oculta (0 requests programadas) y refresh inmediato al volver visible; se mantiene el refresco de 3s en visible para no romper contadores de turnos activos. 3 tests unitarios deterministas del poller (44 en total). Cross-review de Claude (ciclo de vida sin fugas: `stop()` quita el listener al desuscribir el último; poller reutilizable por ruta). Desplegado staging-first y verificado (health/smoke en ambos, watchdog OK). Métrica: pestaña oculta 80→0 req/min; suscriptores duplicados ya no multiplican.
   **Modelo/Effort**: Sonnet 5 · medium.
   **Por qué**: `POLL_MS=3000` con varias pantallas activas multiplica peticiones a `/api/mysql/*`. Para un evento en vivo con varios dispositivos, conviene consolidar o hacer el intervalo adaptativo.
   **Prompt**:
