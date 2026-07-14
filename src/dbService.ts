@@ -1,4 +1,6 @@
 import { LiveEvent, StaffMember, Shift, EquipmentAlert } from './types';
+import { createSharedPoller } from './utils/sharedPoller';
+import type { SharedPoller } from './utils/sharedPoller';
 
 const MYSQL_API_BASE = import.meta.env.VITE_MYSQL_API_BASE || '/api/mysql';
 const POLL_MS = 3000;
@@ -37,29 +39,40 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function createPollingSubscription<T>(path: string, callback: (items: T[]) => void, sortFn?: (a: T, b: T) => number) {
-  let disposed = false;
+type PollingResourceOptions<T> = {
+  sortFn?: (a: T, b: T) => number;
+  mapItems?: (items: T[]) => T[];
+};
 
-  const load = async () => {
-    try {
-      const items = await apiJson<T[]>(path);
-      if (disposed) return;
-      if (sortFn) {
-        items.sort(sortFn);
-      }
-      callback(items);
-    } catch (error) {
+const pollingResources = new Map<string, SharedPoller<unknown>>();
+
+function getPollingResource<T>(path: string, options: PollingResourceOptions<T> = {}) {
+  const existing = pollingResources.get(path);
+  if (existing) return existing as SharedPoller<T>;
+
+  const poller = createSharedPoller<T>({
+    intervalMs: POLL_MS,
+    fetchItems: async () => {
+      const rawItems = await apiJson<T[]>(path);
+      const items = options.mapItems ? options.mapItems(rawItems) : [...rawItems];
+      if (options.sortFn) items.sort(options.sortFn);
+      return items;
+    },
+    onError: (error) => {
       console.error(`MySQL polling error on ${path}:`, error);
-    }
-  };
+    },
+  });
 
-  load();
-  const timer = setInterval(load, POLL_MS);
+  pollingResources.set(path, poller as SharedPoller<unknown>);
+  return poller;
+}
 
-  return () => {
-    disposed = true;
-    clearInterval(timer);
-  };
+function createPollingSubscription<T>(
+  path: string,
+  callback: (items: T[]) => void,
+  options: PollingResourceOptions<T> = {}
+) {
+  return getPollingResource<T>(path, options).subscribe(callback);
 }
 
 async function resetWithApi() {
@@ -75,13 +88,18 @@ export function subscribeToEvents(callback: (events: LiveEvent[]) => void) {
 export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
   return createPollingSubscription<StaffMember>(
     '/staff',
-    (items) => callback(items.map(normalizeStaffAvatar)),
-    (a, b) => a.name.localeCompare(b.name)
+    callback,
+    {
+      mapItems: (items) => items.map(normalizeStaffAvatar),
+      sortFn: (a, b) => a.name.localeCompare(b.name),
+    }
   );
 }
 
 export function subscribeToShifts(callback: (shifts: Shift[]) => void) {
-  return createPollingSubscription<Shift>('/shifts', callback, (a, b) => b.id.localeCompare(a.id));
+  return createPollingSubscription<Shift>('/shifts', callback, {
+    sortFn: (a, b) => b.id.localeCompare(a.id),
+  });
 }
 
 export function subscribeToAlerts(callback: (alerts: EquipmentAlert[]) => void) {
