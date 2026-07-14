@@ -132,6 +132,7 @@ async function runTests() {
       location: 'Central Park',
       dateDay: 15,
       dateMonth: 7,
+      dateYear: new Date().getFullYear(),
       doorsOpen: '18:00',
       requiredStaff: 50,
       activeStaff: 0,
@@ -149,6 +150,7 @@ async function runTests() {
       location: 'Central Park',
       dateDay: 32, // Invalid day
       dateMonth: 7,
+      dateYear: new Date().getFullYear(),
       doorsOpen: '18:00',
     });
     suite.assert(res.status === 400, `Expected 400, got ${res.status}`);
@@ -164,12 +166,29 @@ async function runTests() {
       location: 'Central Park',
       dateDay: 15,
       dateMonth: 13, // Invalid month
+      dateYear: new Date().getFullYear(),
       doorsOpen: '18:00',
     });
     suite.assert(res.status === 400, `Expected 400, got ${res.status}`);
     suite.assert(
       res.data.errors.some(e => e.field === 'dateMonth'),
       'Should have dateMonth error'
+    );
+  });
+
+  await suite.test('POST /events rejects invalid dateYear', async () => {
+    const res = await makeRequest('/events', 'POST', {
+      title: `Festival ${suite.uniqueCounter}`,
+      location: 'Central Park',
+      dateDay: 15,
+      dateMonth: 7,
+      dateYear: 1899,
+      doorsOpen: '18:00',
+    });
+    suite.assert(res.status === 400, `Expected 400, got ${res.status}`);
+    suite.assert(
+      res.data.errors.some(e => e.field === 'dateYear'),
+      'Should have dateYear error'
     );
   });
 

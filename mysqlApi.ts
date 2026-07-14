@@ -98,6 +98,7 @@ async function initSchema() {
       location VARCHAR(255) NOT NULL,
       dateDay VARCHAR(8) NOT NULL,
       dateMonth VARCHAR(16) NOT NULL,
+      dateYear VARCHAR(8) NULL,
       doorsOpen VARCHAR(32) NOT NULL,
       required_staff INT NOT NULL,
       active_staff INT NOT NULL,
@@ -142,12 +143,12 @@ async function getSchemaStatus(db: any) {
     `SELECT table_name AS tableName, column_name AS columnName
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
-       AND table_name IN ('shifts')
-       AND column_name IN ('updated_at', 'started_at', 'ended_at', 'event_id', 'event_title')`
+       AND table_name IN ('events', 'shifts')
+       AND column_name IN ('updated_at', 'started_at', 'ended_at', 'event_id', 'event_title', 'dateYear')`
   );
 
   const found = new Set((rows as Array<{ tableName: string; columnName: string }>).map((r) => `${r.tableName}.${r.columnName}`));
-  const required = ['shifts.updated_at', 'shifts.started_at', 'shifts.ended_at', 'shifts.event_id', 'shifts.event_title'];
+  const required = ['shifts.updated_at', 'shifts.started_at', 'shifts.ended_at', 'shifts.event_id', 'shifts.event_title', 'events.dateYear'];
   const missing = required.filter((key) => !found.has(key));
 
   return {
@@ -211,6 +212,23 @@ async function applySchemaMigrations(db: any) {
        ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
     );
     migrated.push('shifts.updated_at');
+  }
+
+  if (status.missing.includes('events.dateYear')) {
+    await db.query(`ALTER TABLE events ADD COLUMN dateYear VARCHAR(8) NULL AFTER dateMonth`);
+    migrated.push('events.dateYear');
+  }
+
+  if (!status.missing.includes('events.dateYear') || migrated.includes('events.dateYear')) {
+    const [eventYearBackfill] = await db.query(
+      `UPDATE events
+       SET dateYear = CAST(YEAR(CURRENT_DATE()) AS CHAR)
+       WHERE dateYear IS NULL OR TRIM(dateYear) = ''`
+    );
+    const affectedRows = Number((eventYearBackfill as { affectedRows?: number })?.affectedRows || 0);
+    if (affectedRows > 0) {
+      migrated.push('events.dateYear_backfill');
+    }
   }
 
   const [staffLocationRows] = await db.query(
@@ -432,6 +450,8 @@ async function insertEventRecord(db: any, id: string, sanitized: Record<string, 
   pushColumnValue('date_day', String(sanitized.dateDay));
   pushColumnValue('dateMonth', String(sanitized.dateMonth));
   pushColumnValue('date_month', String(sanitized.dateMonth));
+  pushColumnValue('dateYear', String(sanitized.dateYear));
+  pushColumnValue('date_year', String(sanitized.dateYear));
   pushColumnValue('doorsOpen', sanitized.doorsOpen);
   pushColumnValue('doors_open', sanitized.doorsOpen);
   pushColumnValue('requiredStaff', requiredStaff);
@@ -466,6 +486,8 @@ async function buildEventUpdatePayload(db: any, sanitized: Record<string, any>) 
   setColumnValue('date_day', sanitized.dateDay);
   setColumnValue('dateMonth', sanitized.dateMonth);
   setColumnValue('date_month', sanitized.dateMonth);
+  setColumnValue('dateYear', sanitized.dateYear);
+  setColumnValue('date_year', sanitized.dateYear);
   setColumnValue('doorsOpen', sanitized.doorsOpen);
   setColumnValue('doors_open', sanitized.doorsOpen);
   setColumnValue('requiredStaff', sanitized.requiredStaff);
@@ -659,6 +681,7 @@ async function resetInitialData() {
   await initSchema();
 
   const db = getPool();
+  await applySchemaMigrations(db);
   const conn = await db.getConnection();
 
   try {
@@ -734,10 +757,14 @@ const MONTH_INDEX: Record<string, number> = {
   DEC: 11,
 };
 
-function parseEventDateTime(dateDay?: string, dateMonth?: string, doorsOpen?: string) {
+function parseEventDateTime(dateDay?: string, dateMonth?: string, dateYear?: string, doorsOpen?: string) {
   const day = Number(String(dateDay || '').trim());
   const monthToken = String(dateMonth || '').trim().toUpperCase();
   const month = MONTH_INDEX[monthToken];
+  const parsedYear = Number(String(dateYear || '').trim());
+  const year = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2200
+    ? parsedYear
+    : new Date().getFullYear();
 
   if (!Number.isInteger(day) || day < 1 || day > 31 || month === undefined) {
     return null;
@@ -746,10 +773,8 @@ function parseEventDateTime(dateDay?: string, dateMonth?: string, doorsOpen?: st
   const [hourRaw, minRaw] = String(doorsOpen || '00:00').split(':');
   const hour = Number(hourRaw);
   const minute = Number(minRaw);
-  const now = new Date();
-
   const eventDate = new Date(
-    now.getFullYear(),
+    year,
     month,
     day,
     Number.isFinite(hour) ? hour : 0,
@@ -779,7 +804,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
   let rows: any[] = [];
   if (eventIdStr) {
     [rows] = await db.query(
-      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, doorsOpen AS doorsOpen
+      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, dateYear AS dateYear, doorsOpen AS doorsOpen
        FROM events
        WHERE id = ?
        LIMIT 1`,
@@ -787,7 +812,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
     );
   } else {
     [rows] = await db.query(
-      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, doorsOpen AS doorsOpen
+      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, dateYear AS dateYear, doorsOpen AS doorsOpen
        FROM events
        WHERE title = ?
        LIMIT 1`,
@@ -800,7 +825,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
     return;
   }
 
-  const eventDate = parseEventDateTime(event.dateDay, event.dateMonth, event.doorsOpen);
+  const eventDate = parseEventDateTime(event.dateDay, event.dateMonth, event.dateYear, event.doorsOpen);
   if (!eventDate) {
     return;
   }
@@ -815,7 +840,7 @@ async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, event
   ).getTime();
 
   if (eventDayStart > todayStart) {
-    throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth}).`);
+    throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth} ${eventDate.getFullYear()}).`);
   }
 }
 
@@ -1140,6 +1165,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
 
     try {
+      await initSchema();
       const db = getPool();
       const result = await applySchemaMigrations(db);
       const status = await getSchemaStatus(db);
@@ -1162,6 +1188,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
     try {
       await initSchema();
+      await applySchemaMigrations(getPool());
       return res.json({ success: true, message: "MySQL schema initialized." });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
@@ -1387,6 +1414,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
           location,
           dateDay AS dateDay,
           dateMonth AS dateMonth,
+          COALESCE(dateYear, CAST(YEAR(CURRENT_DATE()) AS CHAR)) AS dateYear,
           doorsOpen AS doorsOpen,
           required_staff AS requiredStaff,
           active_staff AS activeStaff,
@@ -1441,6 +1469,8 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
       "date_day",
       "dateMonth",
       "date_month",
+      "dateYear",
+      "date_year",
       "doorsOpen",
       "doors_open",
       "requiredStaff",

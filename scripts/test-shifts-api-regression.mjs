@@ -42,16 +42,13 @@ function buildFutureEventPayload() {
   const future = new Date(now);
   future.setDate(now.getDate() + 14);
 
-  if (future.getFullYear() !== now.getFullYear()) {
-    future.setFullYear(now.getFullYear(), 11, 31);
-  }
-
   const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
   return {
     title: `Shift Regression Future Event ${stamp}`,
     location: 'Regression Gate',
     dateDay: String(future.getDate()).padStart(2, '0'),
     dateMonth: MONTH_INDEX_TO_TOKEN[future.getMonth()],
+    dateYear: String(future.getFullYear()),
     doorsOpen: '23:59',
     requiredStaff: 0,
     activeStaff: 0,

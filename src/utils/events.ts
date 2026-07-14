@@ -56,9 +56,19 @@ function parseEventMonth(rawMonth: string): number | null {
   return MONTH_INDEX[normalized] ?? null;
 }
 
+function parseEventYear(rawYear: string | undefined, now: Date): number {
+  const parsedYear = Number(String(rawYear || '').trim());
+  if (Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2200) {
+    return parsedYear;
+  }
+
+  return now.getFullYear();
+}
+
 export function getEventDate(event: LiveEvent, now = new Date()): Date | null {
   const day = Number(event.dateDay);
   const month = parseEventMonth(event.dateMonth);
+  const year = parseEventYear(event.dateYear, now);
   const [hourRaw, minuteRaw] = event.doorsOpen.split(':');
 
   if (!Number.isFinite(day) || month === null) {
@@ -66,7 +76,7 @@ export function getEventDate(event: LiveEvent, now = new Date()): Date | null {
   }
 
   return new Date(
-    now.getFullYear(),
+    year,
     month,
     day,
     Number(hourRaw) || 0,
@@ -157,9 +167,9 @@ export function formatEventDate(event: LiveEvent): string {
   const monthKey = event.dateMonth.trim().toUpperCase();
   const numericMonth = Number(monthKey);
   const monthName = Number.isInteger(numericMonth)
-    ? new Date(new Date().getFullYear(), numericMonth - 1, 1).toLocaleString('es-ES', { month: 'long' })
+    ? new Date(parseEventYear(event.dateYear, new Date()), numericMonth - 1, 1).toLocaleString('es-ES', { month: 'long' })
     : MONTH_NAME[monthKey] || event.dateMonth;
-  const year = String(new Date().getFullYear()).slice(-2);
+  const year = parseEventYear(event.dateYear, new Date());
 
   return `${Number.isFinite(day) ? day : event.dateDay} ${monthName} ${year}`;
 }

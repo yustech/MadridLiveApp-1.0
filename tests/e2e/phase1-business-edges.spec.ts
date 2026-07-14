@@ -68,16 +68,13 @@ function buildFutureEventPayload() {
   const future = new Date(now);
   future.setDate(now.getDate() + 14);
 
-  if (future.getFullYear() !== now.getFullYear()) {
-    future.setFullYear(now.getFullYear(), 11, 31);
-  }
-
   const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
   return {
     title: `Phase1 Edge Future Event ${stamp}`,
     location: 'QA Future Gate',
     dateDay: String(future.getDate()).padStart(2, '0'),
     dateMonth: MONTH_LABELS[future.getMonth()],
+    dateYear: String(future.getFullYear()),
     doorsOpen: '23:59',
     requiredStaff: 0,
     activeStaff: 0,
@@ -464,6 +461,7 @@ test.describe('Phase 1 - business edge coverage', () => {
           location: 'QA Atomic Venue',
           dateDay: String(today.getDate()).padStart(2, '0'),
           dateMonth: MONTH_LABELS[today.getMonth()],
+          dateYear: String(today.getFullYear()),
           doorsOpen: '08:00',
           requiredStaff: 1,
           activeStaff: 0,
@@ -606,6 +604,7 @@ test.describe('Phase 1 - business edge coverage', () => {
           location: 'QA Fast Venue',
           dateDay: String(today.getDate()).padStart(2, '0'),
           dateMonth: MONTH_LABELS[today.getMonth()],
+          dateYear: String(today.getFullYear()),
           doorsOpen: '08:00',
           requiredStaff: 1,
           activeStaff: 0,
@@ -670,10 +669,6 @@ test.describe('Phase 1 - business edge coverage', () => {
     const name = `Past Event Worker ${idCode.slice(-6)}`;
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    test.skip(
-      yesterday.getFullYear() !== new Date().getFullYear(),
-      'Event model stores current-year day/month only; skipping year-boundary past-event UI check.'
-    );
 
     const eventTitle = `Past Warning Event ${idCode.slice(-6)}`;
     let staffId = '';
@@ -716,6 +711,7 @@ test.describe('Phase 1 - business edge coverage', () => {
           location: 'QA Past Venue',
           dateDay: String(yesterday.getDate()).padStart(2, '0'),
           dateMonth: MONTH_LABELS[yesterday.getMonth()],
+          dateYear: String(yesterday.getFullYear()),
           doorsOpen: '20:00',
           requiredStaff: 1,
           activeStaff: 0,
