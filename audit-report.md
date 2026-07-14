@@ -215,7 +215,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
 
 ## Fase 4 — Calidad de código y mantenibilidad
 
-- [ ] **11. Introducir tests unitarios (hoy solo hay 3 specs e2e).**
+- [x] **11. Introducir tests unitarios (hoy solo hay 3 specs e2e).** — **HECHO (PRs #52 y #53, 2026-07-14)**: **vitest** establecido como runner (acotado a `tests/unit/**/*.test.ts`, sin cruce con los e2e de Playwright; `npm run test:unit`, corre en el job `build` de CI). **41 tests deterministas**: `src/utils/events.ts` (14 — estado temporal, bordes de año que causaron el bug #44, ordenación, formato) y `src/validators.ts` (27 — todos los sanitizers + `validateEventPayload` incl. default/rango de año). **Resto diferido a #12**: `buildUpdateClause`/`getSchemaStatus` de `mysqlApi.ts` son internos del monolito; se cubrirán cuando se extraigan al trocearlo (tarea #12).
   **Modelo/Effort**: Sonnet 5 · high.
   **Por qué**: no hay ni un test unitario; toda la red de seguridad es e2e (lenta y de integración). Lógica pura como `validators.ts`, cálculo de horas/turnos y `buildUpdateClause` es ideal para cubrir barato.
   **Prompt**:
