@@ -164,7 +164,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   Rama, PR, CI verde, staging-first.
   ```
 
-- [x] **17. Añadir año al modelo de eventos.** *(añadida 2026-07-13, análisis Codex)* — **HECHO (PR #47, `b54cbbd`)**: `LiveEvent` y `events` guardan `dateYear`; migración idempotente con backfill al año actual; formularios, ordenación, estado temporal, seeds/reset y scripts operativos actualizados. Eliminado el skip de borde de año en e2e y CI verde en PR + `main`. **Pendiente operativo**: aplicar en staging-first con backup antes de tocar prod.
+- [x] **17. Añadir año al modelo de eventos.** *(añadida 2026-07-13, análisis Codex)* — **HECHO (PR #47, `b54cbbd`)**: `LiveEvent` y `events` guardan `dateYear`; migración idempotente con backfill al año actual; formularios, ordenación, estado temporal, seeds/reset y scripts operativos actualizados. Eliminado el skip de borde de año en e2e y CI verde en PR + `main`. **Migración aplicada 2026-07-14** en staging y prod (`schema-migrate`: `[dateYear, dateYear_backfill]`, `missing:[]`), con backup previo de BD (+ Drive). Verificado: columna `dateYear varchar(8) NULL` en ambas BD, eventos backfilleados al año actual, y el guard year-aware bloquea correctamente un evento de año futuro. Cross-review de Claude sobre los 4 checkpoints (idempotencia, null-safety triple, guard, reset opcional) — todos OK.
   **Modelo/Effort**: Opus 4.8 · high.
   **Por qué**: los eventos solo guardan día/mes/hora (types.ts ~35); en el cambio de año la ordenación e historial se rompen — los propios e2e saltan ese borde.
   **Prompt**:
