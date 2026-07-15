@@ -10,8 +10,17 @@ import {
   validateShiftPayload,
   validateStaffPatchPayload,
   validateStaffPayload,
-  sanitizeLocation,
 } from "./src/validators";
+import { formatClockLabel, toMysqlDateTimeValue } from "./server/mysql/dateTime";
+import { makeId } from "./server/mysql/ids";
+import {
+  getOptionalPayloadString,
+  getRequiredPayloadString,
+  normalizeCheckInLocation,
+} from "./server/mysql/payload";
+import { makeRouteError } from "./server/mysql/routeErrors";
+import { getSchemaStatus } from "./server/mysql/schema/schemaStatus";
+import { buildUpdateClause } from "./server/mysql/updateClause";
 
 const MYSQL_PREFIX = "/api/mysql";
 
@@ -136,26 +145,6 @@ async function initSchema() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
-}
-
-async function getSchemaStatus(db: any) {
-  const [rows] = await db.query(
-    `SELECT table_name AS tableName, column_name AS columnName
-     FROM information_schema.columns
-     WHERE table_schema = DATABASE()
-       AND table_name IN ('events', 'shifts')
-       AND column_name IN ('updated_at', 'started_at', 'ended_at', 'event_id', 'event_title', 'dateYear')`
-  );
-
-  const found = new Set((rows as Array<{ tableName: string; columnName: string }>).map((r) => `${r.tableName}.${r.columnName}`));
-  const required = ['shifts.updated_at', 'shifts.started_at', 'shifts.ended_at', 'shifts.event_id', 'shifts.event_title', 'events.dateYear'];
-  const missing = required.filter((key) => !found.has(key));
-
-  return {
-    ok: missing.length === 0,
-    required,
-    missing,
-  };
 }
 
 async function applySchemaMigrations(db: any) {
@@ -285,94 +274,6 @@ async function applySchemaMigrations(db: any) {
   }
 
   return { migrated };
-}
-
-function makeId(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-}
-
-function toMysqlDateTimeValue(value: unknown) {
-  if (value === null || value === undefined || value === '') return null;
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return null;
-
-  const pad = (num: number) => String(num).padStart(2, '0');
-  return (
-    String(date.getFullYear()) + '-' +
-    pad(date.getMonth() + 1) + '-' +
-    pad(date.getDate()) + ' ' +
-    pad(date.getHours()) + ':' +
-    pad(date.getMinutes()) + ':' +
-    pad(date.getSeconds())
-  );
-}
-
-type MysqlRouteError = Error & { statusCode?: number };
-
-function makeRouteError(statusCode: number, message: string): MysqlRouteError {
-  const error = new Error(message) as MysqlRouteError;
-  error.statusCode = statusCode;
-  return error;
-}
-
-function formatClockLabel(date: Date) {
-  return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-}
-
-function getOptionalPayloadString(
-  body: Record<string, unknown>,
-  fieldName: string,
-  maxLength: number
-) {
-  const rawValue = body[fieldName];
-  if (rawValue === undefined || rawValue === null) return "";
-  if (typeof rawValue !== "string") {
-    throw makeRouteError(400, `${fieldName} must be a string.`);
-  }
-
-  const value = rawValue.trim();
-  if (value.length > maxLength) {
-    throw makeRouteError(400, `${fieldName} exceeds max length of ${maxLength}.`);
-  }
-  return value;
-}
-
-function getRequiredPayloadString(
-  body: Record<string, unknown>,
-  fieldName: string,
-  maxLength: number
-) {
-  const value = getOptionalPayloadString(body, fieldName, maxLength);
-  if (!value) {
-    throw makeRouteError(400, `${fieldName} is required.`);
-  }
-  return value;
-}
-
-function normalizeCheckInLocation(value: unknown) {
-  if (value === undefined || value === null || String(value).trim() === "") {
-    return null;
-  }
-
-  const validation = sanitizeLocation(value);
-  if (!validation.valid) {
-    throw makeRouteError(
-      400,
-      validation.errors.map((error) => `${error.field}: ${error.message}`).join("; ")
-    );
-  }
-  return validation.sanitized || null;
-}
-
-function buildUpdateClause(payload: Record<string, unknown>, allowedFields: string[]) {
-  const fields = Object.keys(payload).filter((key) => allowedFields.includes(key));
-  if (fields.length === 0) {
-    return { clause: "", values: [] as unknown[] };
-  }
-
-  const clause = fields.map((field) => `${field} = ?`).join(", ");
-  const values = fields.map((field) => payload[field]);
-  return { clause, values };
 }
 
 async function getTableColumns(db: any, tableName: string) {
