@@ -271,6 +271,27 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   para aprobación antes de tocar la BD de producción.
   ```
 
+- [ ] **18. Multi-usuario real: cuentas con email/password y roles.** *(añadida 2026-07-15, decisión del owner)*
+  **Contexto**: hoy la app tiene una única sesión de admin (login → cookie de sesión / `x-admin-token`). El panel visual de "Cuentas de Supervisor Autorizadas" de DatabaseManagerScreen era una maqueta sin backend (se elimina en #12g) — esta tarea es la funcionalidad real. Probablemente post-lanzamiento inicial.
+  **Modelo/Effort**: Opus 4.8 · high. **Diseño-primero como #14**: doc de diseño aprobado por el owner antes de tocar código o BD.
+  **Por qué**: el owner necesitará dar acceso a más personas sin compartir la contraseña de admin. Toca superficie de seguridad completa (almacenamiento de credenciales, sesiones, autorización de todos los endpoints protegidos), así que merece diseño dedicado y no improvisación.
+  **Alcance orientativo (a validar en el diseño)**:
+  - Tabla `users` (email único, hash argon2/bcrypt, rol, estado) vía el runner de migraciones versionado (#14) — NUNCA ALTERs ad-hoc.
+  - Alta solo por invitación/creación del admin (sin registro abierto), cambio de contraseña, desactivación.
+  - Definir roles y sus permisos reales (p.ej. un rol operativo que solo escanea QR y no ve DatabaseManager) — revisar la autorización de cada endpoint protegido y de las rutas del frontend.
+  - Extender el login actual (rate-limit ya existe) y la gestión de sesión a multi-usuario.
+  - UI de gestión de usuarios contra endpoints reales (no reutilizar la maqueta eliminada).
+  **Prompt**:
+  ```
+  Diseña (NO implementes todavía) el sistema multi-usuario para MadridLiveApp: tabla users vía
+  migración versionada, alta por invitación del admin, hash argon2/bcrypt, roles con matriz de
+  permisos endpoint-a-endpoint (incluye qué ve cada rol en el frontend), extensión del login y
+  sesión actuales, y plan de rollout staging-first con backup. Entrega docs/MULTIUSER_DESIGN.md
+  para aprobación del owner, siguiendo el precedente de docs/MIGRATION_FRAMEWORK_DESIGN.md (#14).
+  Restricciones: sin registro abierto, sin dependencias runtime nuevas sin justificarlas, sin
+  tocar BD/prod/staging en la fase de diseño.
+  ```
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)
