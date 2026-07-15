@@ -19,6 +19,8 @@ import {
   normalizeCheckInLocation,
 } from "./server/mysql/payload";
 import { makeRouteError } from "./server/mysql/routeErrors";
+import { initSchema } from "./server/mysql/schema/initSchema";
+import { applySchemaMigrations } from "./server/mysql/schema/legacyMigrations";
 import { getSchemaStatus } from "./server/mysql/schema/schemaStatus";
 import { buildUpdateClause } from "./server/mysql/updateClause";
 
@@ -74,206 +76,6 @@ function getPool() {
     });
   }
   return pool;
-}
-
-async function initSchema() {
-  const db = getPool();
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS staff (
-      id VARCHAR(96) PRIMARY KEY,
-      idCode VARCHAR(20) NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      role VARCHAR(64) NOT NULL,
-      roleLabel VARCHAR(96) NOT NULL,
-      status VARCHAR(16) NOT NULL,
-      checkedInTime VARCHAR(32) NULL,
-      lastSeen VARCHAR(128) NULL,
-      avatar TEXT NOT NULL,
-      email VARCHAR(255) NULL,
-      phone VARCHAR(32) NULL,
-      totalHours DECIMAL(10,2) NOT NULL DEFAULT 0,
-      currentShiftHours INT NOT NULL DEFAULT 0,
-      currentShiftMins INT NOT NULL DEFAULT 0,
-      location VARCHAR(255) NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS events (
-      id VARCHAR(96) PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      location VARCHAR(255) NOT NULL,
-      dateDay VARCHAR(8) NOT NULL,
-      dateMonth VARCHAR(16) NOT NULL,
-      dateYear VARCHAR(8) NULL,
-      doorsOpen VARCHAR(32) NOT NULL,
-      required_staff INT NOT NULL,
-      active_staff INT NOT NULL,
-      total_staff_needed INT NOT NULL,
-      scan_rate INT NOT NULL,
-      load_in_percent INT NOT NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS shifts (
-      id VARCHAR(96) PRIMARY KEY,
-      worker_id VARCHAR(96) NOT NULL,
-      date_string VARCHAR(64) NOT NULL,
-      timespan VARCHAR(128) NOT NULL,
-      duration_label VARCHAR(64) NOT NULL,
-      event_id VARCHAR(96) NULL,
-      event_title VARCHAR(255) NOT NULL,
-      status VARCHAR(32) NOT NULL,
-      started_at DATETIME NULL,
-      ended_at DATETIME NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_shifts_worker (worker_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS alerts (
-      id VARCHAR(96) PRIMARY KEY,
-      message TEXT NOT NULL,
-      zone VARCHAR(128) NOT NULL,
-      timestamp_label VARCHAR(64) NOT NULL,
-      severity VARCHAR(16) NOT NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-}
-
-async function applySchemaMigrations(db: any) {
-  const status = await getSchemaStatus(db);
-  const migrated: string[] = [];
-
-  if (status.missing.includes('shifts.started_at')) {
-    await db.query(
-      `ALTER TABLE shifts
-       ADD COLUMN started_at DATETIME NULL`
-    );
-    migrated.push('shifts.started_at');
-  }
-
-  if (status.missing.includes('shifts.ended_at')) {
-    await db.query(
-      `ALTER TABLE shifts
-       ADD COLUMN ended_at DATETIME NULL`
-    );
-    migrated.push('shifts.ended_at');
-  }
-
-  if (status.missing.includes('shifts.event_title')) {
-    const [legacyRows] = await db.query(
-      `SELECT COUNT(*) AS total
-       FROM information_schema.columns
-       WHERE table_schema = DATABASE()
-         AND table_name = 'shifts'
-         AND column_name = 'location'`
-    );
-    const legacyExists = Array.isArray(legacyRows) && Number((legacyRows[0] as any)?.total || 0) > 0;
-    if (legacyExists) {
-      await db.query(
-        `ALTER TABLE shifts
-         CHANGE COLUMN location event_title VARCHAR(255) NOT NULL`
-      );
-    } else {
-      await db.query(
-        `ALTER TABLE shifts
-         ADD COLUMN event_title VARCHAR(255) NOT NULL DEFAULT ''`
-      );
-    }
-    migrated.push('shifts.event_title');
-  }
-
-  if (status.missing.includes('shifts.event_id')) {
-    await db.query(`ALTER TABLE shifts ADD COLUMN event_id VARCHAR(96) NULL`);
-    migrated.push('shifts.event_id');
-  }
-
-  if (status.missing.includes('shifts.updated_at')) {
-    await db.query(
-      `ALTER TABLE shifts
-       ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
-    );
-    migrated.push('shifts.updated_at');
-  }
-
-  if (status.missing.includes('events.dateYear')) {
-    await db.query(`ALTER TABLE events ADD COLUMN dateYear VARCHAR(8) NULL AFTER dateMonth`);
-    migrated.push('events.dateYear');
-  }
-
-  if (!status.missing.includes('events.dateYear') || migrated.includes('events.dateYear')) {
-    const [eventYearBackfill] = await db.query(
-      `UPDATE events
-       SET dateYear = CAST(YEAR(CURRENT_DATE()) AS CHAR)
-       WHERE dateYear IS NULL OR TRIM(dateYear) = ''`
-    );
-    const affectedRows = Number((eventYearBackfill as { affectedRows?: number })?.affectedRows || 0);
-    if (affectedRows > 0) {
-      migrated.push('events.dateYear_backfill');
-    }
-  }
-
-  const [staffLocationRows] = await db.query(
-    `SELECT IS_NULLABLE AS isNullable
-       FROM information_schema.columns
-       WHERE table_schema = DATABASE()
-         AND table_name = 'staff'
-         AND column_name = 'location'
-       LIMIT 1`
-  );
-  const staffLocation = Array.isArray(staffLocationRows) ? staffLocationRows[0] : null;
-  if (staffLocation?.isNullable === 'NO') {
-    await db.query(
-      `ALTER TABLE staff
-       MODIFY COLUMN location VARCHAR(255) NULL`
-    );
-    migrated.push('staff.location_nullable');
-  }
-
-  const [staffColumnsRows] = await db.query(
-    `SELECT column_name AS columnName
-       FROM information_schema.columns
-       WHERE table_schema = DATABASE()
-         AND table_name = 'staff'
-         AND column_name IN ('email', 'phone')`
-  );
-  const staffColumns = new Set((staffColumnsRows as Array<{ columnName: string }>).map((row) => row.columnName));
-
-  if (!staffColumns.has('email')) {
-    await db.query(`ALTER TABLE staff ADD COLUMN email VARCHAR(255) NULL AFTER avatar`);
-    migrated.push('staff.email');
-  }
-
-  if (!staffColumns.has('phone')) {
-    await db.query(`ALTER TABLE staff ADD COLUMN phone VARCHAR(32) NULL AFTER email`);
-    migrated.push('staff.phone');
-  }
-
-  const [staffAvatarRows] = await db.query(
-    `SELECT DATA_TYPE AS dataType, CHARACTER_MAXIMUM_LENGTH AS maxLength
-       FROM information_schema.columns
-       WHERE table_schema = DATABASE()
-         AND table_name = 'staff'
-         AND column_name = 'avatar'
-       LIMIT 1`
-  );
-  const staffAvatar = Array.isArray(staffAvatarRows) ? staffAvatarRows[0] as { dataType?: string; maxLength?: number | null } : null;
-  const avatarType = String(staffAvatar?.dataType || '').toLowerCase();
-  const avatarLength = Number(staffAvatar?.maxLength || 0);
-
-  if (avatarType === 'varchar' || (avatarLength > 0 && avatarLength < 65535)) {
-    await db.query(`ALTER TABLE staff MODIFY COLUMN avatar TEXT NOT NULL`);
-    migrated.push('staff.avatar_text');
-  }
-
-  return { migrated };
 }
 
 async function getTableColumns(db: any, tableName: string) {
@@ -579,9 +381,8 @@ function normalizeInitialStaffForSeed(
 }
 
 async function resetInitialData() {
-  await initSchema();
-
   const db = getPool();
+  await initSchema(db);
   await applySchemaMigrations(db);
   const conn = await db.getConnection();
 
@@ -1066,8 +867,8 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
 
     try {
-      await initSchema();
       const db = getPool();
+      await initSchema(db);
       const result = await applySchemaMigrations(db);
       const status = await getSchemaStatus(db);
       return res.json({
@@ -1088,8 +889,9 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
 
     try {
-      await initSchema();
-      await applySchemaMigrations(getPool());
+      const db = getPool();
+      await initSchema(db);
+      await applySchemaMigrations(db);
       return res.json({ success: true, message: "MySQL schema initialized." });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
