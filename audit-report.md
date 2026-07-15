@@ -227,15 +227,17 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   bloqueante al principio. Rama, PR, CI verde.
   ```
 
-- [ ] **12. Trocear los ficheros monolíticos (`mysqlApi.ts` 1358 líneas, `DatabaseManagerScreen.tsx` 1359).**
+- [x] **12. Trocear los ficheros monolíticos (`mysqlApi.ts` 1358 líneas, `DatabaseManagerScreen.tsx` 1359).** — **HECHO (2026-07-15, fases #12a–#12g, todas Codex-implementa + Claude-revisa)**
   **Nota (2026-07-13, análisis Codex)**: al extraer los bloques de ejemplo de DatabaseManagerScreen, eliminar también las cuentas ficticias de supervisor (~líneas 96 y 873) y corregir el DDL copiable para que coincida con el esquema real de 4 tablas — ese SQL de ejemplo ya causó el incidente de la tabla `supervisors` en prod.
-  **Estado (2026-07-15)**: en progreso, con la parte backend ya dividida en fases pequeñas y revisables. Hecho hasta ahora:
+  **Completada en 7 fases mecánicas revisadas una a una (set-compare de fidelidad en cada PR)**:
   - #12a PR #58 (`b7cac15`): helpers compartidos y `getSchemaStatus` extraídos a `server/mysql/`.
   - #12b PR #59 (`e65054a`): `initSchema()` y `applySchemaMigrations()` legacy extraídos sin cambiar el endpoint existente.
   - #12c PR #60 (`9bf1b2c`): pool y auth extraídos, preservando el override `options.isAdminAuthorized`.
   - #12d PR #61 (`e9b0701`): repositorios por tabla y `getTableColumns` extraídos.
-  - #12e PR #65 (`44cbd4d`): routers CRUD de `staff`, `events`, `shifts` y `alerts` extraídos; `mysqlApi.ts` queda como fachada de registro y conserva check-in/check-out/reset/admin.
-  Documentacion exhaustiva para Claude: `docs/CLAUDE_HANDOFF_2026-07-15_12D_14.md` (incluye tambien #14, staging/prod baseline y riesgos pendientes). Pendiente: extraer lifecycle/check-in/check-out en PR propio si se decide continuar backend, y abordar `DatabaseManagerScreen.tsx` en PR separado.
+  - #12e PR #65 (`44cbd4d`): routers CRUD de `staff`, `events`, `shifts` y `alerts` extraídos; `mysqlApi.ts` queda como fachada de registro.
+  - #12f PR #67 (`e858caf`): dominio lifecycle extraído — `server/mysql/lifecycle/{eventDateTime,shiftGuards,workerLifecycle}.ts` + `routes/lifecycleRoutes.ts` (checkin/checkout); semántica transaccional y FOR UPDATE byte-fieles; +6 unit tests de `parseEventDateTime`.
+  - #12g PR #69 (`8327333`): `DatabaseManagerScreen.tsx` 1366→entry + 10 módulos en `src/components/databaseManager/`; mismo default export/props, chunk lazy 90.15→88.48 kB. Eliminada la maqueta "Cuentas de Supervisor Autorizadas" (y las ficciones JWT/bcrypt del mismo subtab); DDL copiable verificado byte-idéntico a `initSchema.ts` + runner; snippet Node refleja el modelo real de auth. El multi-usuario real queda como tarea #18.
+  Resultado: `mysqlApi.ts` 1358→336 líneas (fachada) y `DatabaseManagerScreen.tsx` 1366→627 (entry), 66 unit tests, sin cambio de comportamiento observable en ninguna fase. Documentación: `docs/CLAUDE_HANDOFF_2026-07-15_12D_14.md`.
   **Modelo/Effort**: Sonnet 5 · high.
   **Por qué**: dos ficheros de >1300 líneas concentran el riesgo de regresión y dificultan el trabajo de agentes. `DatabaseManagerScreen` además arrastra mucho código de ejemplo solo-visual.
   **Prompt**:
