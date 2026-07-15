@@ -189,7 +189,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   de entrada sin regresión en build ni en los e2e. Rama, PR, CI verde.
   ```
 
-- [ ] **9. Añadir índices de BD para las consultas frecuentes de `shifts`.**
+- [x] **9. Añadir índices de BD para las consultas frecuentes de `shifts`.** — **HECHO (Codex PR #71 `da69192` + Claude review; aplicada en staging Y prod el 2026-07-15)**: migración versionada **`0001_add_shifts_indexes`** — la primera real del runner de #14 — con 3 índices covering justificados consulta-a-consulta: `(worker_id, status, started_at, updated_at)` para el lookup de turno activo de checkin/checkout, `(worker_id, started_at, ended_at)` para el guard de solape, y `(status, worker_id)` para el `LEFT JOIN` de `GET /staff` (la consulta más frecuente con el poller). `idx_shifts_worker` (redundante) eliminado solo tras crear los sustitutos, con guards por `information_schema` (idempotente). `initSchema.ts` y el DDL copiable del Database Manager en paridad byte-exacta. Aplicación: backup BD → staging (deploy `da69192` + `db:migrate:versioned`, EXPLAIN elige los índices nuevos, covering) → backup prod + Drive → confirmación del owner → prod (mismo checksum `96dffbe4…`, `pending: []`, EXPLAIN OK, smoke OK). Prod sigue sirviendo `b38834a` — fue operación solo-BD, como el baseline. Nota: el prompt original (abajo) quedó obsoleto — apuntaba a `mysqlApi.ts` pre-#12 y al mecanismo legacy `applySchemaMigrations`; se ejecutó la versión modernizada vía runner versionado.
   **Modelo/Effort**: Opus 4.8 · medium.
   **Por qué**: solo existe `idx_shifts_worker`. Las consultas de historial filtran por `event_id`, `status` y fecha; sin índices, degradarán al crecer los datos.
   **Prompt**:
