@@ -10,8 +10,9 @@ does not introduce runtime changes.
 - PR #61 merged: `Refactor mysqlApi table repositories`.
 - PR #62 merged: `Implement versioned migration runner`.
 - Staging was deployed from commit `83a9cf088e9028693070bb3b653078c26afe5acf`.
-- No production deploy or production database migration was performed in this
-  operation.
+- Production was not deployed during this operation. Production baseline `0000`
+  was registered later on 2026-07-15 after owner approval; see the production
+  section below.
 
 ## Task 12d - Repository Extraction
 
@@ -177,35 +178,118 @@ Functional verification after baseline:
 
 ## Important Note: Staging Staff Count
 
-`audit-report.md` currently says staging expected staff count is 7 because it was
-the seed of 6 plus one owner-created staff member. During this operation,
+`audit-report.md` originally said staging expected staff count was 7 because it
+was the seed of 6 plus one owner-created staff member. During this operation,
 `setup-staging.sh --apply` called `reset-initial`, so staging was reset to the
 standard fictitious seed of 6 staff.
 
 For this staging validation, smokes were rerun with `EXPECTED_STAFF_COUNT=6` and
-passed. I did not change code defaults from 7 to 6, and I did not create an
-extra staff record just to satisfy the previous default.
+passed.
 
-Claude should decide with the owner whether to:
+Owner decision after this handoff:
 
-- restore the extra seventh staging staff record, preserving the current default
-  expectation of 7, or
-- update staging defaults/docs to 6 now that staging data is explicitly
-  disposable and reset by `setup-staging.sh`.
+- The seventh staging staff record was fictitious and can be discarded.
+- Staging defaults/docs should use 6, aligned with `reset-initial`.
+
+## Production Baseline Operation After Owner Approval
+
+Purpose: register baseline `0000` in production after staging succeeded. Current
+production data was confirmed by the owner as fictitious/disposable.
+
+What was not done:
+
+- No production deploy.
+- No systemd/nginx changes.
+- No `.env` edits.
+- No production data reset.
+
+Preflight:
+
+- Production business tables before baseline:
+  - `alerts`
+  - `events`
+  - `shifts`
+  - `staff`
+- `schema_migrations`: absent before first runner attempt.
+- `supervisors`: absent.
+- `events.dateYear`: present.
+- Counts before repair:
+  - staff: 6
+  - events: 4
+  - shifts: 9
+  - alerts: 1
+
+First runner attempt:
+
+- Command: `npm run db:migrate:versioned` with environment loaded from
+  `/opt/madridlive-app/.env`.
+- Result: failed before inserting `0000`.
+- Error: missing baseline columns `staff.updated_at`, `events.updated_at`.
+- Side effect: `schema_migrations` table was created as technical metadata, but
+  no migration row was inserted.
+
+Operational repair:
+
+- Applied two additive, guarded schema repairs directly against production:
+  - `ALTER TABLE staff ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
+  - `ALTER TABLE events ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
+- Both were checked first via `information_schema.columns`.
+- No rows were deleted or reset.
+
+Second runner attempt:
+
+- Applied migration: `0000 baseline_current_schema`.
+- Checksum length in DB: 64.
+- `pending`: none.
+- `schemaStatus.ok`: true.
+- `schemaStatus.missing`: none.
+
+Technical verification after production baseline:
+
+- Tables present:
+  - `alerts`
+  - `events`
+  - `schema_migrations`
+  - `shifts`
+  - `staff`
+- Business tables:
+  - `alerts`
+  - `events`
+  - `shifts`
+  - `staff`
+- Unexpected business tables: none.
+- `supervisors`: absent.
+- Verified columns:
+  - `events.dateYear`
+  - `events.updated_at`
+  - `staff.updated_at`
+- Counts after baseline:
+  - staff: 6
+  - events: 4
+  - shifts: 9
+  - alerts: 1
+
+Functional verification after production baseline:
+
+- Public `/api/mysql/health-count`: HTTP 200.
+- Admin `schema-check`: HTTP 200, `success=true`.
+- Public `/api/mysql/staff` without auth: HTTP 401.
+- Public login/session/logout flow on production:
+  - login: HTTP 200, success true
+  - session: HTTP 200, authenticated true
+  - logout: HTTP 200, success true
 
 ## Not Done Yet
 
-- No production baseline registration.
 - No production deploy.
 - No replacement of `POST /api/mysql/schema-migrate` with the versioned runner.
 - No removal of `applySchemaMigrations()`.
 - No update to `/api/mysql/health-count` to expose migration state.
-- No audit-report checkbox was changed in this documentation-only handoff.
+- No code path now auto-runs the versioned runner at startup.
 
 Recommended next step:
 
 1. Claude reviews PR #61 and #62 outcomes plus this staging handoff.
-2. Owner decides the staging staff-count policy (6 vs 7).
-3. If approved, register baseline `0000` in production as a separate operation.
-   Since current data is fictitious, backup requirements can be lighter, but the
-   operation should still verify health/schema/login immediately after.
+2. Decide whether the next migration step should rewire the admin
+   `schema-migrate` endpoint to the versioned runner or continue #12 decomposition
+   first.
