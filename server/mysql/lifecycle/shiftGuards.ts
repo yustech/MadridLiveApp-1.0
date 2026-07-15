@@ -1,0 +1,111 @@
+import { toMysqlDateTimeValue } from "../dateTime";
+import { parseEventDateTime } from "./eventDateTime";
+
+export async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, eventId: unknown, eventTitle: unknown) {
+  if (String(status || '').toLowerCase() !== 'active') {
+    return;
+  }
+
+  const eventIdStr = String(eventId || '').trim();
+  const eventTitleStr = String(eventTitle || '').trim();
+  if (!eventIdStr && !eventTitleStr) {
+    return;
+  }
+
+  let rows: any[] = [];
+  if (eventIdStr) {
+    [rows] = await db.query(
+      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, dateYear AS dateYear, doorsOpen AS doorsOpen
+       FROM events
+       WHERE id = ?
+       LIMIT 1`,
+      [eventIdStr]
+    );
+  } else {
+    [rows] = await db.query(
+      `SELECT id, title, dateDay AS dateDay, dateMonth AS dateMonth, dateYear AS dateYear, doorsOpen AS doorsOpen
+       FROM events
+       WHERE title = ?
+       LIMIT 1`,
+      [eventTitleStr]
+    );
+  }
+
+  const event = rows?.[0];
+  if (!event) {
+    return;
+  }
+
+  const eventDate = parseEventDateTime(event.dateDay, event.dateMonth, event.dateYear, event.doorsOpen);
+  if (!eventDate) {
+    return;
+  }
+
+  // Allow check-ins for events happening today, even if doorsOpen is later.
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const eventDayStart = new Date(
+    eventDate.getFullYear(),
+    eventDate.getMonth(),
+    eventDate.getDate()
+  ).getTime();
+
+  if (eventDayStart > todayStart) {
+    throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth} ${eventDate.getFullYear()}).`);
+  }
+}
+
+
+export async function ensureWorkerShiftTimeIntegrity(
+  db: any,
+  workerId: unknown,
+  status: unknown,
+  startedAt: unknown,
+  endedAt: unknown,
+  excludeShiftId?: string
+) {
+  const workerIdStr = String(workerId || '').trim();
+  if (!workerIdStr) return;
+
+  const isActivating = String(status || '').toLowerCase() === 'active';
+  const startedAtMysql = startedAt === undefined ? null : toMysqlDateTimeValue(startedAt);
+  const endedAtMysql = endedAt === undefined ? null : toMysqlDateTimeValue(endedAt);
+  const excludedId = excludeShiftId || '__NO_EXCLUDED_SHIFT__';
+
+  if (isActivating) {
+    const [activeRows] = await db.query(
+      `SELECT id
+       FROM shifts
+       WHERE worker_id = ?
+         AND status = 'Active'
+         AND id <> ?
+       LIMIT 1`,
+      [workerIdStr, excludedId]
+    );
+
+    if (activeRows?.[0]) {
+      throw new Error('Shift conflict: worker already has an active shift.');
+    }
+  }
+
+  // Overlap checks require a normalized start timestamp.
+  if (!startedAtMysql) {
+    return;
+  }
+
+  const [overlapRows] = await db.query(
+    `SELECT id
+     FROM shifts
+     WHERE worker_id = ?
+       AND id <> ?
+       AND started_at IS NOT NULL
+       AND (? IS NULL OR started_at < ?)
+       AND COALESCE(ended_at, '9999-12-31 23:59:59') > ?
+     LIMIT 1`,
+    [workerIdStr, excludedId, endedAtMysql, endedAtMysql, startedAtMysql]
+  );
+
+  if (overlapRows?.[0]) {
+    throw new Error('Shift conflict: overlapping time range for worker.');
+  }
+}
