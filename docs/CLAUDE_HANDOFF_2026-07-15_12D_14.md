@@ -177,21 +177,18 @@ Functional verification after baseline:
 
 ## Important Note: Staging Staff Count
 
-`audit-report.md` currently says staging expected staff count is 7 because it was
-the seed of 6 plus one owner-created staff member. During this operation,
+`audit-report.md` originally said staging expected staff count was 7 because it
+was the seed of 6 plus one owner-created staff member. During this operation,
 `setup-staging.sh --apply` called `reset-initial`, so staging was reset to the
 standard fictitious seed of 6 staff.
 
 For this staging validation, smokes were rerun with `EXPECTED_STAFF_COUNT=6` and
-passed. I did not change code defaults from 7 to 6, and I did not create an
-extra staff record just to satisfy the previous default.
+passed.
 
-Claude should decide with the owner whether to:
+Owner decision after this handoff:
 
-- restore the extra seventh staging staff record, preserving the current default
-  expectation of 7, or
-- update staging defaults/docs to 6 now that staging data is explicitly
-  disposable and reset by `setup-staging.sh`.
+- The seventh staging staff record was fictitious and can be discarded.
+- Staging defaults/docs should use 6, aligned with `reset-initial`.
 
 ## Not Done Yet
 
@@ -205,7 +202,6 @@ Claude should decide with the owner whether to:
 Recommended next step:
 
 1. Claude reviews PR #61 and #62 outcomes plus this staging handoff.
-2. Owner decides the staging staff-count policy (6 vs 7).
-3. If approved, register baseline `0000` in production as a separate operation.
+2. Register baseline `0000` in production as a separate operation.
    Since current data is fictitious, backup requirements can be lighter, but the
    operation should still verify health/schema/login immediately after.

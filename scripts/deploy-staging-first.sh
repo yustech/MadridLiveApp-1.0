@@ -17,8 +17,9 @@ REQUIRE_CLEAN_WORKTREE="${REQUIRE_CLEAN_WORKTREE:-true}"
 VERIFY_PUBLIC_STAGING="${VERIFY_PUBLIC_STAGING:-true}"
 STAGING_LOCAL_URL="${STAGING_LOCAL_URL:-http://127.0.0.1:3001}"
 STAGING_PUBLIC_URL="${STAGING_PUBLIC_URL:-https://staging.madridliveapp.top}"
-# 7 = the 6-row demo seed + 1 staff member the owner added by hand on 2026-07-13.
-STAGING_EXPECTED_STAFF_COUNT="${STAGING_EXPECTED_STAFF_COUNT:-7}"
+# Staging is disposable and resettable; keep the exact check aligned with the
+# standard demo seed loaded during setup-staging/reset-initial.
+STAGING_EXPECTED_STAFF_COUNT="${STAGING_EXPECTED_STAFF_COUNT:-6}"
 PROD_SITE_URL="${PROD_SITE_URL:-https://www.madridliveapp.top}"
 # Production uses a minimum floor (real roster varies/grows); staging stays an
 # exact seed count above. Passed to smoke:prod, which treats it as a floor.

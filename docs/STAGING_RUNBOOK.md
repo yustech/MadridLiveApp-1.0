@@ -57,7 +57,7 @@ Debe devolver:
 
 ```text
 staging_smoke=ok
-staff_count=7
+staff_count=6
 ```
 
 ## URL Publica

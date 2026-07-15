@@ -2,8 +2,9 @@
 set -euo pipefail
 
 SITE_URL="${SITE_URL:-http://127.0.0.1:3001}"
-# 7 = the 6-row demo seed + 1 staff member the owner added by hand on 2026-07-13.
-EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-7}"
+# Staging is disposable and resettable; the exact expected seed is the standard
+# demo dataset loaded by /api/mysql/reset-initial.
+EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-6}"
 EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-}"
 
 health_url="${SITE_URL%/}/api/health"
