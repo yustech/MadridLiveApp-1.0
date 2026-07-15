@@ -55,7 +55,9 @@ export async function initSchema(db: SchemaInitDb) {
       started_at DATETIME NULL,
       ended_at DATETIME NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_shifts_worker (worker_id)
+      INDEX idx_shifts_worker_status_started (worker_id, status, started_at, updated_at),
+      INDEX idx_shifts_worker_started_ended (worker_id, started_at, ended_at),
+      INDEX idx_shifts_status_worker (status, worker_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
