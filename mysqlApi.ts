@@ -1,5 +1,4 @@
 import express from "express";
-import mysql from "mysql2/promise";
 import { INITIAL_ALERTS, INITIAL_EVENTS, INITIAL_SHIFTS, INITIAL_STAFF } from "./src/data";
 import {
   validateAlertPatchPayload,
@@ -18,6 +17,8 @@ import {
   getRequiredPayloadString,
   normalizeCheckInLocation,
 } from "./server/mysql/payload";
+import { isAdminAuthorized, unauthorizedResponse } from "./server/mysql/auth";
+import { getPool, isMysqlConfigured } from "./server/mysql/pool";
 import { makeRouteError } from "./server/mysql/routeErrors";
 import { initSchema } from "./server/mysql/schema/initSchema";
 import { applySchemaMigrations } from "./server/mysql/schema/legacyMigrations";
@@ -30,52 +31,9 @@ interface MysqlApiOptions {
   isAdminAuthorized?: (req: express.Request) => boolean;
 }
 
-function isLocalRequest(req: express.Request) {
-  const remoteAddress = req.socket.remoteAddress || '';
-  return remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
-}
-
-function isAdminAuthorized(req: express.Request) {
-  const expectedToken = process.env.ADMIN_API_TOKEN;
-  if (!expectedToken) return false;
-  const providedToken = req.header("x-admin-token");
-  return providedToken === expectedToken;
-}
-
-function isMysqlConfigured() {
-  return Boolean(process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_DATABASE);
-}
-
-function unauthorizedResponse(res: express.Response) {
-  return res.status(401).json({ success: false, message: "Unauthorized." });
-}
-
 function parseCount(value: unknown) {
   const count = Number(value ?? 0);
   return Number.isFinite(count) ? count : 0;
-}
-
-let pool: any = null;
-
-function getPool() {
-  if (!pool) {
-    if (!isMysqlConfigured()) {
-      throw new Error("MySQL is not configured. Set MYSQL_HOST, MYSQL_USER and MYSQL_DATABASE.");
-    }
-
-    pool = mysql.createPool({
-      host: process.env.MYSQL_HOST,
-      port: Number(process.env.MYSQL_PORT || 3306),
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD || "",
-      database: process.env.MYSQL_DATABASE,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-      charset: "utf8mb4",
-    });
-  }
-  return pool;
 }
 
 async function getTableColumns(db: any, tableName: string) {
