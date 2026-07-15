@@ -252,7 +252,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   del usuario antes de tocar workflows.
   ```
 
-- [ ] **14. Framework de migraciones de esquema en lugar de ALTERs ad-hoc.**
+- [x] **14. Framework de migraciones de esquema en lugar de ALTERs ad-hoc.** — **HECHO en la fase aprobada (diseño PR #57, runner PR #62, baseline staging/prod 2026-07-15)**: añadido framework versionado paralelo (`schema_migrations`, índice estático, lock `GET_LOCK`, baseline `0000`) sin retirar aún `applySchemaMigrations()` ni rewirear `POST /api/mysql/schema-migrate`, tal como pidió la cross-review. Baseline `0000` registrado en staging y prod. En prod el primer intento detectó que el esquema legacy real aún no tenía `staff.updated_at` ni `events.updated_at`; se aplicaron dos `ALTER TABLE ... ADD COLUMN updated_at TIMESTAMP ...` aditivos y guardados por `information_schema`, luego `0000` quedó registrado. Verificación posterior: 4 tablas de negocio + `schema_migrations` técnica, sin `supervisors`, `events.dateYear` presente, `schema-check` OK, login/session/logout OK.
   **Modelo/Effort**: Opus 4.8 · high.
   **Por qué**: `applySchemaMigrations` es una cadena de `if missing → ALTER` a mano. Funciona pero no versiona ni registra qué migración se aplicó; la deriva de esquema (caso `supervisors`) es síntoma de falta de control formal.
   **Prompt**:
