@@ -34,6 +34,7 @@
     "normalize:shift-dates:apply": "tsx scripts/normalize-shift-date-strings.ts --apply",
     "migrate:mysql:schema:dry": "tsx scripts/migrate-mysql-schema.ts",
     "migrate:mysql:schema:apply": "tsx scripts/migrate-mysql-schema.ts --apply",
+    "db:migrate:versioned": "tsx scripts/db-migrate-versioned.ts",
     "ops:swap:plan": "bash scripts/setup-swap.sh --plan",
     "ops:swap:apply": "bash scripts/setup-swap.sh --apply",
     "ops:containers:plan": "bash scripts/set-container-memory-limits.sh --plan",
