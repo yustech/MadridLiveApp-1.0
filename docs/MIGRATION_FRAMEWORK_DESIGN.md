@@ -1,12 +1,14 @@
 # Migration Framework Design
 
-Estado: diseno para aprobacion. No implementa codigo, no toca BD y no cambia
-ningun entorno desplegado.
+Estado: diseno aprobado e implementado por fases. La Fase 6 quedo ejecutada el
+2026-07-16: la fachada `POST /api/mysql/schema-migrate` llama internamente al
+runner versionado y el patron ad-hoc `applySchemaMigrations()` fue retirado del
+codigo.
 
 ## Objetivo
 
-Sustituir gradualmente el patron actual de `applySchemaMigrations()` en
-`mysqlApi.ts` por un sistema ligero de migraciones versionadas, auditable y
+Sustituir el patron historico de `applySchemaMigrations()` en `mysqlApi.ts` por
+un sistema ligero de migraciones versionadas, auditable y
 seguro para produccion.
 
 El baseline funcional que se debe preservar es el esquema actual de negocio con
@@ -20,24 +22,25 @@ exactamente estas cuatro tablas:
 No existe ni debe recrearse `supervisors`. La autenticacion admin sigue viviendo
 fuera de la base de datos, mediante variables de entorno y cookies firmadas.
 
-La tabla propuesta `schema_migrations` seria metadato tecnico del framework, no
+La tabla `schema_migrations` es metadato tecnico del framework, no
 una tabla de negocio. Cualquier herramienta de estado debe seguir diferenciando
 "esquema de negocio" de "metadatos de migracion".
 
-## Contexto Actual
+## Contexto Historico Y Estado Actual
 
-Hoy `initSchema()` crea las cuatro tablas de negocio con `CREATE TABLE IF NOT
-EXISTS`. Las correcciones posteriores viven en `applySchemaMigrations()` como
-una lista ad-hoc de checks:
+Historicamente, `initSchema()` creaba las cuatro tablas de negocio con
+`CREATE TABLE IF NOT EXISTS` y las correcciones posteriores vivian en
+`applySchemaMigrations()` como una lista ad-hoc de checks:
 
 - Si falta una columna, ejecuta un `ALTER`.
 - Si `events.dateYear` existe o acaba de crearse, aplica backfill al ano actual.
 - Ajusta algunos detalles legacy en `staff`, como `location` nullable, `email`,
   `phone` y `avatar` como `TEXT`.
 
-La ejecucion no ocurre al arrancar el servidor. Se dispara de forma explicita por
-endpoint admin, principalmente `POST /api/mysql/schema-migrate`, o dentro de
-flujos de reset/init autorizados.
+Desde la Fase 6, la ejecucion sigue sin ocurrir al arrancar el servidor, pero se
+dispara de forma explicita mediante el runner versionado: el endpoint admin
+`POST /api/mysql/schema-migrate` y los flujos autorizados de reset/init llaman a
+`runVersionedMigrations(getPool(), MIGRATIONS)` despues de `initSchema(db)`.
 
 ## Baseline Actual Que Debe Reconocerse
 
@@ -288,9 +291,15 @@ decision humana.
 
 ### Fase 6: retirar patron ad-hoc
 
+- Estado 2026-07-16: completada en codigo, pendiente de cross-review/merge y
+  despliegue manual por el owner.
 - Cuando staging y prod tengan `0000` aplicado, reemplazar internamente
   `applySchemaMigrations()` por el runner.
 - El endpoint conserva el nombre publico si eso reduce riesgo operativo.
+- La respuesta de `POST /api/mysql/schema-migrate` conserva
+  `{ success, migrated, required, missing }`; `migrated` lista ahora las
+  versiones aplicadas por el runner en esa llamada, por ejemplo `["0001"]`, y
+  puede incluir campos aditivos como `pending`.
 - Actualizar runbooks.
 
 ## Verificacion Recomendada
