@@ -21,8 +21,9 @@ import { registerEventsRoutes } from "./server/mysql/routes/eventsRoutes";
 import { registerLifecycleRoutes } from "./server/mysql/routes/lifecycleRoutes";
 import { registerShiftsRoutes } from "./server/mysql/routes/shiftsRoutes";
 import { registerStaffRoutes } from "./server/mysql/routes/staffRoutes";
+import { MIGRATIONS } from "./server/mysql/migrations";
+import { runVersionedMigrations } from "./server/mysql/migrations/runner";
 import { initSchema } from "./server/mysql/schema/initSchema";
-import { applySchemaMigrations } from "./server/mysql/schema/legacyMigrations";
 import { getSchemaStatus } from "./server/mysql/schema/schemaStatus";
 
 const MYSQL_PREFIX = "/api/mysql";
@@ -119,7 +120,7 @@ function normalizeInitialStaffForSeed(
 async function resetInitialData() {
   const db = getPool();
   await initSchema(db);
-  await applySchemaMigrations(db);
+  await runVersionedMigrations(db, MIGRATIONS);
   const conn = await db.getConnection();
 
   try {
@@ -280,13 +281,14 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     try {
       const db = getPool();
       await initSchema(db);
-      const result = await applySchemaMigrations(db);
-      const status = await getSchemaStatus(db);
+      const result = await runVersionedMigrations(db, MIGRATIONS);
+      const status = result.schemaStatus;
       return res.json({
         success: status.ok,
-        migrated: result.migrated,
+        migrated: result.applied.map((migration) => migration.version),
         required: status.required,
         missing: status.missing,
+        pending: result.pending,
       });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
@@ -302,7 +304,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     try {
       const db = getPool();
       await initSchema(db);
-      await applySchemaMigrations(db);
+      await runVersionedMigrations(db, MIGRATIONS);
       return res.json({ success: true, message: "MySQL schema initialized." });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });

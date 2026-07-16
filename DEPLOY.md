@@ -43,6 +43,12 @@ Esta guía resume el flujo real de producción actual: nginx proxya todo al back
    ```bash
    npm run smoke:prod
    ```
+   > Desde la Fase 6 del framework de migraciones, el hook estable
+   > `POST /api/mysql/schema-migrate` ejecuta el runner versionado interno
+   > (`schema_migrations`) en vez de la antigua lista ad-hoc de `ALTER`.
+   > La ruta y la autenticación admin se mantienen por compatibilidad operativa.
+   > Si el deploy incluye una migración nueva, sigue aplicando el flujo
+   > staging-first con backup y confirmación explícita antes de producción.
 4. Comprueba la salud y la versión públicas:
    ```bash
    curl -fsS https://madridliveapp.top/api/health

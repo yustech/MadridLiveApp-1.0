@@ -49,6 +49,17 @@ Checklist operativa ligera para MadridLive App (equipo pequeño).
    sudo systemctl status madridlive-watchdog.timer --no-pager
    ```
 
+## Migraciones de esquema
+
+- `POST /api/mysql/schema-migrate` se conserva como fachada operativa estable,
+  protegida por auth admin, pero desde la Fase 6 ejecuta el runner versionado
+  (`schema_migrations`) en lugar del mecanismo legacy `applySchemaMigrations()`.
+- La respuesta compatible mantiene `{ success, migrated, required, missing }`;
+  `migrated` contiene los ids de migraciones versionadas aplicadas en esa
+  llamada y sera `[]` si no habia pendientes.
+- Para cualquier migración nueva: backup, staging primero, verificación, y solo
+  después producción con confirmación explícita del owner.
+
 ## Respuesta ante fallo
 
 1. Revisar logs del servicio principal.
