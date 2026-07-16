@@ -246,11 +246,7 @@ async function startServer() {
     corsAllowlist.push(
       "https://madridliveapp.top",
       "https://www.madridliveapp.top",
-      "https://staging.madridliveapp.top",
-      // Legacy domains, still served in parallel during the 2026-07 migration.
-      // Drop once inmosubastas.top is retired.
-      "https://inmosubastas.top",
-      "https://staging.inmosubastas.top"
+      "https://staging.madridliveapp.top"
     );
   }
   app.use(
