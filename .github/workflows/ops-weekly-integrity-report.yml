@@ -1,9 +1,11 @@
 name: Ops Weekly Integrity Report
 
 on:
-  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
-  # Occupancy-drift KPI is meaningless without real occupancy (currently demo data).
-  # RE-ENABLE AT GO-LIVE: restore `schedule:` with cron '15 7 * * 1' and '15 8 * * 1' (09:15 Madrid, DST-safe).
+  # Re-enabled 2026-07-17 (go-live: real roster loaded) — see docs/CI_CONSOLIDATION_PLAN.md.
+  # Dual cron = Monday 09:15 Madrid regardless of DST.
+  schedule:
+    - cron: '15 7 * * 1'
+    - cron: '15 8 * * 1'
   workflow_dispatch:
 
 concurrency:

@@ -1,9 +1,11 @@
 name: Active Shift Watchdog
 
 on:
-  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
-  # Only meaningful with real active shifts (currently demo data, 0 real check-ins).
-  # RE-ENABLE AT GO-LIVE: restore `schedule:` with cron '0 7 * * *' and '0 8 * * *' (09:00 Madrid, DST-safe).
+  # Re-enabled 2026-07-17 (go-live: real roster loaded) — see docs/CI_CONSOLIDATION_PLAN.md.
+  # Dual cron = 09:00 Madrid regardless of DST.
+  schedule:
+    - cron: '0 7 * * *'
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 concurrency:

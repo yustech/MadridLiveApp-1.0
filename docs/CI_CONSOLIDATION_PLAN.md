@@ -82,6 +82,6 @@ Cada uno lo usa **solo** su workflow; al desactivar el cron quedan como herramie
 
 ## Checklist de go-live (reactivar cuando haya datos reales)
 
-- Reponer `schedule` en `active-shift-watchdog.yml` y `ops-weekly-integrity-report.yml` (integridad de turnos/ocupación reales).
-- Revisar `WATCHDOG_MIN_STAFF_COUNT` (hoy suelo 1; subir a un suelo realista si procede).
-- Reconsiderar nightlies e2e contra prod/staging con datos reales.
+- ~~Reponer `schedule` en `active-shift-watchdog.yml` y `ops-weekly-integrity-report.yml`~~ ✅ **HECHO 2026-07-17** (roster real de 901 cargado en prod y staging; crons originales repuestos, DST-safe).
+- ~~Revisar `WATCHDOG_MIN_STAFF_COUNT`~~ ✅ **HECHO 2026-07-17**: suelo 800 en el `.env` de prod (margen bajo el roster de 901; solo re-ajustar si la plantilla baja legítimamente de 800).
+- Reconsiderar nightlies e2e contra prod/staging con datos reales. **Pendiente — decisión consciente**: con datos reales en ambas BD, un e2e que muta (check-ins de prueba) ya no es inocuo; requiere diseño (entidades de prueba marcadas o entorno efímero) antes de reactivar nada.
