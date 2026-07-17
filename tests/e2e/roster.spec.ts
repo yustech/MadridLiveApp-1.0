@@ -17,17 +17,18 @@ const worker = {
 
 test('edits a roster field and verifies persistence through the API contract', async ({ page }) => {
   let persistedWorker = { ...worker };
-  let receivedPut: { url: string; payload: unknown } | null = null;
+  let receivedPatch: { method: string; url: string; payload: unknown } | null = null;
 
   await page.route('**/api/auth/session', async (route) => {
     await route.fulfill({ json: { authenticated: true } });
   });
   await page.route('**/api/mysql/staff/*', async (route) => {
-    receivedPut = {
+    receivedPatch = {
+      method: route.request().method(),
       url: route.request().url(),
       payload: route.request().postDataJSON(),
     };
-    persistedWorker = { ...persistedWorker, ...(receivedPut.payload as Partial<typeof worker>) };
+    persistedWorker = { ...persistedWorker, ...(receivedPatch.payload as Partial<typeof worker>) };
     await route.fulfill({ json: { success: true } });
   });
   await page.route('**/api/mysql/staff', async (route) => {
@@ -54,7 +55,8 @@ test('edits a roster field and verifies persistence through the API contract', a
   await editor.press('Enter');
   await expect(row.getByText('Guardado', { exact: true })).toBeVisible();
 
-  expect(receivedPut).toEqual({
+  expect(receivedPatch).toEqual({
+    method: 'PATCH',
     url: expect.stringContaining(`/api/mysql/staff/${worker.id}`),
     payload: { name: 'Ángela Muñoz Editada' },
   });

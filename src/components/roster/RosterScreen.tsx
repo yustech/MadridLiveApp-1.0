@@ -15,7 +15,7 @@ import type { StaffMember } from '../../types';
 import {
   formatRosterApiError,
   getRosterStaff,
-  putRosterStaff,
+  patchRosterStaff,
   type StaffPatch,
 } from './rosterApi';
 import { filterRosterStaff } from './rosterSearch';
@@ -170,7 +170,7 @@ export default function RosterScreen({ onBack }: RosterScreenProps) {
     setSavingCell(cellKey);
     try {
       const patch = makeStaffPatch(editingCell.field, value);
-      await putRosterStaff(editingCell.workerId, patch);
+      await patchRosterStaff(editingCell.workerId, patch);
       setStaff((current) => current.map((item) => (
         item.id === editingCell.workerId ? { ...item, ...patch } : item
       )));
@@ -229,7 +229,7 @@ export default function RosterScreen({ onBack }: RosterScreenProps) {
     for (let index = 0; index < workers.length; index += 1) {
       const worker = workers[index];
       try {
-        await putRosterStaff(worker.id, { role: bulkRole, roleLabel: bulkRole });
+        await patchRosterStaff(worker.id, { role: bulkRole, roleLabel: bulkRole });
         setStaff((current) => current.map((item) => (
           item.id === worker.id ? { ...item, role: bulkRole, roleLabel: bulkRole } : item
         )));
