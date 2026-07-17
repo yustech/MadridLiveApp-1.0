@@ -13,6 +13,18 @@ export interface ShiftToggleResult {
   shift: Shift;
 }
 
+export class MysqlApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'MysqlApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 function normalizeStaffAvatar(worker: StaffMember): StaffMember {
   return {
     ...worker,
@@ -33,7 +45,17 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+    let payload: { message?: string; code?: string } | null = null;
+    try {
+      payload = text ? JSON.parse(text) as { message?: string; code?: string } : null;
+    } catch {
+      // Keep non-JSON API errors readable without losing the HTTP status.
+    }
+    throw new MysqlApiError(
+      payload?.message || text || `Request failed: ${response.status}`,
+      response.status,
+      payload?.code,
+    );
   }
 
   return response.json() as Promise<T>;
@@ -177,10 +199,10 @@ export async function deleteStaff(workerId: string) {
 
 // --- ATOMIC SHIFT OPERATIONS ---
 
-export async function checkInWorker(workerId: string, eventId: string, location?: string) {
+export async function checkInWorker(workerId: string, eventId: string, location?: string, force = false) {
   return apiJson<ShiftToggleResult>('/checkin', {
     method: 'POST',
-    body: JSON.stringify({ workerId, eventId, location }),
+    body: JSON.stringify({ workerId, eventId, location, ...(force ? { force: true } : {}) }),
   });
 }
 

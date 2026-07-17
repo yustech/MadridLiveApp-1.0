@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, 
   MapPin, 
@@ -27,6 +27,7 @@ import {
   getShiftStartTimestamp,
   isWorkerPresentNow,
 } from '../utils/shifts';
+import { getEventStaff } from './eventStaff/eventStaffApi';
 
 interface DashboardScreenProps {
   events: LiveEvent[];
@@ -36,6 +37,7 @@ interface DashboardScreenProps {
   activeEventId: string;
   setActiveEventId: (id: string) => void;
   onLaunchScanner: () => void;
+  onManageEventStaff: (event: LiveEvent) => void;
   onDeletePastEvent: (eventId: string) => Promise<void>;
 }
 
@@ -47,6 +49,7 @@ export default function DashboardScreen({
   activeEventId,
   setActiveEventId,
   onLaunchScanner,
+  onManageEventStaff,
   onDeletePastEvent
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
@@ -54,6 +57,25 @@ export default function DashboardScreen({
   const [eventListTab, setEventListTab] = useState<'upcoming' | 'past'>('upcoming');
   const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [detailAssignedCount, setDetailAssignedCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedDetailEvent) {
+      setDetailAssignedCount(null);
+      return undefined;
+    }
+
+    setDetailAssignedCount(null);
+    getEventStaff(selectedDetailEvent.id)
+      .then((assigned) => {
+        if (!cancelled) setDetailAssignedCount(assigned.length);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailAssignedCount(0);
+      });
+    return () => { cancelled = true; };
+  }, [selectedDetailEvent]);
 
   // Focus card follows the selected event. Yesterday remains operational until
   // 23:59 the next day; future events stay in planning mode.
@@ -630,6 +652,18 @@ export default function DashboardScreen({
 
             {/* Actions */}
             <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onManageEventStaff(selectedDetailEvent);
+                  setSelectedDetailEvent(null);
+                }}
+                className="w-full h-11 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/25 text-cyan-100 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Users className="w-4 h-4" />
+                <span>Gestionar equipo · {detailAssignedCount ?? '…'}/{selectedDetailEvent.requiredStaff}</span>
+              </button>
+
               <button
                 disabled={!isOperableEvent(selectedDetailEvent)}
                 onClick={() => {
