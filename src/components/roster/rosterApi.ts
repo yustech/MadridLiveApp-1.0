@@ -47,9 +47,9 @@ export function getRosterStaff(): Promise<StaffMember[]> {
   return rosterJson<StaffMember[]>('/staff');
 }
 
-export function putRosterStaff(workerId: string, patch: StaffPatch): Promise<{ success: boolean }> {
+export function patchRosterStaff(workerId: string, patch: StaffPatch): Promise<{ success: boolean }> {
   return rosterJson<{ success: boolean }>(`/staff/${encodeURIComponent(workerId)}`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify(patch),
   });
 }
