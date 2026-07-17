@@ -18,6 +18,7 @@ import { insertShiftRecord } from "./server/mysql/repositories/shiftsRepository"
 import { insertStaffRecord } from "./server/mysql/repositories/staffRepository";
 import { registerAlertsRoutes } from "./server/mysql/routes/alertsRoutes";
 import { registerEventsRoutes } from "./server/mysql/routes/eventsRoutes";
+import { registerEventStaffRoutes } from "./server/mysql/routes/eventStaffRoutes";
 import { registerLifecycleRoutes } from "./server/mysql/routes/lifecycleRoutes";
 import { registerShiftsRoutes } from "./server/mysql/routes/shiftsRoutes";
 import { registerStaffRoutes } from "./server/mysql/routes/staffRoutes";
@@ -127,6 +128,7 @@ async function resetInitialData() {
     await conn.beginTransaction();
     await conn.query('DELETE FROM shifts');
     await conn.query('DELETE FROM alerts');
+    await conn.query('DELETE FROM event_staff');
     await conn.query('DELETE FROM events');
     await conn.query('DELETE FROM staff');
 
@@ -327,6 +329,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
   registerLifecycleRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized });
   registerStaffRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
   registerEventsRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
+  registerEventStaffRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
   registerShiftsRoutes(app, {
     prefix: MYSQL_PREFIX,
     isAuthorized,

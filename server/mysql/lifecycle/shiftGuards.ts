@@ -1,6 +1,60 @@
 import { toMysqlDateTimeValue } from "../dateTime";
 import { parseEventDateTime } from "./eventDateTime";
 
+export interface EventStaffCheckInInput {
+  assignmentCount: number;
+  isAssigned: boolean;
+  force: boolean;
+}
+
+export type EventStaffCheckInDecision =
+  | { allowed: true }
+  | {
+      allowed: false;
+      statusCode: 409;
+      code: "NOT_ASSIGNED";
+      message: "Worker not assigned to this event.";
+    };
+
+export function evaluateEventStaffCheckIn({
+  assignmentCount,
+  isAssigned,
+  force,
+}: EventStaffCheckInInput): EventStaffCheckInDecision {
+  if (assignmentCount === 0 || isAssigned || force) {
+    return { allowed: true };
+  }
+
+  return {
+    allowed: false,
+    statusCode: 409,
+    code: "NOT_ASSIGNED",
+    message: "Worker not assigned to this event.",
+  };
+}
+
+export async function getEventStaffCheckInDecision(
+  db: any,
+  eventId: string,
+  workerId: string,
+  force: boolean
+) {
+  const [rows] = await db.query(
+    `SELECT COUNT(*) AS assignmentCount,
+            COALESCE(MAX(CASE WHEN worker_id = ? THEN 1 ELSE 0 END), 0) AS isAssigned
+     FROM event_staff
+     WHERE event_id = ?`,
+    [workerId, eventId]
+  );
+  const row = Array.isArray(rows) ? rows[0] : null;
+
+  return evaluateEventStaffCheckIn({
+    assignmentCount: Number(row?.assignmentCount || 0),
+    isAssigned: Number(row?.isAssigned || 0) > 0,
+    force,
+  });
+}
+
 export async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown, eventId: unknown, eventTitle: unknown) {
   if (String(status || '').toLowerCase() !== 'active') {
     return;

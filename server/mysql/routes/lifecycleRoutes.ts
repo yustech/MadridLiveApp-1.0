@@ -38,7 +38,11 @@ export function registerLifecycleRoutes(app: express.Express, options: Lifecycle
       if (message.startsWith("Cannot activate shifts for future event")) {
         return res.status(400).json({ success: false, message });
       }
-      return res.status(error?.statusCode || 500).json({ success: false, message });
+      return res.status(error?.statusCode || 500).json({
+        success: false,
+        ...(error?.code ? { code: error.code } : {}),
+        message,
+      });
     } finally {
       if (conn) {
         conn.release();

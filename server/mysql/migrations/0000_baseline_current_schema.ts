@@ -6,6 +6,7 @@ import {
 } from "./runner";
 
 export const BASELINE_BUSINESS_TABLES = ["staff", "events", "shifts", "alerts"] as const;
+export const POST_BASELINE_BUSINESS_TABLES = ["event_staff"] as const;
 export const TECHNICAL_TABLES = ["schema_migrations"] as const;
 
 export const BASELINE_REQUIRED_COLUMNS = [
@@ -77,11 +78,14 @@ const BASELINE_CHECKSUM_SOURCE = [
 export function getBaselineVerificationErrors(snapshot: BaselineSchemaSnapshot) {
   const expectedBusinessTables = new Set<string>(BASELINE_BUSINESS_TABLES);
   const technicalTables = new Set<string>(TECHNICAL_TABLES);
+  const postBaselineTables = new Set<string>(POST_BASELINE_BUSINESS_TABLES);
   const foundTables = new Set(snapshot.tables);
   const businessTables = [...foundTables].filter((tableName) => !technicalTables.has(tableName));
   const businessTableSet = new Set(businessTables);
   const missingTables = BASELINE_BUSINESS_TABLES.filter((tableName) => !foundTables.has(tableName));
-  const unexpectedTables = businessTables.filter((tableName) => !expectedBusinessTables.has(tableName));
+  const unexpectedTables = businessTables.filter(
+    (tableName) => !expectedBusinessTables.has(tableName) && !postBaselineTables.has(tableName)
+  );
   const foundColumns = new Set(
     snapshot.columns.map((row) => `${row.tableName}.${row.columnName}`)
   );

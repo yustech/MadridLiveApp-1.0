@@ -46,6 +46,14 @@ describe('getSchemaStatusFromRows', () => {
       'events.dateYear',
     ]);
   });
+
+  it('reports event_staff as incomplete when an assignment column is missing', () => {
+    const rows = allRequiredRows.filter(
+      (row) => `${row.tableName}.${row.columnName}` !== 'event_staff.assigned_role'
+    );
+
+    expect(getSchemaStatusFromRows(rows).missing).toEqual(['event_staff.assigned_role']);
+  });
 });
 
 describe('getSchemaStatus', () => {

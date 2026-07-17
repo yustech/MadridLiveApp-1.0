@@ -49,4 +49,12 @@ describe("verifyBaselineSnapshot", () => {
 
     expect(() => verifyBaselineSnapshot(snapshot)).toThrow("Unexpected business table(s): venues");
   });
+
+  it("allows event_staff when initSchema creates post-baseline tables before migration checks", () => {
+    const snapshot = baselineSnapshot({
+      tables: [...baselineSnapshot().tables, "event_staff"],
+    });
+
+    expect(() => verifyBaselineSnapshot(snapshot)).not.toThrow();
+  });
 });

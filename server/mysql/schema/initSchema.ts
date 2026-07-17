@@ -1,3 +1,5 @@
+import { EVENT_STAFF_TABLE_DDL } from "./eventStaffTable";
+
 interface SchemaInitDb {
   query: (sql: string) => Promise<unknown>;
 }
@@ -41,6 +43,9 @@ export async function initSchema(db: SchemaInitDb) {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+
+  // Keep this byte-for-byte identical to migration 0002 for fresh/upgraded schema parity.
+  await db.query(EVENT_STAFF_TABLE_DDL);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS shifts (
