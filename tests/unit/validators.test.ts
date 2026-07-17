@@ -57,6 +57,11 @@ describe('sanitizeName', () => {
     expect(sanitizeName("José O'Brien-Díaz").valid).toBe(true);
   });
 
+  it('accepts diaeresis, cedilla and other Latin diacritics', () => {
+    expect(sanitizeName('Jorge Agüero Muñoz').valid).toBe(true);
+    expect(sanitizeName('François Dûrr Àlvarez').valid).toBe(true);
+  });
+
   it('rejects angle brackets / injection-y chars', () => {
     expect(sanitizeName('John <script>').valid).toBe(false);
   });
