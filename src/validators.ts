@@ -19,6 +19,8 @@ export interface ValidationResult<T> {
 
 type SanitizedPayload = Record<string, unknown>;
 
+export const STAFF_ROLES: readonly string[] = ["Auxiliar", "Auxiliar Plus", "Coordinación"];
+
 const MIN_EVENT_YEAR = 1900;
 const MAX_EVENT_YEAR = 2200;
 
@@ -487,7 +489,6 @@ export function sanitizeDateTime(value: unknown, fieldName: string): ValidationR
 export function validateStaffPayload(body: unknown): ValidationResult<any> {
   const errors: ValidationError[] = [];
   const sanitized: any = {};
-  const allowedRoles = ["Auxiliar", "Auxiliar Plus", "Coordinación"];
 
   if (typeof body !== "object" || body === null) {
     return {
@@ -515,7 +516,7 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
   }
 
   // role (required)
-  if (typeof b.role !== "string" || !allowedRoles.includes(b.role.trim())) {
+  if (typeof b.role !== "string" || !STAFF_ROLES.includes(b.role.trim())) {
     errors.push({
       field: "role",
       message: "Role must be one of: Auxiliar, Auxiliar Plus, Coordinación",
@@ -651,7 +652,6 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
 export function validateStaffPatchPayload(body: unknown): ValidationResult<SanitizedPayload> {
   const errors: ValidationError[] = [];
   const sanitized: SanitizedPayload = {};
-  const allowedRoles = ["Auxiliar", "Auxiliar Plus", "Coordinación"];
 
   if (typeof body !== "object" || body === null) {
     return {
@@ -676,7 +676,7 @@ export function validateStaffPatchPayload(body: unknown): ValidationResult<Sanit
 
   if (b.role !== undefined) {
     const role = typeof b.role === "string" ? b.role.trim() : "";
-    if (!allowedRoles.includes(role)) {
+    if (!STAFF_ROLES.includes(role)) {
       errors.push({
         field: "role",
         message: "Role must be one of: Auxiliar, Auxiliar Plus, Coordinación",

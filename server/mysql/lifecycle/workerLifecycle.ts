@@ -4,7 +4,11 @@ import { getRequiredPayloadString, normalizeCheckInLocation } from "../payload";
 import { selectPublicShiftById } from "../repositories/shiftsRepository";
 import { selectPublicStaffById } from "../repositories/staffRepository";
 import { makeRouteError } from "../routeErrors";
-import { ensureShiftNotLinkedToFutureEvent, ensureWorkerShiftTimeIntegrity } from "./shiftGuards";
+import {
+  ensureShiftNotLinkedToFutureEvent,
+  ensureWorkerShiftTimeIntegrity,
+  getEventStaffCheckInDecision,
+} from "./shiftGuards";
 
 export async function performWorkerCheckIn(conn: any, body: Record<string, unknown>) {
   const workerId = getRequiredPayloadString(body, "workerId", 96);
@@ -38,6 +42,20 @@ export async function performWorkerCheckIn(conn: any, body: Record<string, unkno
   const eventRow = Array.isArray(eventRows) ? eventRows[0] : null;
   if (!eventRow) {
     throw makeRouteError(404, "Event not found.");
+  }
+
+  const assignmentDecision = await getEventStaffCheckInDecision(
+    conn,
+    eventId,
+    workerId,
+    body.force === true
+  );
+  if (assignmentDecision.allowed === false) {
+    throw makeRouteError(
+      assignmentDecision.statusCode,
+      assignmentDecision.message,
+      assignmentDecision.code
+    );
   }
 
   const [activeRows] = await conn.query(

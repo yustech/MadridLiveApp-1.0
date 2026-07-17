@@ -139,6 +139,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
       }
 
       const eventTitle = eventRows[0].title;
+      await db.execute(`DELETE FROM event_staff WHERE event_id = ?`, [req.params.id]);
       await db.execute(
         `DELETE FROM shifts WHERE event_id = ? OR event_title = ?`,
         [req.params.id, eventTitle]

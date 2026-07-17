@@ -67,7 +67,7 @@ describe("0001 add shifts indexes migration", () => {
 });
 
 describe("MIGRATIONS", () => {
-  it("lists the baseline and shifts index migrations in version order", () => {
-    expect(MIGRATIONS.map((migration) => migration.version)).toEqual(["0000", "0001"]);
+  it("lists all migrations in version order", () => {
+    expect(MIGRATIONS.map((migration) => migration.version)).toEqual(["0000", "0001", "0002"]);
   });
 });
