@@ -2,9 +2,10 @@
 set -euo pipefail
 
 SITE_URL="${SITE_URL:-http://127.0.0.1:3001}"
-# Staging is disposable and resettable; the exact expected seed is the standard
-# demo dataset loaded by /api/mysql/reset-initial.
-EXPECTED_STAFF_COUNT="${EXPECTED_STAFF_COUNT:-6}"
+# Minimum-floor check, mirroring smoke-test-prod.sh: staging now carries the
+# real roster (not the demo seed), so we only fail on catastrophic loss.
+# EXPECTED_STAFF_COUNT kept as an alias for backwards compatibility.
+MIN_STAFF_COUNT="${MIN_STAFF_COUNT:-${EXPECTED_STAFF_COUNT:-1}}"
 EXPECTED_COMMIT_SHA="${EXPECTED_COMMIT_SHA:-}"
 
 health_url="${SITE_URL%/}/api/health"
@@ -22,8 +23,16 @@ staff_count="$(
     node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(String(x?.counts?.staff ?? x?.staffCount ?? -1));});"
 )"
 
-if [[ "$staff_count" != "$EXPECTED_STAFF_COUNT" ]]; then
-  echo "Unexpected staging staff count: got $staff_count, expected $EXPECTED_STAFF_COUNT" >&2
+if ! [[ "$MIN_STAFF_COUNT" =~ ^[0-9]+$ ]]; then
+  echo "Invalid MIN_STAFF_COUNT value: $MIN_STAFF_COUNT" >&2
+  exit 1
+fi
+if ! [[ "$staff_count" =~ ^[0-9]+$ ]]; then
+  echo "Invalid staff count payload: $staff_count" >&2
+  exit 1
+fi
+if (( staff_count < MIN_STAFF_COUNT )); then
+  echo "Staff floor check failed: got $staff_count, minimum $MIN_STAFF_COUNT" >&2
   exit 1
 fi
 
