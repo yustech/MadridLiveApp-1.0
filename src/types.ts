@@ -18,6 +18,24 @@ export interface StaffMember {
   location?: string; // optional primary zone; check-in flow sets active shift location
 }
 
+export type EventStaffRole = 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación';
+
+export interface EventStaffMember {
+  id: string;
+  idCode: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  assignedRole: EventStaffRole;
+  createdAt: string;
+}
+
+export interface WorkerToggleOutcome {
+  success: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
 export interface Shift {
   id: string;
   workerId: string;

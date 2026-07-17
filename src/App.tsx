@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
-import { StaffMember, Shift, LiveEvent, EquipmentAlert } from './types';
+import { StaffMember, Shift, LiveEvent, EquipmentAlert, type WorkerToggleOutcome } from './types';
 import { getAvatarSrc, setFallbackAvatar } from './utils/avatarUpload';
 import {
   getEventTemporalState,
@@ -19,13 +19,15 @@ import {
   checkInWorker,
   checkOutWorker,
   addStaff,
-  deleteEvent
+  deleteEvent,
+  MysqlApiError,
 } from './dbService';
 
 
 const DashboardScreen = lazy(() => import('./components/DashboardScreen'));
 const StaffScreen = lazy(() => import('./components/StaffScreen'));
 const RosterScreen = lazy(() => import('./components/roster/RosterScreen'));
+const EventStaffScreen = lazy(() => import('./components/eventStaff/EventStaffScreen'));
 const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
 const ScannerScreen = lazy(() => import('./components/ScannerScreen'));
 const ShiftsScreen = lazy(() => import('./components/ShiftsScreen'));
@@ -35,7 +37,7 @@ const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScr
 const isDatabaseManagerEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
 
-type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'scanner' | 'profile' | 'shifts' | 'kpis';
+type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'event-staff' | 'scanner' | 'profile' | 'shifts' | 'kpis';
 
 function selectDefaultActiveEvent(events: LiveEvent[]): string {
   const ordered = sortEventsByDate(events);
@@ -68,6 +70,7 @@ export default function App() {
   const [alerts, setAlerts] = useState<EquipmentAlert[]>([]);
   const [selectedWorker, setSelectedWorker] = useState<StaffMember | null>(null);
   const [activeEventId, setActiveEventId] = useState<string>('');
+  const [managedEventId, setManagedEventId] = useState<string>('');
 
   const presentStaffCount = staff.filter((member) => isWorkerPresentNow(member, shifts)).length;
   const activeZonesCount = new Set(
@@ -242,9 +245,13 @@ export default function App() {
   };
 
   // Check worker toggle IN/OUT
-  const handleToggleWorkerStatus = async (workerId: string, customLocation?: string) => {
+  const handleToggleWorkerStatus = async (
+    workerId: string,
+    customLocation?: string,
+    force = false,
+  ): Promise<WorkerToggleOutcome> => {
     const worker = staff.find(w => w.id === workerId);
-    if (!worker) return false;
+    if (!worker) return { success: false, errorMessage: 'No se encontró el trabajador.' };
 
     const isCurrentlyIn = worker.status === 'IN';
     const activeEvent = events.find(e => e.id === activeEventId) || null;
@@ -262,15 +269,15 @@ export default function App() {
           prev?.id === workerId ? result.staff : prev
         ));
 
-        return true;
+        return { success: true };
       }
 
       if (!isOperableEvent(activeEvent)) {
         console.warn('Blocked non-operable event activation for worker', workerId, activeEvent?.title);
-        return false;
+        return { success: false, errorMessage: 'El evento seleccionado no admite nuevas entradas.' };
       }
 
-      const result = await checkInWorker(workerId, activeEvent.id, customLocation || worker.location || '');
+      const result = await checkInWorker(workerId, activeEvent.id, customLocation || worker.location || '', force);
       setShifts((prev) => [result.shift, ...prev.filter((shift) => shift.id !== result.shift.id)]);
       setStaff((prev) => prev.map((staffMember) => (
         staffMember.id === workerId ? result.staff : staffMember
@@ -279,10 +286,14 @@ export default function App() {
         prev?.id === workerId ? result.staff : prev
       ));
 
-      return true;
+      return { success: true };
     } catch (err) {
       console.error('Failed to alter staff status: ', err);
-      return false;
+      return {
+        success: false,
+        errorCode: err instanceof MysqlApiError ? err.code : undefined,
+        errorMessage: err instanceof Error ? err.message : 'No se pudo registrar el turno.',
+      };
     }
   };
 
@@ -344,6 +355,11 @@ export default function App() {
       roster: {
         title: 'Editar plantilla',
         subtitle: 'Preparando la tabla de edición de personal...',
+        icon: Users,
+      },
+      'event-staff': {
+        title: 'Equipo del concierto',
+        subtitle: 'Cargando asignaciones y cobertura del evento...',
         icon: Users,
       },
       profile: {
@@ -549,7 +565,7 @@ export default function App() {
             <button
               onClick={() => setActiveScreen('dashboard')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
-                activeScreen === 'dashboard'
+                activeScreen === 'dashboard' || activeScreen === 'event-staff'
                   ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
                   : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
               }`}
@@ -741,6 +757,10 @@ export default function App() {
                 activeEventId={activeEventId}
                 setActiveEventId={setActiveEventId}
                 onLaunchScanner={() => setActiveScreen('scanner')}
+                onManageEventStaff={(event) => {
+                  setManagedEventId(event.id);
+                  setActiveScreen('event-staff');
+                }}
                 onDeletePastEvent={handleDeletePastEvent}
               />
             )}
@@ -757,6 +777,14 @@ export default function App() {
 
             {activeScreen === 'roster' && (
               <RosterScreen onBack={() => setActiveScreen('staff')} />
+            )}
+
+            {activeScreen === 'event-staff' && events.some((event) => event.id === managedEventId) && (
+              <EventStaffScreen
+                event={events.find((event) => event.id === managedEventId)!}
+                staff={staff}
+                onBack={() => setActiveScreen('dashboard')}
+              />
             )}
 
             {activeScreen === 'scanner' && (
@@ -821,7 +849,7 @@ export default function App() {
         <button
           onClick={() => setActiveScreen('dashboard')}
           className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
-            activeScreen === 'dashboard'
+            activeScreen === 'dashboard' || activeScreen === 'event-staff'
               ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
               : 'text-white/50 border border-transparent hover:text-white scale-95'
           }`}

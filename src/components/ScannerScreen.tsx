@@ -14,7 +14,7 @@ import {
   Users,
   Tv
 } from 'lucide-react';
-import { StaffMember, LiveEvent, Shift } from '../types';
+import { StaffMember, LiveEvent, Shift, type WorkerToggleOutcome } from '../types';
 import {
   formatEventDate,
   getEventStatusLabel,
@@ -38,7 +38,7 @@ interface ScannerScreenProps {
   events: LiveEvent[];
   activeEventId: string;
   setActiveEventId: (id: string) => void;
-  onScanWorkerToggle: (workerId: string, customLocation?: string) => Promise<boolean>;
+  onScanWorkerToggle: (workerId: string, customLocation?: string, force?: boolean) => Promise<WorkerToggleOutcome>;
   onNavigateToWorker: (worker: StaffMember) => void;
 }
 
@@ -68,6 +68,7 @@ interface Html5QrcodeConstructor {
 
 type TriggerScanOptions = {
   confirmedPastEvent?: boolean;
+  force?: boolean;
 };
 
 const roleIconMap: Record<string, string> = {
@@ -142,6 +143,7 @@ export default function ScannerScreen({
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [closeConfirmWorker, setCloseConfirmWorker] = useState<StaffMember | null>(null);
   const [pastEventWarningWorker, setPastEventWarningWorker] = useState<StaffMember | null>(null);
+  const [notAssignedWorker, setNotAssignedWorker] = useState<StaffMember | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [manualError, setManualError] = useState('');
   const [scanError, setScanError] = useState('');
@@ -261,10 +263,15 @@ export default function ScannerScreen({
       const prev = targetWorker.status;
       const nextStatus = prev === 'IN' ? 'OUT' : 'IN';
 
-      const success = await onScanWorkerToggle(workerId, 'Lector Puerta Principal');
-      if (!success) {
+      const outcome = await onScanWorkerToggle(workerId, 'Lector Puerta Principal', options.force);
+      if (!outcome.success) {
         setScannedResult(null);
-        setScanError('No se pudo registrar el turno para el evento seleccionado.');
+        if (outcome.errorCode === 'NOT_ASSIGNED' && nextStatus === 'IN' && !options.force) {
+          setNotAssignedWorker(targetWorker);
+          setScanError('');
+        } else {
+          setScanError(outcome.errorMessage || 'No se pudo registrar el turno para el evento seleccionado.');
+        }
         setIsScanActive(false);
         return;
       }
@@ -831,6 +838,55 @@ export default function ScannerScreen({
                 }}
                 disabled={isScanActive}
                 className="h-11 rounded-xl bg-amber-500/80 hover:bg-amber-500 text-xs font-mono font-bold text-[#120f26] disabled:opacity-50"
+              >
+                Confirmar entrada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notAssignedWorker && activeEvent && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-md">
+          <div role="dialog" aria-modal="true" aria-labelledby="exceptional-checkin-title" className="w-full max-w-md bg-[#120f26]/95 border border-rose-400/25 rounded-3xl p-6 space-y-5 text-left shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-500/10 border border-rose-400/30 flex items-center justify-center text-rose-300 shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-rose-300 font-bold">Acceso excepcional</p>
+                <h3 id="exceptional-checkin-title" className="text-lg font-display font-black text-white mt-1">
+                  No está convocado para este evento
+                </h3>
+              </div>
+            </div>
+            <div className="space-y-3 text-xs text-white/65 leading-relaxed">
+              <p>
+                <span className="font-bold text-white">{notAssignedWorker.name}</span> no forma parte del equipo asignado a{' '}
+                <span className="font-bold text-white">{activeEvent.title}</span>.
+              </p>
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 font-mono text-[11px] text-rose-200">
+                ¿Confirmar entrada excepcional? Esta acción registrará el acceso sin añadir a la persona al equipo del concierto.
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setNotAssignedWorker(null)}
+                disabled={isScanActive}
+                className="h-11 rounded-xl border border-white/15 text-xs font-mono text-white/70 hover:bg-white/10 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const workerId = notAssignedWorker.id;
+                  setNotAssignedWorker(null);
+                  triggerScanOperation(workerId, { confirmedPastEvent: true, force: true });
+                }}
+                disabled={isScanActive}
+                className="h-11 rounded-xl bg-rose-500/80 hover:bg-rose-500 text-xs font-mono font-bold text-white disabled:opacity-50"
               >
                 Confirmar entrada
               </button>
