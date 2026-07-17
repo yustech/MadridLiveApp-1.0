@@ -294,6 +294,51 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   tocar BD/prod/staging en la fase de diseño.
   ```
 
+- [ ] **19. Plantillas guardadas de equipo para "Convocatoria por evento".** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
+  **Contexto**: la convocatoria por evento (#80/#81, ya en producción) obliga hoy a seleccionar manualmente entre los 901 de la plantilla cada vez que se arma el equipo de un concierto. El owner quiere guardar equipos-tipo reutilizables (p.ej. "Equipo estándar sala grande") y aplicarlos a un evento nuevo de una vez, en vez de repetir la selección. Esto estaba explícitamente listado como "fuera de alcance" en la PR #80.
+  **Modelo/Effort**: Codex-implementa + Claude-revisa (mismo patrón que #80/#81). Effort medio — sigue las convenciones ya sentadas (migración versionada, routers en `server/mysql/routes/`, componente propio lazy-loaded).
+  **Por qué**: reduce trabajo repetitivo antes de cada concierto y facilita reutilizar composiciones de equipo que ya funcionaron.
+  **Alcance orientativo (a validar antes de implementar)**:
+  - Migración versionada **0003**: tabla `staff_templates(id, name, created_at)` + `staff_template_members(template_id, worker_id, assigned_role)` — mismo patrón relacional que `event_staff`, no JSON.
+  - Endpoints bajo `/api/mysql/staff-templates`: crear plantilla (a partir de la convocatoria actual de un evento, o desde cero), listar, aplicar plantilla a un evento (reutiliza internamente la lógica bulk de `POST /events/:id/staff`), borrar.
+  - UI en `EventStaffScreen`: botón "Guardar como plantilla" junto a la convocatoria actual, y selector "Aplicar plantilla" antes de la selección manual.
+  - Nombres de plantilla únicos; aplicar una plantilla no debe duplicar filas en `event_staff` si algún miembro ya está convocado (mismo idempotente que el bulk-add existente).
+  - Decisión pendiente con el owner: ¿la plantilla guarda el rol asignado (`assignedRole`) o solo la lista de personas y el rol se recalcula desde `staff.role` al aplicar? (afecta al diseño de `staff_template_members`).
+  **Prompt**:
+  ```
+  Implementa "plantillas guardadas de equipo" para la convocatoria por evento (#80/#81, ya en
+  producción). Migración versionada 0003 (staff_templates + staff_template_members, mismo
+  patrón relacional que event_staff de la migración 0002 — no JSON). Endpoints bajo
+  /api/mysql/staff-templates: crear (desde la convocatoria actual de un evento o desde cero),
+  listar, aplicar a un evento (reutiliza la lógica bulk transaccional de POST
+  /events/:id/staff, idempotente si ya hay convocados), borrar. UI en EventStaffScreen: botón
+  "Guardar como plantilla" y selector "Aplicar plantilla". Antes de implementar, confirma con
+  el owner si la plantilla fija assignedRole o lo recalcula desde staff.role al aplicar. PR
+  separada de cualquier otro cambio, staging-first, con el mismo checklist de revisión que
+  #80/#81 (auth pattern, checksum de migración, tests, e2e con método+ruta reales).
+  ```
+
+- [ ] **20. Puntuación de 1 a 5 estrellas para miembros de la plantilla (rojo → verde).** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
+  **Contexto**: el owner quiere poder puntuar a cada trabajador de la plantilla con una escala visual de 1 a 5 estrellas, con gradiente de color: 1 estrella = rojo, 5 estrellas = verde, con naranja y amarillo en los valores intermedios.
+  **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort medio-bajo — un campo nuevo en `staff` + widget de UI, sin lógica de negocio compleja.
+  **Por qué**: dar al owner una forma rápida de valorar el desempeño/fiabilidad de cada persona de los 901, visible de un vistazo en la plantilla.
+  **Alcance orientativo (a validar antes de implementar)**:
+  - Columna nueva `staff.rating` (TINYINT NULL, 1–5; NULL = sin puntuar) vía migración versionada **0003 o 0004** según orden de ejecución con la tarea #19.
+  - Backend: `validateStaffPatchPayload` acepta `rating` opcional (entero 1–5 o null); GET de staff ya devuelve la columna al añadirla al SELECT.
+  - UI: widget de 5 estrellas clicables en `RosterScreen` (edición inline) y visible en `StaffScreen`/perfil. Gradiente de color por valor: 1★ rojo, 2★ naranja, 3★ amarillo, 4★ amarillo-verde, 5★ verde — usar la skill `dataviz` para fijar los tonos exactos accesibles en modo claro/oscuro en vez de elegir colores a mano.
+  - Decisión pendiente con el owner: ¿quién puede puntuar (solo admin, o cualquier sesión futura de #18)? ¿se guarda histórico de cambios o solo el valor actual? Para el MVP: solo admin, sin histórico (valor único sobrescribible).
+  **Prompt**:
+  ```
+  Implementa puntuación de 1 a 5 estrellas por trabajador. Migración versionada (0003 o la que
+  corresponda tras coordinarla con la tarea #19 si se hace el mismo día): columna
+  staff.rating TINYINT NULL (1-5, NULL = sin puntuar). Backend: validateStaffPatchPayload acepta
+  rating opcional; SELECT de staff la incluye. UI: widget de 5 estrellas clicable en
+  RosterScreen (edición inline) y visible en StaffScreen/perfil, con gradiente de color 1★ rojo
+  → 5★ verde pasando por naranja y amarillo — carga la skill dataviz para fijar los tonos
+  exactos (contraste en claro/oscuro) en vez de improvisar hex codes. MVP: sin histórico, solo
+  admin puntúa. PR propia, staging-first, mismo checklist de revisión que #80/#81.
+  ```
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)
