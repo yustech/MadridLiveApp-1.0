@@ -268,7 +268,7 @@ export function sanitizeName(value: unknown): ValidationResult<string> {
   }
 
   // Allow letters (incl. accents), numbers, spaces, hyphens, apostrophes
-  if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\-'0-9]+$/.test(sanitized)) {
+  if (!/^[\p{L}\p{M}0-9\s\-']+$/u.test(sanitized)) {
     errors.push({
       field: "name",
       message: "Name contains invalid characters",
