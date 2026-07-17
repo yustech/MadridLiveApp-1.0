@@ -8,6 +8,7 @@ import {
   QrCode,
   ChevronLeft,
   ChevronRight,
+  PencilLine,
   Upload,
 } from 'lucide-react';
 import { Shift, StaffMember } from '../types';
@@ -27,6 +28,7 @@ interface StaffScreenProps {
   shifts: Shift[];
   onSelectWorker: (worker: StaffMember) => void;
   onAddWorker: (worker: Omit<StaffMember, 'id'>) => Promise<void> | void;
+  onEditRoster: () => void;
 }
 
 type SortMode = 'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst';
@@ -62,6 +64,7 @@ export default function StaffScreen({
   shifts,
   onSelectWorker,
   onAddWorker,
+  onEditRoster,
 }: StaffScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<string>('All');
@@ -306,7 +309,15 @@ export default function StaffScreen({
             {staff.length} Personal Registrado
           </p>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onEditRoster}
+            className="flex items-center gap-2 rounded-xl border border-indigo-400/25 bg-indigo-500/15 px-3.5 py-2 text-xs font-mono font-bold text-indigo-200 transition-colors hover:bg-indigo-500/25"
+          >
+            <PencilLine className="h-3.5 w-3.5" />
+            Editar plantilla
+          </button>
           <span className="bg-emerald-400/10 text-emerald-300 px-3.5 py-1.5 rounded-full text-xs font-mono border border-emerald-400/20 flex items-center gap-1.5 font-bold">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
             {checkedInCount} DENTRO

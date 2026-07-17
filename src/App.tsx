@@ -25,6 +25,7 @@ import {
 
 const DashboardScreen = lazy(() => import('./components/DashboardScreen'));
 const StaffScreen = lazy(() => import('./components/StaffScreen'));
+const RosterScreen = lazy(() => import('./components/roster/RosterScreen'));
 const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
 const ScannerScreen = lazy(() => import('./components/ScannerScreen'));
 const ShiftsScreen = lazy(() => import('./components/ShiftsScreen'));
@@ -33,6 +34,8 @@ const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScr
 
 const isDatabaseManagerEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
+
+type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'scanner' | 'profile' | 'shifts' | 'kpis';
 
 function selectDefaultActiveEvent(events: LiveEvent[]): string {
   const ordered = sortEventsByDate(events);
@@ -53,7 +56,7 @@ export default function App() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'
-  const [activeScreen, setActiveScreen] = useState<'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'>('dashboard');
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>('dashboard');
   
   // Database Manager view modal
   const [isDbOpen, setIsDbOpen] = useState(false);
@@ -318,7 +321,7 @@ export default function App() {
   };
 
   const renderActiveScreenFallback = () => {
-    const loadingMeta: Record<'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis', {
+    const loadingMeta: Record<ActiveScreen, {
       title: string;
       subtitle: string;
       icon: typeof Calendar;
@@ -336,6 +339,11 @@ export default function App() {
       staff: {
         title: 'Plantilla',
         subtitle: 'Cargando roster operativo y estados de personal...',
+        icon: Users,
+      },
+      roster: {
+        title: 'Editar plantilla',
+        subtitle: 'Preparando la tabla de edición de personal...',
         icon: Users,
       },
       profile: {
@@ -565,7 +573,7 @@ export default function App() {
             <button
               onClick={() => setActiveScreen('staff')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold cursor-pointer border transition-all ${
-                activeScreen === 'staff' || activeScreen === 'profile'
+                activeScreen === 'staff' || activeScreen === 'roster' || activeScreen === 'profile'
                   ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
                   : 'bg-transparent border-transparent text-white/50 hover:bg-white/5 hover:text-white'
               }`}
@@ -743,7 +751,12 @@ export default function App() {
                 shifts={shifts}
                 onSelectWorker={handleSelectWorker}
                 onAddWorker={handleAddNewCrewMember}
+                onEditRoster={() => setActiveScreen('roster')}
               />
+            )}
+
+            {activeScreen === 'roster' && (
+              <RosterScreen onBack={() => setActiveScreen('staff')} />
             )}
 
             {activeScreen === 'scanner' && (
@@ -834,7 +847,7 @@ export default function App() {
         <button
           onClick={() => setActiveScreen('staff')}
           className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all duration-200 cursor-pointer ${
-            activeScreen === 'staff' || activeScreen === 'profile'
+            activeScreen === 'staff' || activeScreen === 'roster' || activeScreen === 'profile'
               ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 font-bold scale-100'
               : 'text-white/50 border border-transparent hover:text-white scale-95'
           }`}
