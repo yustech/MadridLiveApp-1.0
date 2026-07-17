@@ -121,7 +121,7 @@ export function verifyEventStaffSnapshot(snapshot: EventStaffSchemaSnapshot) {
 
 async function getEventStaffSchemaSnapshot(db: MigrationDb): Promise<EventStaffSchemaSnapshot> {
   const [tableRows] = await db.query(
-    `SELECT engine, table_collation AS tableCollation
+    `SELECT engine AS engine, table_collation AS tableCollation
      FROM information_schema.tables
      WHERE table_schema = DATABASE()
        AND table_name = 'event_staff'
