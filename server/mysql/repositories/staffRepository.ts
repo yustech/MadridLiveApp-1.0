@@ -29,6 +29,7 @@ export async function insertStaffRecord(db: any, id: string, sanitized: Record<s
   pushColumnValue("last_seen", sanitized.lastSeen || null);
   pushColumnValue("email", sanitized.email);
   pushColumnValue("phone", sanitized.phone);
+  pushColumnValue("rating", sanitized.rating ?? null);
   pushColumnValue("totalHours", sanitized.totalHours);
   pushColumnValue("total_hours", sanitized.totalHours);
   pushColumnValue("currentShiftHours", sanitized.currentShiftHours);
@@ -57,6 +58,7 @@ export async function selectPublicStaffById(db: any, workerId: string) {
         st.avatar,
         COALESCE(st.email, '') AS email,
         COALESCE(st.phone, '') AS phone,
+        st.rating AS rating,
         CAST(st.totalHours AS DOUBLE) AS totalHours,
         CASE WHEN active.worker_id IS NOT NULL THEN st.currentShiftHours ELSE 0 END AS currentShiftHours,
         CASE WHEN active.worker_id IS NOT NULL THEN st.currentShiftMins ELSE 0 END AS currentShiftMins,

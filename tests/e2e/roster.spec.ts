@@ -10,12 +10,13 @@ const worker = {
   avatar: '',
   email: 'angela@example.com',
   phone: '+34 600 111 222',
+  rating: null,
   totalHours: 0,
   currentShiftHours: 0,
   currentShiftMins: 0,
 };
 
-test('edits a roster field and verifies persistence through the API contract', async ({ page }) => {
+test('edits roster fields and rating through the real PATCH route', async ({ page }) => {
   let persistedWorker = { ...worker };
   let receivedPatch: { method: string; url: string; payload: unknown } | null = null;
 
@@ -65,4 +66,24 @@ test('edits a roster field and verifies persistence through the API contract', a
   await page.getByRole('button', { name: 'Editar plantilla' }).click();
   await page.getByPlaceholder('Buscar por nombre, ID, email o teléfono...').fill(worker.idCode);
   await expect(page.getByTestId(`roster-cell-name-${worker.id}`)).toHaveText('Ángela Muñoz Editada');
+
+  const rating = page.getByTestId(`staff-rating-${worker.id}`);
+  await rating.getByRole('button', { name: 'Puntuar a Ángela Muñoz Editada con 4 de 5 estrellas' }).click();
+  await expect(row.getByText('Puntuación guardada: 4/5', { exact: true })).toBeVisible();
+  expect(receivedPatch).toEqual({
+    method: 'PATCH',
+    url: expect.stringContaining(`/api/mysql/staff/${worker.id}`),
+    payload: { rating: 4 },
+  });
+  await expect(rating).toHaveAttribute('data-rating', '4');
+  await expect(rating).toHaveAttribute('data-rating-color', '#5a8200');
+  await expect(rating.locator('svg[data-filled="true"]')).toHaveCount(4);
+  await expect(rating.locator('svg[data-filled="false"]')).toHaveCount(1);
+  await expect(rating).toContainText('4/5');
+
+  await page.getByRole('button', { name: 'Volver a Plantilla de Personal' }).click();
+  const staffCardRating = page.getByTestId(`staff-card-rating-${worker.id}`);
+  await expect(staffCardRating).toHaveAttribute('data-rating', '4', { timeout: 10_000 });
+  await staffCardRating.locator('xpath=ancestor::div[contains(@class,"cursor-pointer")]').click();
+  await expect(page.getByTestId(`profile-rating-${worker.id}`)).toContainText('4/5');
 });

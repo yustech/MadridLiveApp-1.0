@@ -11,7 +11,8 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import type { StaffMember } from '../../types';
+import type { StaffMember, StaffRating } from '../../types';
+import StaffRatingWidget from '../ratings/StaffRatingWidget';
 import {
   formatRosterApiError,
   getRosterStaff,
@@ -25,7 +26,7 @@ const ROSTER_ROLES = ['Auxiliar', 'Auxiliar Plus', 'Coordinación'] as const;
 
 type RosterRole = typeof ROSTER_ROLES[number];
 type EditableField = 'idCode' | 'name' | 'role' | 'email' | 'phone';
-type SortField = EditableField | 'status';
+type SortField = EditableField | 'rating' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 type EditingCell = {
@@ -55,6 +56,7 @@ const COLUMN_LABELS: Record<SortField, string> = {
   role: 'Rol',
   email: 'Email',
   phone: 'Teléfono',
+  rating: 'Puntuación',
   status: 'Estado',
 };
 
@@ -183,6 +185,39 @@ export default function RosterScreen({ onBack }: RosterScreenProps) {
       setRowFeedback((current) => ({
         ...current,
         [editingCell.workerId]: { kind: 'error', message: formatRosterApiError(error) },
+      }));
+    } finally {
+      setSavingCell(null);
+    }
+  };
+
+  const saveRating = async (worker: StaffMember, rating: StaffRating | null) => {
+    if (savingCell || isBulkSaving || (worker.rating ?? null) === rating) return;
+
+    const cellKey = `${worker.id}:rating`;
+    setSavingCell(cellKey);
+    setRowFeedback((current) => {
+      const next = { ...current };
+      delete next[worker.id];
+      return next;
+    });
+
+    try {
+      await patchRosterStaff(worker.id, { rating });
+      setStaff((current) => current.map((item) => (
+        item.id === worker.id ? { ...item, rating } : item
+      )));
+      setRowFeedback((current) => ({
+        ...current,
+        [worker.id]: {
+          kind: 'success',
+          message: rating === null ? 'Puntuación eliminada' : `Puntuación guardada: ${rating}/5`,
+        },
+      }));
+    } catch (error) {
+      setRowFeedback((current) => ({
+        ...current,
+        [worker.id]: { kind: 'error', message: formatRosterApiError(error) },
       }));
     } finally {
       setSavingCell(null);
@@ -406,7 +441,7 @@ export default function RosterScreen({ onBack }: RosterScreenProps) {
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d0920]/80">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] border-collapse text-left">
+          <table className="w-full min-w-[1240px] border-collapse text-left">
             <thead className="bg-white/5">
               <tr>
                 <th className="w-12 px-3 py-3">
@@ -437,9 +472,9 @@ export default function RosterScreen({ onBack }: RosterScreenProps) {
             </thead>
             <tbody className="divide-y divide-white/5">
               {isLoading ? (
-                <tr><td colSpan={8} className="px-4 py-14 text-center text-sm text-white/45"><LoaderCircle className="mx-auto mb-2 h-5 w-5 animate-spin" />Cargando plantilla…</td></tr>
+                <tr><td colSpan={9} className="px-4 py-14 text-center text-sm text-white/45"><LoaderCircle className="mx-auto mb-2 h-5 w-5 animate-spin" />Cargando plantilla…</td></tr>
               ) : pageStaff.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-14 text-center text-sm text-white/45"><UsersRound className="mx-auto mb-2 h-5 w-5" />No hay trabajadores que coincidan.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-14 text-center text-sm text-white/45"><UsersRound className="mx-auto mb-2 h-5 w-5" />No hay trabajadores que coincidan.</td></tr>
               ) : pageStaff.map((worker) => {
                 const feedback = rowFeedback[worker.id];
                 return (
@@ -458,6 +493,22 @@ export default function RosterScreen({ onBack }: RosterScreenProps) {
                     <td className="px-1 py-1">{renderEditor(worker, 'role')}</td>
                     <td className="px-1 py-1">{renderEditor(worker, 'email')}</td>
                     <td className="px-1 py-1">{renderEditor(worker, 'phone')}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <StaffRatingWidget
+                          rating={worker.rating}
+                          workerName={worker.name}
+                          interactive
+                          disabled={Boolean(savingCell) || isBulkSaving}
+                          onChange={(rating) => void saveRating(worker, rating)}
+                          testId={`staff-rating-${worker.id}`}
+                          compact
+                        />
+                        {savingCell === `${worker.id}:rating` && (
+                          <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-300" />
+                        )}
+                      </div>
+                    </td>
                     <td className="px-2 py-2">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold ${worker.status === 'IN' ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-white/10 bg-white/5 text-white/45'}`}>
                         {worker.status}

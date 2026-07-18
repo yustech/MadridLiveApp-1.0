@@ -22,6 +22,7 @@ import {
 } from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
 import { isWorkerPresentNow } from '../utils/shifts';
+import StaffRatingWidget from './ratings/StaffRatingWidget';
 
 interface StaffScreenProps {
   staff: StaffMember[];
@@ -450,6 +451,15 @@ export default function StaffScreen({
                         {getRoleDisplayName(worker.role)}
                       </span>
                       <span className="text-[10px] font-mono text-white/50">ID: {worker.idCode}</span>
+                    </div>
+
+                    <div className="mt-2">
+                      <StaffRatingWidget
+                        rating={worker.rating}
+                        workerName={worker.name}
+                        testId={`staff-card-rating-${worker.id}`}
+                        compact
+                      />
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-white/60 mt-3 font-mono flex-wrap gap-2">

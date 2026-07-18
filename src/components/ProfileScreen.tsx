@@ -17,6 +17,7 @@ import {
   isShiftActiveNow,
   isWorkerPresentNow,
 } from '../utils/shifts';
+import StaffRatingWidget from './ratings/StaffRatingWidget';
 
 interface ProfileScreenProps {
   worker: StaffMember;
@@ -132,6 +133,12 @@ export default function ProfileScreen({
                   {worker.roleLabel || worker.role}
                 </p>
               </div>
+
+              <StaffRatingWidget
+                rating={worker.rating}
+                workerName={worker.name}
+                testId={`profile-rating-${worker.id}`}
+              />
 
               <div className="flex gap-2">
                 {isLiveNow ? (

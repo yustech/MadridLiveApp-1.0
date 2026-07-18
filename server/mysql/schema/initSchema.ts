@@ -22,6 +22,7 @@ export async function initSchema(db: SchemaInitDb) {
       avatar TEXT NOT NULL,
       email VARCHAR(255) NULL,
       phone VARCHAR(32) NULL,
+      rating TINYINT NULL,
       totalHours DECIMAL(10,2) NOT NULL DEFAULT 0,
       currentShiftHours INT NOT NULL DEFAULT 0,
       currentShiftMins INT NOT NULL DEFAULT 0,
