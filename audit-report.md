@@ -303,19 +303,23 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   - Endpoints bajo `/api/mysql/staff-templates`: crear plantilla (a partir de la convocatoria actual de un evento, o desde cero), listar, aplicar plantilla a un evento (reutiliza internamente la lógica bulk de `POST /events/:id/staff`), borrar.
   - UI en `EventStaffScreen`: botón "Guardar como plantilla" junto a la convocatoria actual, y selector "Aplicar plantilla" antes de la selección manual.
   - Nombres de plantilla únicos; aplicar una plantilla no debe duplicar filas en `event_staff` si algún miembro ya está convocado (mismo idempotente que el bulk-add existente).
-  - Decisión pendiente con el owner: ¿la plantilla guarda el rol asignado (`assignedRole`) o solo la lista de personas y el rol se recalcula desde `staff.role` al aplicar? (afecta al diseño de `staff_template_members`).
+  - **Decisión del owner (2026-07-18)**: `assignedRole` se guarda fijo por miembro de plantilla (snapshot al crear/actualizar la plantilla), PERO debe ser editable después — igual que `assignedRole` ya es editable hoy en `event_staff` vía PATCH. Motivo: el rol de un trabajador evoluciona con el tiempo (auxiliar → auxiliar plus → coordinador), especialmente a medida que la puntuación por estrellas (#20) vaya revelando quién rinde excepcionalmente. Por tanto `staff_template_members` necesita también un endpoint PATCH por miembro (mismo patrón que `PATCH /events/:id/staff/:workerId`), no solo alta/baja.
   **Prompt**:
   ```
   Implementa "plantillas guardadas de equipo" para la convocatoria por evento (#80/#81, ya en
-  producción). Migración versionada 0003 (staff_templates + staff_template_members, mismo
-  patrón relacional que event_staff de la migración 0002 — no JSON). Endpoints bajo
-  /api/mysql/staff-templates: crear (desde la convocatoria actual de un evento o desde cero),
-  listar, aplicar a un evento (reutiliza la lógica bulk transaccional de POST
-  /events/:id/staff, idempotente si ya hay convocados), borrar. UI en EventStaffScreen: botón
-  "Guardar como plantilla" y selector "Aplicar plantilla". Antes de implementar, confirma con
-  el owner si la plantilla fija assignedRole o lo recalcula desde staff.role al aplicar. PR
-  separada de cualquier otro cambio, staging-first, con el mismo checklist de revisión que
-  #80/#81 (auth pattern, checksum de migración, tests, e2e con método+ruta reales).
+  producción). Migración versionada 0003 (staff_templates(id, name, created_at) +
+  staff_template_members(template_id, worker_id, assigned_role), mismo patrón relacional que
+  event_staff de la migración 0002 — no JSON). Endpoints bajo /api/mysql/staff-templates:
+  crear (desde la convocatoria actual de un evento o desde cero), listar, PATCH de
+  assignedRole por miembro (mismo patrón que PATCH /events/:id/staff/:workerId — el rol
+  guardado en la plantilla es un snapshot editable, no recalculado desde staff.role: un
+  trabajador puede empezar como auxiliar y pasar a auxiliar plus o coordinador con el tiempo),
+  aplicar a un evento (reutiliza la lógica bulk transaccional de POST /events/:id/staff,
+  idempotente si ya hay convocados), borrar. UI en EventStaffScreen: botón "Guardar como
+  plantilla" y selector "Aplicar plantilla", con edición inline del rol de cada miembro dentro
+  de la plantilla. PR separada de cualquier otro cambio, staging-first, con el mismo checklist
+  de revisión que #80/#81 (auth pattern, checksum de migración, tests, e2e con método+ruta
+  reales).
   ```
 
 - [ ] **20. Puntuación de 1 a 5 estrellas para miembros de la plantilla (rojo → verde).** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
