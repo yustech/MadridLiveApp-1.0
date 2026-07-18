@@ -360,6 +360,32 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   migración, tests, e2e con método+ruta reales).
   ```
 
+- [ ] **21. El QR por WhatsApp debe enviarse al teléfono del propio trabajador.** *(añadida 2026-07-18, decisión del owner)*
+  **Contexto**: hoy el botón "Enviar QR por WhatsApp" (`ProfileScreen.tsx` y `ScannerScreen.tsx`, ambos con el mismo enlace duplicado) abre `https://api.whatsapp.com/send?text=...` **sin** parámetro `phone` — WhatsApp Web/App deja elegir manualmente cualquier contacto de la agenda del que pulsa el botón, en vez de ir directo al trabajador. A escala de 901 personas esto es lento y propenso a error (enviar el QR de una persona a otra). Verificado contra los datos reales cargados (`staff-clean.json`): el teléfono se guarda tal cual vino del Excel — dígitos españoles sin prefijo de país ni separadores (p.ej. `602618048`), **7 de 901 trabajadores no tienen teléfono registrado**.
+  **Modelo/Effort**: Codex-implementa + Claude-revisa (mismo patrón que #19/#20). Effort bajo — sin migración ni backend nuevo (`staff.phone` ya existe), solo frontend + una función de normalización compartida.
+  **Por qué**: pedido directo del owner para agilizar el envío de credenciales a los 901 trabajadores reales.
+  **Alcance orientativo (a validar antes de implementar)**:
+  - Nueva utilidad compartida (p.ej. `src/utils/whatsappShare.ts`) que normalice el teléfono a formato E.164 sin `+` para el parámetro `phone` de la API de WhatsApp (`https://api.whatsapp.com/send?phone=34XXXXXXXXX&text=...`): quitar espacios/guiones, quitar un prefijo `0034`/`+34`/`34` si ya viene incluido, anteponer `34` (España) al resultado.
+  - Reutilizar esa utilidad en **ambos** sitios (`ProfileScreen.tsx` y `ScannerScreen.tsx`) en vez de mantener el enlace de WhatsApp duplicado como hoy — eliminar la duplicación de paso.
+  - Trabajador sin teléfono o con teléfono que no normalice a un móvil español plausible (9 dígitos): el botón debe reflejarlo claramente (deshabilitado + texto tipo "Sin teléfono registrado"), nunca caer en silencio al comportamiento antiguo de "elige tú el contacto" — eso repetiría el problema que se quiere resolver.
+  - No hace falta migración ni endpoint nuevo; si se quiere, unit tests de la función de normalización con casos reales (9 dígitos limpios, con espacios, con `+34`, con `0034`, vacío, demasiado corto).
+  **Prompt**:
+  ```
+  El botón "Enviar QR por WhatsApp" en ProfileScreen.tsx y ScannerScreen.tsx (enlace duplicado
+  en ambos, `https://api.whatsapp.com/send?text=...`) debe abrir el chat de WhatsApp del propio
+  trabajador en vez de dejar elegir contacto manualmente. Crea src/utils/whatsappShare.ts con
+  una función de normalización de teléfono español a formato E.164 sin '+' (quita espacios/
+  guiones, quita prefijo 0034/+34/34 si ya está, antepone 34) y una función que construye la URL
+  final con `phone=<normalizado>&text=...`; reutilízala en los dos sitios, eliminando el enlace
+  duplicado. Datos reales verificados: staff.phone son 9 dígitos españoles sin prefijo (p.ej.
+  "602618048"), 7 de 901 trabajadores sin teléfono. Si el teléfono está vacío o no normaliza a
+  un móvil español plausible (9 dígitos), el botón debe mostrarse deshabilitado con un texto
+  claro tipo "Sin teléfono registrado" — nunca caer silenciosamente al comportamiento antiguo
+  sin destinatario. Sin cambios de backend/migración (staff.phone ya existe). Unit tests de la
+  normalización con casos reales (limpio, con espacios, con +34/0034, vacío, demasiado corto).
+  PR propia, staging-first, mismo checklist de revisión que #80/#81/#84.
+  ```
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)
