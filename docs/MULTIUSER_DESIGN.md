@@ -1,12 +1,10 @@
 # Diseño: Multi-usuario real (backlog #18)
 
-Estado: **respuestas del owner incorporadas 2026-07-18** (roles, visibilidad
-de `operator` y recuperación de contraseña por email — ver "Preguntas
-abiertas" al final). Queda un detalle operativo por confirmar antes de
-implementar (dominio de correo en Hestia para el remitente), marcado
-explícitamente. No implementar nada de este documento (código ni base de
-datos) sin luz verde final del owner sobre esta versión, siguiendo el mismo
-precedente que `docs/MIGRATION_FRAMEWORK_DESIGN.md` (#14).
+Estado: **diseño aprobado por el owner 2026-07-18** (roles, visibilidad de
+`operator`, recuperación de contraseña por email y buzón remitente — ver
+"Preguntas del owner" al final). Sin bloqueos pendientes. Implementación
+siguiendo el mismo precedente que `docs/MIGRATION_FRAMEWORK_DESIGN.md`
+(#14): Codex implementa, Claude revisa, staging-first.
 
 ## Objetivo
 
@@ -225,12 +223,17 @@ relay SMTP local del propio servidor.
   4. Rate-limit de `forgot-password` por IP y por email (mismo patrón que el
      rate-limit de login ya existente en `server.ts`), para que no sirva
      para bombardear de correos a una cuenta ajena.
-- **Pendiente de confirmar antes de implementar** (detalle operativo, no de
-  diseño): si `madridliveapp.top` ya tiene un dominio/buzón de correo dado de
-  alta en Hestia para usar como remitente (p. ej. `no-reply@madridliveapp.top`
-  o reusar un buzón ya existente en este Hestia), o si hay que darlo de alta
-  primero. La consulta a Hestia (`v-list-mail-domains`) requiere permisos que
-  esta sesión no tiene — lo confirma Carlos directamente en el panel antes de
+- **Confirmado por el owner 2026-07-18**: buzón remitente ya dado de alta en
+  Hestia — `hola@madridliveapp.top` (SMTP `mail.madridliveapp.top`, puerto
+  `587` STARTTLS o `465` SSL/TLS, auth normal). Se usará como remitente de los
+  emails de recuperación. **Las credenciales viven exclusivamente en el
+  `.env` de cada entorno** (`MAIL_SMTP_HOST`, `MAIL_SMTP_PORT`,
+  `MAIL_SMTP_USER`, `MAIL_SMTP_PASSWORD`, `MAIL_FROM` — nombres orientativos,
+  a definir en la implementación) — el repo es **público**, así que la
+  contraseña de este buzón nunca debe aparecer en ningún commit, PR, comentario
+  ni fichero versionado; Carlos la añade directamente a
+  `/opt/madridlive-app{,-staging}/.env` cuando arranque la implementación de
+  esta parte, igual que ya se hace con `ADMIN_API_TOKEN`/`ADMIN_LOGIN_PASSWORD`.~~
   que Codex implemente esta parte.
 
 ### 6. Frontend
@@ -268,10 +271,9 @@ relay SMTP local del propio servidor.
    5b, usando el relay SMTP local ya activo en el servidor (Exim4) y
    `nodemailer` como única dependencia nueva.
 
-**Único punto operativo pendiente** (no bloquea la aprobación del diseño, sí
-bloquea el arranque de esa parte concreta de la implementación): confirmar en
-Hestia el dominio/buzón de correo a usar como remitente de los emails de
-recuperación (sección 5b).
+**Punto operativo cerrado 2026-07-18**: buzón remitente confirmado
+(`hola@madridliveapp.top`, detalle SMTP en la sección 5b). **Diseño
+completamente aprobado, sin bloqueos — listo para pasar a implementación.**
 
 ## Plan de rollout (una vez aprobado)
 
