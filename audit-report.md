@@ -386,29 +386,39 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   PR propia, staging-first, mismo checklist de revisión que #80/#81/#84.
   ```
 
-- [ ] **22. "Escaneos/min" y "déficit de personal" deben salir de datos reales, no de campos manuales.** *(añadida 2026-07-18, análisis propio revisado y corregido por Claude, aprobado por el owner)*
+- [ ] **22. "Escaneos/min" y "déficit de personal" deben salir de datos reales, no de campos manuales.** *(añadida 2026-07-18, análisis propio + ajustes de Codex, ambos verificados por Claude contra el código antes de aceptarlos)*
   **Contexto**: verificado en código línea a línea. `KPIScreen.tsx` promedia `event.scanRate` (campo manual estático, `validators.ts` lo acepta 0-100 sin relación con turnos reales) entre eventos filtrados; `DashboardScreen.tsx` muestra `liveEvent?.scanRate` directo. `workerLifecycle.ts` (el handler de `POST /checkin`) no escribe `scan_rate` en ningún punto — es un dato que nunca se actualiza solo. Por separado, `deficitUpcomingEvents` en `DashboardScreen.tsx` usa `event.activeStaff` (campo legacy) en vez de la convocatoria real (`event_staff`, migración #80/#81 ya en producción), y el mensaje vacío `"No hay conciertos con deficit de personal ahora mismo."` se muestra cuando `listedEvents.length === 0` **sin comprobar si el filtro "Solo déficit" está activo** — aparece igual aunque simplemente no haya próximos conciertos. Hallazgo adicional (no reportado originalmente): `getCoverageStats()` tiene la misma causa raíz pero peor — para eventos futuros fija `active = 0` siempre, así que hoy todo evento futuro muestra 0% de cobertura sin importar cuánta gente esté convocada.
+  **Corrección propia tras revisión de Codex**: la primera versión de esta tarea recomendaba reutilizar `getShiftStartTimestamp` de `src/utils/shifts.ts` para el parseo — verificado que es un error: esa función **sí cae a reconstruir la fecha desde `dateString`/`timespan` legacy** cuando falta `startedAt` (líneas 82-94), pensada para turnos antiguos sin timestamp real. Para una métrica en tiempo real hay que usar **solo `startedAt` canónico** (vía `getValidDateTimestamp(shift.startedAt)`, sin fallback legacy) — si no hay `startedAt` válido, ese fichaje no cuenta para la ventana. Codex además detectó (verificado por Claude) que `presentStaff`/`checkedInStaffCount` en `DashboardScreen.tsx` (usado en "Pendientes ahora") calcula presencia con `isWorkerPresentNow`, que **no filtra por evento** — si dos eventos están operativos a la vez (p. ej. uno "hoy" y otro en registro extendido), el conteo mezcla presentes de ambos. Ya existe `isShiftLinkedToEvent(shift, event)` en el mismo archivo para filtrar correctamente, sin reinventar nada.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort medio.
   **Por qué**: los indicadores operativos del Dashboard/KPI no reflejan la realidad — son ruido, no señal, para quien opera un concierto.
   **Alcance**:
-  - "Escaneos/min" = `(fichajes de entrada con shifts.startedAt en los últimos 5 minutos, filtrados por eventId) / 5`, redondeado a 1 decimal — una tasa suavizada, no un contador crudo de 60s (más estable de un vistazo). Solo cuenta `checkin` (cada uno crea una fila nueva en `shifts`, sin riesgo de doble conteo con `checkout`, que solo actualiza `endedAt`). Reutilizar `getShiftStartTimestamp` de `src/utils/shifts.ts` para el parseo, no reimplementar.
-  - Dashboard: valor del evento operativo. KPI con evento seleccionado: valor de ese evento. KPI "Todos los eventos": suma de fichajes del último minuto (ventana de 5 min) de los eventos filtrados, no promedio de `scanRate`.
+  - "Escaneos/min" = `count(checkins con startedAt canónico válido en los últimos 5 minutos, filtrados por eventId) / 5`, redondeado a 1 decimal. Solo cuenta `checkin` (cada uno crea una fila nueva en `shifts`, sin doble conteo con `checkout`, que solo actualiza `endedAt`). **No usar reconstrucciones legacy de fecha** (`dateString`/`timespan`) para esta métrica — solo `startedAt`.
+  - Dashboard: valor del evento operativo. KPI con evento seleccionado: valor de ese evento. KPI "Todos los eventos": suma de fichajes en los últimos 5 minutos de los eventos filtrados, no promedio de `scanRate`.
+  - Etiqueta: "Media de fichajes/min · últimos 5 min", con ayuda "N fichajes en 5 min".
+  - "Pendientes ahora" (`checkedInStaffCount`/`presentStaff`): filtrar los turnos activos por `eventId` del evento operativo (vía `isShiftLinkedToEvent`) antes de contar presentes — el conteo global no sirve si coinciden eventos operativos.
   - Actualizar con el polling ya existente de `shifts` (`sharedPoller.ts`).
-  - Renombrar la ayuda a algo que deje clara la ventana de 5 minutos.
   - `events.scan_rate` queda como columna legacy (no se borra), pero deja de leerse para estas métricas.
-  - Déficit: próximos conciertos = `requiredStaff - count(event_staff)` vía agregación en el `GET /events` (JOIN + GROUP BY o subconsulta correlacionada, patrón ya usado en el repo — sin petición N+1 por evento); evento operativo = `requiredStaff - turnos activos` (ya existe, no tocar). Corregir también `getCoverageStats()` para que los eventos futuros usen la convocatoria real en vez de `active = 0` fijo.
+  - Déficit: próximos conciertos = `requiredStaff - count(event_staff)` vía agregación en el `GET /events` (JOIN + GROUP BY o subconsulta correlacionada, patrón ya usado en el repo — sin petición N+1 por evento); evento operativo = `requiredStaff - turnos activos` (ya existe, no tocar, salvo el filtrado por evento del punto anterior). Corregir también `getCoverageStats()` para que los eventos futuros usen la convocatoria real en vez de `active = 0` fijo.
   - Mensajes: filtro "Solo déficit" activo y sin resultados → "No hay próximos conciertos con déficit de convocatoria."; sin filtro y sin próximos eventos → "No hay próximos conciertos programados." Corregir "deficit" → "déficit" en todo el archivo (incl. el hallazgo de `getCoverageStats`).
-  - Tests unitarios con reloj simulado: fichajes dentro/fuera de la ventana de 5 min, fichajes de otros eventos, `startedAt` inválido/nulo; tests de déficit con evento sin convocatoria, convocatoria completa, exceso de convocados y lista vacía en ambos filtros.
+  - Tests unitarios con reloj simulado: fichajes dentro/fuera de la ventana de 5 min, fichajes de otros eventos, `startedAt` inválido/nulo/legacy-sin-timestamp (debe excluirse, no reconstruirse); tests de "Pendientes ahora" con dos eventos operativos simultáneos; tests de déficit con evento sin convocatoria, convocatoria completa, exceso de convocados y lista vacía en ambos filtros.
   **Prompt**:
   ```
   Dos causas raíz relacionadas, misma PR: (A) "Escaneos/min" en DashboardScreen/KPIScreen usa
   hoy events.scanRate, un campo manual que POST /checkin nunca actualiza. Sustitúyelo por una
-  tasa real: fichajes de checkin con shifts.startedAt en los últimos 5 minutos / 5, redondeado a
-  1 decimal, filtrado por eventId (Dashboard = evento operativo, KPI = evento seleccionado o
-  suma de todos los filtrados si es "Todos los eventos"). Solo cuenta checkin (cada uno crea una
-  fila nueva en shifts, sin doble conteo con checkout). Reutiliza getShiftStartTimestamp de
-  src/utils/shifts.ts. Actualiza con el polling ya existente de shifts. events.scan_rate queda
-  en el esquema como legacy, sin usarse ya en estas métricas.
+  tasa real: count(checkins con shifts.startedAt CANÓNICO válido en los últimos 5 minutos,
+  filtrado por eventId) / 5, redondeado a 1 decimal (Dashboard = evento operativo, KPI = evento
+  seleccionado o suma de todos los filtrados si es "Todos los eventos"). Solo cuenta checkin
+  (cada uno crea una fila nueva en shifts, sin doble conteo con checkout). USA SOLO startedAt
+  (getValidDateTimestamp) -- NO uses getShiftStartTimestamp de src/utils/shifts.ts para esto,
+  esa función cae a reconstruir la fecha desde dateString/timespan legacy cuando falta
+  startedAt, lo cual no es válido para una métrica en tiempo real (un turno legacy sin timestamp
+  real no debe poder "aparecer" dentro de la ventana de 5 min). Etiqueta: "Media de fichajes/min
+  · últimos 5 min", ayuda "N fichajes en 5 min". Actualiza con el polling ya existente de
+  shifts. events.scan_rate queda en el esquema como legacy, sin usarse ya en estas métricas.
+  También corrige "Pendientes ahora" (checkedInStaffCount/presentStaff en DashboardScreen): hoy
+  isWorkerPresentNow no filtra por evento, así que si dos eventos están operativos a la vez el
+  conteo se mezcla. Filtra los turnos por isShiftLinkedToEvent(shift, liveEvent) antes de
+  calcular presencia.
   (B) El déficit de personal en DashboardScreen usa event.activeStaff (legacy) en vez de
   event_staff real, y el mensaje vacío "No hay conciertos con deficit..." aparece aunque el
   filtro "Solo déficit" esté desactivado (bug: no comprueba el estado del filtro). Cambia
@@ -417,28 +427,32 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   resultados con el filtro activo" de "no hay próximos conciertos", y corrige "deficit" a
   "déficit" en todo el archivo. Corrige también getCoverageStats(), que hoy fija active=0
   siempre para eventos futuros — debe usar la misma convocatoria real. Tests unitarios con
-  reloj simulado para ambas partes (ventana de 5 min, eventos sin convocatoria, convocatoria
-  completa, exceso de convocados, filtros vacíos). PR propia, staging-first, mismo checklist de
-  revisión que #80/#81/#84/#86.
+  reloj simulado para todo lo anterior (ventana de 5 min con startedAt legacy/inválido excluido,
+  dos eventos operativos simultáneos, eventos sin convocatoria, convocatoria completa, exceso de
+  convocados, filtros vacíos). PR propia, staging-first, mismo checklist de revisión que
+  #80/#81/#84/#86.
   ```
 
 - [ ] **23. Ocultar "Avance de montaje" de las vistas operativas.** *(añadida 2026-07-18, decisión del owner)*
   **Contexto**: `events.loadInPercent` es un porcentaje manual e independiente de los fichajes reales — hoy solo es editable desde `DatabaseManagerScreen` → pestaña Eventos → `RecordFormModal.tsx`, un panel técnico que nadie usa en el día a día, así que el valor se queda fijo (p. ej. en 0%) aunque haya trabajadores dentro del recinto. El owner ha decidido que, al no existir un proceso real que lo mantenga actualizado, es mejor ocultarlo que mostrar un dato engañoso o construir un editor nuevo para un proceso que no existe.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo — solo dejar de renderizar, sin tocar esquema ni backend.
   **Por qué**: un indicador que nunca se actualiza es peor que no mostrarlo — induce a error sobre el estado real del montaje.
-  **Alcance**:
-  - Ocultar "Avance de montaje"/`loadInPercent` de las vistas operativas (tarjeta de detalle de evento en `DashboardScreen.tsx`, línea de resumen en `EventsTab.tsx` de `DatabaseManagerScreen`, y cualquier otro uso en KPI).
+  **Alcance** (dos ubicaciones exactas confirmadas en `DashboardScreen.tsx`, ajuste de Codex):
+  - Retirar **"Estado del montaje"** de la tarjeta principal (`liveEvent?.loadInPercent`) y **"Avance del montaje"** del detalle de evento (`selectedDetailEvent.loadInPercent`) — son dos renders distintos del mismo campo, hay que quitar los dos. También la línea de resumen en `EventsTab.tsx` de `DatabaseManagerScreen`, y cualquier otro uso en KPI.
+  - Reajustar el grid/layout de la tarjeta y el detalle al eliminar la métrica (no dejar un hueco vacío).
   - No borrar la columna `events.load_in_percent` del esquema ni el campo del formulario técnico en `DatabaseManagerScreen`/`RecordFormModal.tsx` — queda disponible por si se reactiva con un proceso real más adelante.
   - No confundir con la cobertura de personal (derivada de turnos), que se mantiene y no se toca en esta tarea.
   **Prompt**:
   ```
-  Oculta "Avance de montaje" (events.loadInPercent) de las vistas operativas: la tarjeta de
-  detalle de evento en DashboardScreen.tsx y la línea de resumen en
-  databaseManager/EventsTab.tsx (y cualquier otro sitio operativo que lo muestre). No toques el
-  esquema (events.load_in_percent se queda) ni el campo de edición ya existente en
-  DatabaseManagerScreen/RecordFormModal.tsx — solo deja de mostrarse fuera del panel técnico. No
-  toques la cobertura de personal (derivada de turnos), es un concepto aparte. PR propia,
-  staging-first.
+  Oculta "Avance de montaje" (events.loadInPercent) de las vistas operativas -- hay DOS
+  renders distintos a retirar en DashboardScreen.tsx: "Estado del montaje" en la tarjeta
+  principal (liveEvent?.loadInPercent) y "Avance del montaje" en el detalle de evento
+  (selectedDetailEvent.loadInPercent), más la línea de resumen en databaseManager/EventsTab.tsx
+  (y cualquier otro sitio operativo que lo muestre). Reajusta el grid/layout al quitar la
+  métrica, sin dejar huecos. No toques el esquema (events.load_in_percent se queda) ni el campo
+  de edición ya existente en DatabaseManagerScreen/RecordFormModal.tsx — solo deja de mostrarse
+  fuera del panel técnico. No toques la cobertura de personal (derivada de turnos), es un
+  concepto aparte. PR propia, staging-first.
   ```
 
 - [ ] **24. Puntuación por estrellas interactiva desde el perfil del trabajador.** *(añadida 2026-07-18, decisión del owner)*
@@ -463,58 +477,78 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   (NO reabrir #86, ya está en producción), staging-first, mismo checklist de revisión que #86.
   ```
 
-- [ ] **25. Retirar "Lector Puerta Principal" y el selector de zonas obsoleto del check-in manual.** *(añadida 2026-07-18, decisión del owner)*
-  **Contexto**: verificado en código. `ScannerScreen.tsx` envía literalmente el string `'Lector Puerta Principal'` como `location` en cada checkin por QR; `workerLifecycle.ts` lo guarda en `staff.location`; `databaseManager/StaffTab.tsx` (pestaña "Colaboradores" de `DatabaseManagerScreen`, no `StaffScreen.tsx` principal) lo muestra entre paréntesis junto al rol. `ProfileScreen.tsx` tiene además su propio modal de check-in manual con un selector de 5 zonas fijas ("Stage Left", "FOH Audio", "Loading Dock", "Backstage VIP", "Artist Entrance") que también escribe en `staff.location`. No se encontró un widget "Zonas activas" literal en el código actual — puede que ya se retirase en un refactor anterior (`KPIScreen.tsx` tiene un comentario que dice explícitamente que ya sustituyó el análisis por zonas físicas por cobertura por especialidad); si al implementar no aparece nada que retirar ahí, no es un problema. **Ojo**: `alerts.zone` (usado en `databaseManager/AlertsTab.tsx`, "Zona: {item.zone}") es un campo completamente distinto — la zona física de una alerta de equipo, no la ubicación de un trabajador — no debe tocarse.
+- [ ] **25. Retirar "Lector Puerta Principal" y el selector/contador de zonas obsoletos.** *(añadida 2026-07-18, decisión del owner + corrección de Codex verificada por Claude)*
+  **Contexto**: verificado en código. `ScannerScreen.tsx` envía literalmente el string `'Lector Puerta Principal'` como `location` en cada checkin por QR; `workerLifecycle.ts` lo guarda en `staff.location`; `databaseManager/StaffTab.tsx` (pestaña "Colaboradores" de `DatabaseManagerScreen`, no `StaffScreen.tsx` principal) lo muestra entre paréntesis junto al rol. `ProfileScreen.tsx` tiene además su propio modal de check-in manual con un selector de 5 zonas fijas ("Stage Left", "FOH Audio", "Loading Dock", "Backstage VIP", "Artist Entrance") que también escribe en `staff.location`.
+  **Corrección propia tras aviso de Codex**: la primera versión de esta tarea decía "no se encontró 'Zonas activas' en el código" — error de Claude, esa búsqueda solo cubrió `src/components/`, no `src/App.tsx`. Verificado ahora: **`App.tsx` SÍ contiene "Zonas Activas"** (línea ~636, label + valor) respaldado por `activeZonesCount` (línea ~76, `new Set(...)` sobre `staff.location`) — hay que retirar ambos. También revisar el resto de `App.tsx` por otras referencias textuales obsoletas a zonas de trabajadores que puedan quedar sueltas tras quitar el contador.
+  **Ojo**: `alerts.zone` (usado en `databaseManager/AlertsTab.tsx`, "Zona: {item.zone}") es un campo completamente distinto — la zona física de una alerta de equipo, no la ubicación de un trabajador — no debe tocarse.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo — solo dejar de generar/mostrar el dato, sin tocar esquema.
   **Por qué**: la funcionalidad de zonas de trabajo está a medias y muestra un literal sin sentido operativo real hoy.
   **Alcance**:
-  - `ScannerScreen.tsx`: dejar de enviar `'Lector Puerta Principal'` como `location` en el checkin QR.
+  - `ScannerScreen.tsx`: dejar de enviar `'Lector Puerta Principal'` como `location` en el checkin QR. `normalizeCheckInLocation` (en `server/mysql/payload.ts`) ya devuelve `null` para vacío/undefined (líneas 35-36) — basta con no enviar nada desde el frontend, el `NULL` en `staff.location` sale gratis, sin cambios de backend.
   - `databaseManager/StaffTab.tsx`: quitar el `(item.location)` de la tarjeta de colaborador.
   - `ProfileScreen.tsx`: retirar el selector de 5 zonas del modal de check-in manual (y el envío de `customLocation` que lo acompaña).
+  - `App.tsx`: retirar "Zonas Activas" y `activeZonesCount`, y cualquier otra referencia textual obsoleta a zonas de trabajadores que dependa de ellos.
   - No borrar la columna `staff.location` del esquema — se conserva por si se reactiva la función más adelante.
   - No tocar `event.location` (ubicación del concierto) ni `alerts.zone` (zona de una alerta de equipo) — son campos distintos, sin relación.
-  - No hacer borrado masivo de `staff.location` en producción — basta con dejar de generar/mostrar el dato mientras la función está desactivada.
-  - E2E de regresión: un fichaje por QR no debe mostrar "Lector Puerta Principal" en Colaboradores.
+  - No hacer borrado masivo de `staff.location` en producción — basta con dejar de generar/mostrar el dato mientras la función está desactivada; los check-in/checkout nuevos sí deben dejar `staff.location` en `NULL` (consecuencia natural de no enviar el literal, no un backfill).
+  - E2E de regresión: un fichaje por QR no debe mostrar "Lector Puerta Principal" en Colaboradores ni afectar a "Zonas Activas" (porque ya no existe).
   **Prompt**:
   ```
   Retira la funcionalidad de zona de trabajo del check-in, que hoy está a medias: (1)
   ScannerScreen.tsx deja de enviar el literal 'Lector Puerta Principal' como location en el
-  checkin QR; (2) databaseManager/StaffTab.tsx (pestaña Colaboradores) quita el (item.location)
+  checkin QR (normalizeCheckInLocation en server/mysql/payload.ts ya devuelve null para
+  vacío/undefined, así que basta con no enviar nada -- no hace falta tocar el backend para que
+  quede NULL); (2) databaseManager/StaffTab.tsx (pestaña Colaboradores) quita el (item.location)
   de la tarjeta; (3) ProfileScreen.tsx retira el selector de 5 zonas fijas del modal de check-in
-  manual y el envío de customLocation. NO borres la columna staff.location del esquema (se
-  conserva para una futura reactivación) ni hagas borrado masivo de datos en producción. NO
-  toques event.location (ubicación del concierto) ni alerts.zone (zona de una alerta de
-  equipo, en AlertsTab.tsx) — son campos distintos sin relación con esto. Si buscas un widget
-  "Zonas activas" y no lo encuentras, puede que ya se retirase antes; no es bloqueante. E2E de
-  regresión: un fichaje QR no debe mostrar "Lector Puerta Principal" en ningún sitio. PR propia,
-  staging-first.
+  manual y el envío de customLocation; (4) App.tsx retira "Zonas Activas" y activeZonesCount
+  (búscalos en App.tsx directamente, no solo en src/components/), más cualquier referencia
+  textual obsoleta a zonas de trabajadores que dependa de ese contador. NO borres la columna
+  staff.location del esquema (se conserva para una futura reactivación) ni hagas borrado masivo
+  de datos en producción -- los check-in/checkout nuevos simplemente dejan location en NULL de
+  forma natural al no enviar nada. NO toques event.location (ubicación del concierto) ni
+  alerts.zone (zona de una alerta de equipo, en AlertsTab.tsx) — son campos distintos sin
+  relación con esto. E2E de regresión: un fichaje QR no debe mostrar "Lector Puerta Principal"
+  en ningún sitio, ni quedar rastro de "Zonas Activas". PR propia, staging-first.
   ```
 
-- [ ] **26. Avatar de iniciales por defecto (sin inferencia de género por nombre).** *(añadida 2026-07-18, decisión del owner tras análisis de riesgo de privacidad)*
+- [ ] **26. Avatar de iniciales por defecto (sin inferencia de género por nombre).** *(añadida 2026-07-18, decisión del owner tras análisis de riesgo de privacidad + ajustes de Codex verificados por Claude)*
   **Contexto**: verificado en código — hoy **no existe ninguna inferencia de género por nombre**. `dbService.ts` aplica un único fallback fijo (`DEFAULT_STAFF_AVATAR`) a todo avatar vacío, sin mirar el nombre; es un fallback de **renderizado** (se calcula al leer, no se guarda en BD). El owner ha decidido explícitamente no introducir clasificación automática de género por nombre (riesgo de identidad/dignidad con 901 personas reales, nombres compuestos y de culturas distintas) y sustituir el fallback fijo por un avatar de iniciales generado de forma determinista.
+  **Corrección propia tras ajuste de Codex**: la primera versión decía "inicial del nombre + inicial del primer apellido" — verificado contra una muestra real de `staff-clean.json` que esto es ambiguo: nombres compuestos ("Miguel Ángel Robles Álvarez") harían que la 2ª palabra sea parte del nombre, no el apellido, y partículas ("Alejandro **de la** Rosa Nuñez") romperían un split ingenuo por posición. Codex tiene razón: usar **primera y última palabra significativa** del campo `name` (ignorando partículas en minúscula como "de"/"la"/"del"/"los"), no intentar identificar "el primer apellido" con certeza — la BD no lo permite.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo-medio. **Sin backfill de base de datos** — al ser un cambio de renderizado (igual que el fallback actual), cubre automáticamente tanto los 898 trabajadores ya cargados sin avatar como cualquier alta nueva, con el mismo cambio de código.
   **Por qué**: evita adivinar identidad/género de una persona real para un elemento puramente decorativo (diferenciar filas visualmente), sin mantener ni revisar ninguna lista de nombres.
   **Alcance**:
-  - Sustituir `DEFAULT_STAFF_AVATAR` en `dbService.ts` por un componente/función que genere un avatar de iniciales (2 letras: inicial del nombre + inicial del primer apellido, mayúsculas, sin acentos) sobre un color de fondo determinista derivado de un identificador estable (`idCode` o `id`, nunca del nombre, para que no cambie si se corrige el nombre).
-  - Contraste de texto legible sobre el fondo generado (no hace falta la validación categórica completa de la skill `dataviz` — no son colores en comparación entre sí, son insignias decorativas — pero sí un chequeo de contraste texto/fondo razonable, p. ej. WCAG ≥ 4.5:1).
+  - Componente reutilizable `StaffAvatar` (ajuste de Codex) que sustituye el uso directo de `DEFAULT_STAFF_AVATAR` en `dbService.ts`: preserva `worker.avatar` vacío tal cual en los datos (no lo reescribe), y renderiza las iniciales **solo en presentación**.
+  - Iniciales = primera y última palabra significativa de `worker.name` (mayúsculas, sin acentos, ignorando partículas en minúscula tipo "de"/"la"/"del"/"los"); si solo hay una palabra, usar sus dos primeras letras.
+  - El mismo `StaffAvatar` debe usar iniciales también si falla la carga de una URL personalizada (`onError`), en vez del actual fallback a `DEFAULT_AVATAR` en `avatarUpload.ts` (`setFallbackAvatar`).
+  - Color de fondo determinista: elegir por `hash(idCode o id) % 8` **desde una paleta fija ya validada** (ajuste de Codex) — reutilizar los 8 tonos categóricos de la skill `dataviz` (`references/palette.md`), que ya vienen con contraste y separación CVD comprobados, en vez de generar colores nuevos a mano. Nunca derivar el color del nombre (para que no cambie si se corrige el nombre).
+  - Contraste de texto legible sobre cada uno de los 8 fondos (WCAG ≥ 4.5:1) — verificar con el color de texto fijo elegido (probablemente blanco u oscuro según la paleta) contra los 8 tonos, no solo "en general".
   - Nunca sobrescribe un avatar personalizado ya subido — mismo criterio que hoy (`worker.avatar?.trim() || fallback`).
   - El selector manual existente ("Foto mujer por defecto" / "Foto hombre por defecto" / subir imagen) en `StaffScreen.tsx`/`RecordFormModal.tsx` se mantiene intacto — sigue siendo la única vía para asignar una foto con género, siempre explícita y persona a persona, nunca automática.
-  - Tests: iniciales con nombres compuestos, con acentos, con un solo nombre (sin apellido), color determinista estable para el mismo `idCode`, avatar personalizado nunca sobrescrito.
+  - Tests: iniciales con nombres compuestos, con partículas ("de la", "del"), con acentos, con una sola palabra, color determinista estable para el mismo `idCode`, avatar personalizado nunca sobrescrito, fallback a iniciales cuando la URL personalizada falla al cargar.
   **Prompt**:
   ```
   Sustituye el fallback de avatar fijo (DEFAULT_STAFF_AVATAR en dbService.ts, aplicado hoy a
-  todo avatar vacío sin mirar el nombre) por un avatar de iniciales generado de forma
-  determinista: 2 letras (inicial del nombre + inicial del primer apellido, mayúsculas, sin
-  acentos) sobre un color de fondo derivado de un hash de idCode/id (nunca del nombre). Es un
-  cambio de renderizado, no de BD -- no hace falta migración ni backfill, cubre both los 898
-  trabajadores actuales sin avatar y cualquier alta nueva con el mismo código. Nunca sobrescribe
-  un avatar personalizado ya subido (mismo criterio que el fallback actual). NO implementes
-  ninguna inferencia de género por nombre -- decisión explícita del owner por riesgo de
-  identidad con datos reales. El selector manual existente (foto mujer/hombre por defecto/subir
-  imagen) en StaffScreen.tsx/RecordFormModal.tsx se mantiene sin cambios. Verifica contraste de
-  texto legible sobre el fondo generado. Tests: nombres compuestos, acentos, un solo nombre,
-  color estable para el mismo idCode, avatar personalizado nunca sobrescrito. PR propia,
-  staging-first.
+  todo avatar vacío sin mirar el nombre) por un componente reutilizable StaffAvatar que preserva
+  worker.avatar vacío en los datos (no lo reescribe) y renderiza iniciales SOLO en presentación.
+  Iniciales = primera y última palabra significativa de worker.name (mayúsculas, sin acentos,
+  ignorando partículas en minúscula como de/la/del/los -- NO intentes identificar "el primer
+  apellido", la BD no lo permite con certeza: hay nombres compuestos como "Miguel Ángel" y
+  apellidos con partícula como "de la Rosa"). Si el nombre es una sola palabra, usa sus dos
+  primeras letras. El mismo StaffAvatar debe caer a iniciales también si falla la carga de una
+  URL personalizada (onError), sustituyendo el fallback actual a DEFAULT_AVATAR en
+  avatarUpload.ts/setFallbackAvatar. Color de fondo: hash(idCode) % 8 sobre los 8 tonos
+  categóricos ya validados de la skill dataviz (references/palette.md) -- NO generes colores
+  nuevos, reutiliza esa paleta ya comprobada en contraste/CVD. Nunca derives el color del
+  nombre. Verifica contraste de texto >= 4.5:1 contra los 8 fondos. Es un cambio de
+  renderizado, no de BD -- no hace falta migración ni backfill, cubre tanto los 898 trabajadores
+  actuales sin avatar como cualquier alta nueva con el mismo código. Nunca sobrescribe un avatar
+  personalizado ya subido (mismo criterio que el fallback actual). NO implementes ninguna
+  inferencia de género por nombre -- decisión explícita del owner por riesgo de identidad con
+  datos reales. El selector manual existente (foto mujer/hombre por defecto/subir imagen) en
+  StaffScreen.tsx/RecordFormModal.tsx se mantiene sin cambios. Tests: nombres compuestos,
+  partículas, acentos, una sola palabra, color estable para el mismo idCode, avatar
+  personalizado nunca sobrescrito, fallback a iniciales cuando la URL personalizada falla. PR
+  propia, staging-first.
   ```
 
 ---
