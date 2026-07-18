@@ -327,20 +327,37 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort medio-bajo — un campo nuevo en `staff` + widget de UI, sin lógica de negocio compleja.
   **Por qué**: dar al owner una forma rápida de valorar el desempeño/fiabilidad de cada persona de los 901, visible de un vistazo en la plantilla.
   **Alcance orientativo (a validar antes de implementar)**:
-  - Columna nueva `staff.rating` (TINYINT NULL, 1–5; NULL = sin puntuar) vía migración versionada **0003 o 0004** según orden de ejecución con la tarea #19.
+  - Columna nueva `staff.rating` (TINYINT NULL, 1–5; NULL = sin puntuar) vía migración versionada **0004** (0003 ya la usó la tarea #19).
   - Backend: `validateStaffPatchPayload` acepta `rating` opcional (entero 1–5 o null); GET de staff ya devuelve la columna al añadirla al SELECT.
-  - UI: widget de 5 estrellas clicables en `RosterScreen` (edición inline) y visible en `StaffScreen`/perfil. Gradiente de color por valor: 1★ rojo, 2★ naranja, 3★ amarillo, 4★ amarillo-verde, 5★ verde — usar la skill `dataviz` para fijar los tonos exactos accesibles en modo claro/oscuro en vez de elegir colores a mano.
-  - Decisión pendiente con el owner: ¿quién puede puntuar (solo admin, o cualquier sesión futura de #18)? ¿se guarda histórico de cambios o solo el valor actual? Para el MVP: solo admin, sin histórico (valor único sobrescribible).
+  - UI: widget de 5 estrellas clicables en `RosterScreen` (edición inline) y visible en `StaffScreen`/perfil.
+  - **Decisión del owner (confirmada 2026-07-17, MVP)**: solo admin puntúa, sin histórico (valor único sobrescribible).
+  - **Paleta calculada 2026-07-18 con la skill `dataviz`** (no a ojo — computada y verificada con `scripts/validate_palette.js` y sus helpers internos de OKLCH/CVD; los 5 tonos son fijos, mismo hex en claro y oscuro, igual que la paleta de estado de la skill): esta escala es semánticamente un "status" de 5 pasos (significado reservado, nunca color aislado), no una rampa ordinal de un solo tono ni una paleta categórica — por eso NO se valida con `--ordinal` (falla "single hue" a propósito, el barrido rojo→verde cruza tonos adrede) ni con el validador categórico completo (falla "lightness band"/"CVD all-pairs" a propósito, igual que la paleta de estado documentada en `palette.md`).
+    | ★ | hex (claro y oscuro) | contraste claro | contraste oscuro |
+    |---|---|---|---|
+    | 1 | `#d03b3b` | 4.68:1 | 3.62:1 |
+    | 2 | `#ec835a` | 2.57:1 | 6.60:1 |
+    | 3 | `#fab219` | 1.79:1 | 9.49:1 |
+    | 4 | `#5a8200` | 4.42:1 | 3.84:1 |
+    | 5 | `#0ca30c` | 3.27:1 | 5.19:1 |
+    Los pasos 2 y 3 caen por debajo de 3:1 en modo claro — igual que `warning`/`serious` en la paleta de estado oficial (`palette.md`); la mitigación es la misma: nunca color en solitario. El paso 4 (`#5a8200`, "oliva/verde-amarillento") se buscó por barrido de RGB maximizando la separación CVD frente al paso 3 y el paso 5 a la vez (candidato ingenuo inicial `#7a9c1f` colisionaba casi totalmente con el verde bajo protanopía, ΔE 0.4 — inaceptable en una escala roja-verde, exactamente el caso peor para daltonismo rojo-verde); `#5a8200` deja ΔE protan/verde=9.0, deutan/verde=6.5 (banda "floor", aceptable solo con canal redundante).
+    **Requisito duro de implementación, no opcional**: por eso el widget de estrellas SIEMPRE debe distinguir relleno/vacío por forma (estrella rellena vs. contorno), nunca solo por hue — el recuento de estrellas rellenas es el canal principal y debe leerse igual de bien sin color; el color es refuerzo, no el único portador del valor. Añadir también el número (`N/5`) visible junto al widget (mismo patrón que el resto de la app, que ya combina número + indicador visual).
   **Prompt**:
   ```
-  Implementa puntuación de 1 a 5 estrellas por trabajador. Migración versionada (0003 o la que
-  corresponda tras coordinarla con la tarea #19 si se hace el mismo día): columna
-  staff.rating TINYINT NULL (1-5, NULL = sin puntuar). Backend: validateStaffPatchPayload acepta
-  rating opcional; SELECT de staff la incluye. UI: widget de 5 estrellas clicable en
-  RosterScreen (edición inline) y visible en StaffScreen/perfil, con gradiente de color 1★ rojo
-  → 5★ verde pasando por naranja y amarillo — carga la skill dataviz para fijar los tonos
-  exactos (contraste en claro/oscuro) en vez de improvisar hex codes. MVP: sin histórico, solo
-  admin puntúa. PR propia, staging-first, mismo checklist de revisión que #80/#81.
+  Implementa puntuación de 1 a 5 estrellas por trabajador. Migración versionada 0004 (0003 ya
+  la usa la tarea #19): columna staff.rating TINYINT NULL (1-5, NULL = sin puntuar). Backend:
+  validateStaffPatchPayload acepta rating opcional; SELECT de staff la incluye. UI: widget de 5
+  estrellas clicable en RosterScreen (edición inline) y visible en StaffScreen/perfil.
+
+  Paleta YA CALCULADA con la skill dataviz — usar estos hex tal cual, mismo valor en claro y
+  oscuro, NO improvisar ni pedir otros tonos:
+  1★ #d03b3b · 2★ #ec835a · 3★ #fab219 · 4★ #5a8200 · 5★ #0ca30c
+
+  Requisito duro: el widget debe distinguir estrella rellena de vacía por FORMA (icono
+  relleno/contorno), nunca solo por color — el recuento de estrellas rellenas es el canal
+  principal, el color es refuerzo. Mostrar también el valor numérico "N/5" visible junto al
+  widget. MVP: sin histórico de cambios, solo admin puntúa (owner ya confirmado). PR propia,
+  staging-first, mismo checklist de revisión que #80/#81/#84 (auth pattern, checksum de
+  migración, tests, e2e con método+ruta reales).
   ```
 
 ---
