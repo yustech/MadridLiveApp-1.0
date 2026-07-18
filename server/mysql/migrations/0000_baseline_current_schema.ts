@@ -6,7 +6,11 @@ import {
 } from "./runner";
 
 export const BASELINE_BUSINESS_TABLES = ["staff", "events", "shifts", "alerts"] as const;
-export const POST_BASELINE_BUSINESS_TABLES = ["event_staff"] as const;
+export const POST_BASELINE_BUSINESS_TABLES = [
+  "event_staff",
+  "staff_templates",
+  "staff_template_members",
+] as const;
 export const TECHNICAL_TABLES = ["schema_migrations"] as const;
 
 export const BASELINE_REQUIRED_COLUMNS = [

@@ -1,4 +1,8 @@
 import { EVENT_STAFF_TABLE_DDL } from "./eventStaffTable";
+import {
+  STAFF_TEMPLATE_MEMBERS_TABLE_DDL,
+  STAFF_TEMPLATES_TABLE_DDL,
+} from "./staffTemplatesTables";
 
 interface SchemaInitDb {
   query: (sql: string) => Promise<unknown>;
@@ -46,6 +50,10 @@ export async function initSchema(db: SchemaInitDb) {
 
   // Keep this byte-for-byte identical to migration 0002 for fresh/upgraded schema parity.
   await db.query(EVENT_STAFF_TABLE_DDL);
+
+  // Keep these byte-for-byte identical to migration 0003 for fresh/upgraded schema parity.
+  await db.query(STAFF_TEMPLATES_TABLE_DDL);
+  await db.query(STAFF_TEMPLATE_MEMBERS_TABLE_DDL);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS shifts (

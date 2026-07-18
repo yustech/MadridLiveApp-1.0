@@ -57,4 +57,16 @@ describe("verifyBaselineSnapshot", () => {
 
     expect(() => verifyBaselineSnapshot(snapshot)).not.toThrow();
   });
+
+  it("allows staff template tables created by initSchema before migration checks", () => {
+    const snapshot = baselineSnapshot({
+      tables: [
+        ...baselineSnapshot().tables,
+        "staff_templates",
+        "staff_template_members",
+      ],
+    });
+
+    expect(() => verifyBaselineSnapshot(snapshot)).not.toThrow();
+  });
 });
