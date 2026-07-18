@@ -551,6 +551,43 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   propia, staging-first.
   ```
 
+- [ ] **27. Toda hora visible y toda regla de calendario deben usar siempre `Europe/Madrid`.** *(añadida 2026-07-18, prioridad P0 extrema por decisión del owner)*
+  **Contexto verificado**: el host de la aplicación y MySQL trabajan hoy en UTC (`@@session.time_zone=SYSTEM`, `NOW()=UTC_TIMESTAMP()`), mientras Madrid está dos horas por delante en verano. Esto no es malo para persistencia, pero el código mezcla almacenamiento, lógica y presentación: `server/mysql/dateTime.ts::formatClockLabel()` usa la zona implícita del proceso y por eso genera `timespan` en UTC; `toMysqlDateTimeValue()` usa getters locales; el pool MySQL no fija zona explícita; `StaffScreen.tsx` y varios helpers llaman `toLocaleString`/`new Date(year, month, day...)` sin `timeZone`; y la clasificación de eventos/ventanas operativas usa el día local del host o navegador. El resultado depende de dónde se ejecute cada pieza y falla especialmente cerca de medianoche y en los cambios CET/CEST.
+  **Decisión arquitectónica**: los instantes canónicos (`startedAt`, `endedAt`, `checkedInTime`, `updatedAt`, `createdAt`) se siguen almacenando y transmitiendo en **UTC**. Solo la presentación y las reglas basadas en día/hora civil se resuelven explícitamente en la zona IANA **`Europe/Madrid`**. No sumar `+1`/`+2` manualmente, no convertir la base de datos a hora local y no confiar únicamente en `process.env.TZ` o en la zona del navegador: Madrid cambia automáticamente entre CET y CEST.
+  **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort alto por criticidad y bordes DST. **Debe implementarse antes de #22**, porque KPIs, agrupaciones horarias y ventanas de eventos dependen de una semántica temporal única.
+  **Alcance**:
+  - Crear un módulo temporal compartido, sin dependencia del entorno, con `MADRID_TIME_ZONE = 'Europe/Madrid'` y formatters basados en `Intl.DateTimeFormat(..., { timeZone: MADRID_TIME_ZONE })` para fecha, hora y fecha+hora. Centralizar ahí la obtención de las partes/día civil de Madrid; no repartir literales o sumas de offsets por componentes.
+  - Persistencia: mantener UTC. Fijar explícitamente el pool `mysql2` a UTC (`timezone: 'Z'`) y hacer que `toMysqlDateTimeValue()` serialice con getters UTC. No alterar ni reinterpretar timestamps ya guardados y no crear migración de datos sin un informe previo que demuestre que hay filas no canónicas.
+  - API: los timestamps canónicos deben seguir saliendo como instantes ISO inequívocos (`...Z`). Nunca devolver una fecha MySQL sin zona y esperar que el navegador adivine. `events.doorsOpen` es una hora civil de Madrid ya introducida como `HH:mm`: **se muestra tal cual**, no se le suman dos horas.
+  - Servidor: `formatClockLabel()` debe generar hora Madrid. Las reglas de “hoy”, “futuro”, “pasado”, ventana de registro y año por defecto deben comparar el día civil de Madrid, no `getFullYear/getMonth/getDate` de un proceso UTC. Corregir tanto `server/mysql/lifecycle/eventDateTime.ts`/`shiftGuards.ts` como el fallback `CURRENT_DATE()` del GET de eventos si puede cambiar el año alrededor de medianoche madrileña.
+  - Frontend: auditar toda hora/fecha visible en `StaffScreen`, `ProfileScreen`, `ShiftsScreen` (incl. detalle y CSV), `ScannerScreen`, `DashboardScreen`, `KPIScreen` y pestañas técnicas. Formatear timestamps con `Europe/Madrid` aunque el navegador esté configurado en UTC u otra zona.
+  - Los rangos visibles de turno no deben confiar en el string legacy `timespan`: cuando existan `startedAt`/`endedAt`, derivar de ellos `HH:mm - HH:mm/Presente` en Madrid. Mantener `timespan` solo como fallback para filas antiguas sin timestamps canónicos; hacer un preflight de esas filas antes de plantear cualquier backfill.
+  - Las duraciones y ventanas móviles se siguen calculando con epoch milliseconds/UTC — una duración no lleva zona. Solo sus etiquetas y agrupaciones por día/hora se expresan en Madrid.
+  - En cambios de horario, aceptar que una hora local pueda no existir o repetirse. Los instantes UTC siguen siendo la fuente de verdad; cuando haga falta distinguir la hora repetida de otoño, incluir `CET`/`CEST` o el offset en el detalle.
+  - No tocar `alerts.timestamp` si es un texto manual sin instante canónico; documentarlo como etiqueta legacy. Si se quiere convertir en fecha real, será otra tarea con modelo de datos explícito.
+  - Tests unitarios obligatorios ejecutados con entorno UTC: invierno (`12:00Z → 13:00 CET`), verano (`12:00Z → 14:00 CEST`), salto de primavera, hora repetida de otoño, cruce de medianoche (`22:30Z` de verano → día siguiente en Madrid), clasificación de evento en el día de Madrid y serialización MySQL UTC.
+  - E2E con contexto de navegador `timezoneId: 'UTC'`: crear/fichar usando un timestamp conocido y comprobar que Staff, Perfil, Historial, Scanner y KPI muestran la hora/día de Madrid. Staging-first; comprobar fecha/hora visible y comportamiento de evento alrededor de medianoche antes de producción.
+  **Criterio de aceptación duro**: dado un mismo instante UTC, todas las pantallas y el backend deben producir el mismo día/hora de Madrid independientemente de la zona del host, MySQL o navegador. Cero offsets constantes codificados.
+  **Prompt**:
+  ```
+  Implementa una política temporal única y explícita para toda la app: timestamps canónicos en
+  UTC; presentación y reglas de calendario siempre en la zona IANA Europe/Madrid. Es prioridad
+  P0 y debe ir antes de la tarea #22. NO sumes +1/+2 manualmente, NO conviertas la BD a hora
+  local y NO dependas de la zona del host/navegador: debe respetar CET/CEST automáticamente.
+  Crea un módulo temporal compartido con MADRID_TIME_ZONE='Europe/Madrid' y formatters Intl
+  explícitos. Fija mysql2 timezone:'Z' y serializa DATETIME con getters UTC; la API conserva ISO
+  con Z. Corrige formatClockLabel del servidor, las reglas de hoy/futuro/pasado y ventana de
+  registro para usar el día civil de Madrid. doorsOpen ya es HH:mm Madrid: se muestra tal cual,
+  no se convierte. Audita StaffScreen, ProfileScreen, ShiftsScreen (detalle+CSV), ScannerScreen,
+  DashboardScreen, KPIScreen y vistas técnicas. Los rangos de turno se derivan de
+  startedAt/endedAt canónicos y se formatean Madrid; timespan queda solo como fallback legacy.
+  Duraciones/ventanas móviles siguen usando epoch ms. Tests en entorno UTC: invierno, verano,
+  cambio DST de primavera, hora repetida de otoño, cruce de medianoche y clasificación de
+  eventos por día Madrid. E2E con navegador timezoneId='UTC' que confirme la misma hora Madrid
+  en todas las pantallas. Sin migración/backfill salvo informe previo de filas no canónicas.
+  PR propia, staging-first, mismo checklist de revisión que #80/#81/#84/#86.
+  ```
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)
