@@ -54,6 +54,14 @@ describe('getSchemaStatusFromRows', () => {
 
     expect(getSchemaStatusFromRows(rows).missing).toEqual(['event_staff.assigned_role']);
   });
+
+  it('reports staff templates as incomplete when a member role is missing', () => {
+    const rows = allRequiredRows.filter(
+      (row) => `${row.tableName}.${row.columnName}` !== 'staff_template_members.assigned_role'
+    );
+
+    expect(getSchemaStatusFromRows(rows).missing).toEqual(['staff_template_members.assigned_role']);
+  });
 });
 
 describe('getSchemaStatus', () => {
@@ -66,5 +74,6 @@ describe('getSchemaStatus', () => {
     expect(query).toHaveBeenCalledTimes(1);
     expect(query).toHaveBeenCalledWith(expect.stringContaining('information_schema.columns'));
     expect(query).toHaveBeenCalledWith(expect.stringContaining('dateYear'));
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('staff_template_members'));
   });
 });

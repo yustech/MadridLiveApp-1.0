@@ -136,6 +136,7 @@ export function registerStaffRoutes(app: express.Express, options: StaffRoutesOp
     try {
       const db = getPool();
       await db.execute("DELETE FROM event_staff WHERE worker_id = ?", [req.params.id]);
+      await db.execute("DELETE FROM staff_template_members WHERE worker_id = ?", [req.params.id]);
       await db.execute("DELETE FROM staff WHERE id = ?", [req.params.id]);
       return res.json({ success: true });
     } catch (error: any) {

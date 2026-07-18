@@ -30,6 +30,22 @@ export interface EventStaffMember {
   createdAt: string;
 }
 
+export interface StaffTemplateMember {
+  id: string;
+  idCode: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  assignedRole: EventStaffRole;
+}
+
+export interface StaffTemplate {
+  id: string;
+  name: string;
+  createdAt: string;
+  members: StaffTemplateMember[];
+}
+
 export interface WorkerToggleOutcome {
   success: boolean;
   errorCode?: string;

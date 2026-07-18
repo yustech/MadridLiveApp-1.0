@@ -32,6 +32,7 @@ import {
   updateFilteredSelection,
   type RoleFilter,
 } from './eventStaffUtils';
+import StaffTemplatesPanel from './StaffTemplatesPanel';
 
 interface EventStaffScreenProps {
   event: LiveEvent;
@@ -261,6 +262,12 @@ export default function EventStaffScreen({ event, staff, onBack }: EventStaffScr
           <button type="button" onClick={() => { setIsLoading(true); void loadAssigned(); }} className="font-mono underline">Reintentar</button>
         </div>
       )}
+
+      <StaffTemplatesPanel
+        event={event}
+        assignedCount={assigned.length}
+        onApplied={loadAssigned}
+      />
 
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 md:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
