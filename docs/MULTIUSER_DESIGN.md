@@ -1,8 +1,12 @@
 # Diseño: Multi-usuario real (backlog #18)
 
-Estado: **propuesta pendiente de aprobación del owner**. No implementar nada de
-este documento (código ni base de datos) sin luz verde explícita, siguiendo el
-mismo precedente que `docs/MIGRATION_FRAMEWORK_DESIGN.md` (#14).
+Estado: **respuestas del owner incorporadas 2026-07-18** (roles, visibilidad
+de `operator` y recuperación de contraseña por email — ver "Preguntas
+abiertas" al final). Queda un detalle operativo por confirmar antes de
+implementar (dominio de correo en Hestia para el remitente), marcado
+explícitamente. No implementar nada de este documento (código ni base de
+datos) sin luz verde final del owner sobre esta versión, siguiendo el mismo
+precedente que `docs/MIGRATION_FRAMEWORK_DESIGN.md` (#14).
 
 ## Objetivo
 
@@ -69,6 +73,8 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(32) NOT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'active',
   token_version INT NOT NULL DEFAULT 0,
+  reset_token_hash VARCHAR(255) NULL,
+  reset_token_expires_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY idx_users_email (email)
@@ -101,30 +107,38 @@ del `.env` por si hace falta re-sembrar en un entorno nuevo).
 automatización (scripts/CI/watchdog), no ligado a ninguna persona. No tiene
 sentido "asignarle un rol" — es un secreto de servicio, no una cuenta.
 
-### 3. Roles y matriz de permisos (propuesta — a confirmar con el owner)
+### 3. Roles y matriz de permisos (confirmado con el owner 2026-07-18)
 
-Propuesta mínima de dos roles para el MVP, dejando el sistema abierto a añadir
-más sin migración adicional (el rol es una columna `VARCHAR`, no un enum de
-BD):
+Tres roles para el MVP, dejando el sistema abierto a añadir más sin migración
+adicional (el rol es una columna `VARCHAR`, no un enum de BD):
 
-| Rol | Puede | No puede |
-|---|---|---|
-| `admin` | Todo lo que hoy hace el único admin: CRUD completo, gestión de usuarios, `DatabaseManagerScreen`, `schema-migrate`/`init`/`reset-initial`. | — |
-| `operator` (nombre a validar con el owner) | Escanear QR (`checkin`/`checkout`), ver roster/eventos/turnos necesarios para operar el escáner (`GET staff/events/shifts`). | Gestión de usuarios, `DatabaseManagerScreen`, borrar/crear staff o eventos, `staff-templates`, `schema-migrate`/`init`/`reset-initial`, alertas. |
+| Rol | Lectura (`staff`/`events`/`shifts`/`alerts`/`staff-templates`/`status`/`schema-check`) | `checkin`/`checkout` | Resto de mutaciones (crear/editar/borrar staff, eventos, alertas, plantillas, convocatoria) | Gestión de usuarios / `DatabaseManagerScreen` / `schema-migrate`/`init`/`reset-initial` |
+|---|---|---|---|---|
+| `admin` | sí | sí | sí | sí |
+| `operator` | **sí — igual que admin** (confirmado por el owner: ve todo, no solo lo mínimo del escáner) | sí | no | no |
+| `viewer` (solo lectura) | sí — igual que admin | no | no | no |
 
-Esto es exactamente el caso de uso que ya menciona el propio ítem #18 del
-backlog ("un rol operativo que solo escanea QR y no ve DatabaseManager").
-**Pendiente de confirmar con el owner**: nombre del segundo rol, si hace falta
-un tercer rol intermedio (p. ej. alguien que vea KPIs/roster pero no pueda
-mutar nada), y si `operator` debe poder ver `StaffScreen`/`RosterScreen`
-completos o solo lo mínimo para el escáner.
+Confirmado por el owner: `operator` ve exactamente lo mismo que `admin` (roster
+completo con teléfonos/ratings, eventos, turnos, alertas, plantillas), la
+única diferencia frente a `admin` es que no puede mutar nada salvo
+`checkin`/`checkout`. `viewer` es igual que `operator` en visibilidad pero sin
+ni siquiera poder escanear — un rol de "solo consulta" para quien necesite
+ver el estado sin operar.
+
+Esto simplifica el frontend: **las tres pantallas de negocio
+(Dashboard/Roster/Staff/Shifts/KPI/Scanner) se muestran igual a los tres
+roles** — lo único que cambia por rol es (a) qué botones de mutación están
+habilitados/ocultos dentro de esas pantallas, y (b) que
+`DatabaseManagerScreen` y la futura gestión de usuarios solo son visibles
+para `admin`.
 
 Cada endpoint protegido pasa de `isAuthorized(req)` (booleano) a
-`getRequestRole(req)` (`'admin' | 'operator' | null`), y cada ruta declara el
-rol mínimo que necesita — matriz 1:1 con la tabla del inventario de arriba,
-donde hoy todo lo no-público exige `admin`, ese mismo mínimo se mantiene, y se
-añaden los dos endpoints de checkin/checkout como accesibles también a
-`operator`.
+`getRequestRole(req)` (`'admin' | 'operator' | 'viewer' | null`). La lectura
+(`requireAuthorizedRead`) pasa a aceptar los tres roles (hoy solo hay un nivel
+"admin", así que esto no reduce el acceso de nadie existente). Las mutaciones
+existentes bajo `isAuthorized` se dividen en dos grupos: `checkin`/`checkout`
+(admin + operator) y todo el resto (solo admin) — matriz 1:1 con el
+inventario de la sección "Estado actual".
 
 ### 4. Sesión y revocación
 
@@ -153,11 +167,10 @@ mecanismo de cookie firmada, pero:
 
 - **Sin registro abierto** (requisito explícito del owner): un usuario solo se
   crea desde `POST /api/mysql/users` con `role='admin'` en la sesión.
-- **Sin envío de email** (la app no tiene integración de correo hoy ni la
-  necesita para nada más — añadirla sería una dependencia/infraestructura
-  nueva no justificada para este alcance). El admin crea la cuenta con un
-  email y una contraseña inicial que él mismo define y comunica por el canal
-  que prefiera (ya usa WhatsApp para el QR de cada trabajador — ver #21).
+- El admin crea la cuenta con un email y una contraseña inicial que él mismo
+  define y comunica por el canal que prefiera (ya usa WhatsApp para el QR de
+  cada trabajador — ver #21). Con recuperación por email (punto 5b) el
+  usuario puede cambiarla él mismo después sin depender del admin.
 - `PATCH /api/mysql/users/:id` para: cambiar rol, activar/desactivar
   (incrementa `token_version`), forzar cambio de contraseña (incrementa
   `token_version`).
@@ -166,6 +179,59 @@ mecanismo de cookie firmada, pero:
   actual), también incrementa `token_version` propio.
 - `DELETE` no se expone en el MVP (se desactiva, no se borra — ver punto 1).
 - Todos los endpoints de `/users` exigen rol `admin`.
+- Con ~4-5 cuentas previstas (confirmado por el owner) no hace falta alta en
+  lote/CSV — el formulario de "crear usuario" uno a uno es suficiente para el
+  MVP.
+
+### 5b. Recuperación de contraseña por email (confirmado por el owner)
+
+El owner prefiere que cada usuario pueda recuperar su contraseña por email en
+vez de depender de que el admin se la resetee manualmente. Esto **sí requiere
+una integración nueva** (la app no envía correo hoy), pero la caja ya corre
+la pila de correo de Hestia (**Exim4 activo como MTA, Dovecot para
+IMAP/POP3, puertos 25/465/587 escuchando** — verificado en el servidor
+2026-07-18), así que no hace falta contratar ni configurar ningún servicio
+transaccional de terceros (SendGrid, SES, etc.): basta con enviar contra el
+relay SMTP local del propio servidor.
+
+- **Dependencia nueva justificada**: `nodemailer` — construir y enviar MIME a
+  mano por SMTP a pelo sería peor (reinventar algo bien resuelto, superficie
+  de bugs de seguridad en el parsing/formato). Es una librería pequeña,
+  ampliamente usada y sin dependencias transitivas problemáticas; encaja con
+  el criterio de "sin dependencias nuevas sin justificar" porque la
+  alternativa realista es implementar SMTP/MIME a mano.
+- Transporte: SMTP a `localhost:587` (o `25` si el relay local no exige auth
+  para conexiones desde el propio host — a confirmar en implementación, ver
+  pendiente más abajo), sin credenciales de terceros que gestionar.
+- Columnas nuevas en `users` (misma migración o una siguiente):
+  `reset_token_hash VARCHAR(255) NULL`, `reset_token_expires_at TIMESTAMP NULL`.
+  Se guarda el **hash** del token (nunca el token en claro), igual que las
+  contraseñas — un token de un solo uso.
+- Flujo:
+  1. `POST /api/auth/forgot-password { email }` — respuesta **siempre 200
+     genérica** ("si el email existe, recibirás un correo"), nunca revela si
+     el email está registrado (evita enumeración de cuentas). Si el email
+     coincide con un usuario `active`, genera un token aleatorio
+     (`crypto.randomBytes`), guarda su hash + expiración (p. ej. 30-60 min),
+     y envía el email con el enlace
+     `https://<dominio>/reset-password?token=<token-en-claro>`.
+  2. Nueva pantalla mínima en el frontend (`ResetPasswordScreen`, fuera del
+     flujo de login normal) que pide la nueva contraseña y llama a
+     `POST /api/auth/reset-password { token, newPassword }`.
+  3. El backend busca por el hash del token, comprueba que no ha expirado,
+     fija `password_hash` nuevo, **incrementa `token_version`** (invalida
+     también cualquier sesión activa de ese usuario, buena higiene), y borra
+     el token usado.
+  4. Rate-limit de `forgot-password` por IP y por email (mismo patrón que el
+     rate-limit de login ya existente en `server.ts`), para que no sirva
+     para bombardear de correos a una cuenta ajena.
+- **Pendiente de confirmar antes de implementar** (detalle operativo, no de
+  diseño): si `madridliveapp.top` ya tiene un dominio/buzón de correo dado de
+  alta en Hestia para usar como remitente (p. ej. `no-reply@madridliveapp.top`
+  o reusar un buzón ya existente en este Hestia), o si hay que darlo de alta
+  primero. La consulta a Hestia (`v-list-mail-domains`) requiere permisos que
+  esta sesión no tiene — lo confirma Carlos directamente en el panel antes de
+  que Codex implemente esta parte.
 
 ### 6. Frontend
 
@@ -190,16 +256,22 @@ mecanismo de cookie firmada, pero:
   mismo runner, sin excepciones.
 - CORS/CSP/rate-limit de login existentes.
 
-## Preguntas abiertas para el owner (bloquean la implementación)
+## Preguntas del owner — respondidas 2026-07-18
 
-1. Nombre y alcance exacto del rol no-admin (¿solo `operator`, o hace falta
-   uno intermedio de "solo lectura"?).
-2. ¿El rol `operator` necesita ver `RosterScreen`/`StaffScreen` completos
-   (con teléfonos, ratings, etc.) o solo lo mínimo para operar el escáner?
-3. ¿Cuántas cuentas se prevén inicialmente? (no cambia el diseño, pero ayuda a
-   dimensionar si merece la pena una UI de alta en lote).
-4. ¿Confirma que no hace falta recuperación de contraseña por email en el MVP
-   (el admin resetea manualmente vía `PATCH /users/:id`)?
+1. ✅ Se añade un tercer rol de solo lectura (`viewer`) además de
+   `admin`/`operator`.
+2. ✅ `operator` ve todo igual que `admin` (no solo lo mínimo del escáner) —
+   incorporado en la matriz de la sección 3.
+3. ✅ ~4-5 cuentas iniciales — no hace falta alta en lote, un formulario uno a
+   uno es suficiente.
+4. ✅ Sí quiere recuperación de contraseña por email — diseñada en la sección
+   5b, usando el relay SMTP local ya activo en el servidor (Exim4) y
+   `nodemailer` como única dependencia nueva.
+
+**Único punto operativo pendiente** (no bloquea la aprobación del diseño, sí
+bloquea el arranque de esa parte concreta de la implementación): confirmar en
+Hestia el dominio/buzón de correo a usar como remitente de los emails de
+recuperación (sección 5b).
 
 ## Plan de rollout (una vez aprobado)
 
@@ -209,16 +281,26 @@ método+ruta reales) más un checklist de seguridad específico: ningún endpoin
 nuevo sin guard de rol, ningún rol puede escalar sus propios permisos vía
 `/users/me`, `token_version` se verifica en todas las rutas protegidas (no
 solo en `/users`), regresión completa del login/sesión actual antes de tocar
-nada del multi-rol.
+nada del multi-rol, `forgot-password` nunca revela si un email existe y está
+correctamente rate-limitado, el token de reset es de un solo uso y expira.
 
-1. Migración `users` + seed del admin actual — staging primero, verificar que
+Recomendado dividir en dos PRs secuenciales dado el tamaño (igual que #80/#81
+o #78/#79): **A — roles y sesión** (migración `users`, seed, `token_version`,
+matriz de permisos, gating de frontend) y **B — recuperación por email**
+(columnas de reset, `nodemailer`, endpoints `forgot-password`/`reset-password`,
+pantalla de reset). B depende de A pero puede ir después sin bloquear el resto
+del multi-rol si el detalle del remitente en Hestia tarda en confirmarse.
+
+1. Confirmar con Carlos el dominio/buzón remitente en Hestia (bloquea solo la
+   PR B, no la A).
+2. Migración `users` + seed del admin actual — staging primero, verificar que
    el login del owner sigue funcionando igual antes de continuar.
-2. Backend: `getRequestRole`, matriz de permisos, endpoints `/users`.
-3. Frontend: `role` en la sesión, gating de pantallas.
-4. Backup de BD antes de tocar prod, igual que cualquier migración con datos
+3. Backend: `getRequestRole`, matriz de permisos, endpoints `/users`.
+4. Frontend: `role` en la sesión, gating de pantallas.
+5. Backup de BD antes de tocar prod, igual que cualquier migración con datos
    reales (901 trabajadores en juego, aunque esta tabla no los toca
    directamente).
-5. Deploy staging-first, verificación funcional explícita: login del admin
+6. Deploy staging-first, verificación funcional explícita: login del admin
    existente, creación de un usuario `operator` de prueba, confirmar que
    `operator` recibe 403/401 en los endpoints que no le corresponden y que el
    escáner funciona para ese rol.
