@@ -2,7 +2,7 @@ import type { StaffMember } from '../../types';
 
 const MYSQL_API_BASE = import.meta.env.VITE_MYSQL_API_BASE || '/api/mysql';
 
-export type StaffPatch = Partial<Pick<StaffMember, 'idCode' | 'name' | 'role' | 'roleLabel' | 'email' | 'phone'>>;
+export type StaffPatch = Partial<Pick<StaffMember, 'idCode' | 'name' | 'role' | 'roleLabel' | 'email' | 'phone' | 'rating'>>;
 
 type ValidationError = {
   field?: string;

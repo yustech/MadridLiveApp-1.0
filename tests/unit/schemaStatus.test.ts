@@ -31,6 +31,14 @@ describe('getSchemaStatusFromRows', () => {
     expect(status.missing).toEqual(['events.dateYear']);
   });
 
+  it('reports staff.rating when migration 0004 has not been applied', () => {
+    const rows = allRequiredRows.filter(
+      (row) => `${row.tableName}.${row.columnName}` !== 'staff.rating'
+    );
+
+    expect(getSchemaStatusFromRows(rows).missing).toEqual(['staff.rating']);
+  });
+
   it('reports several missing columns in required order', () => {
     const rows = allRequiredRows.filter((row) => {
       const key = `${row.tableName}.${row.columnName}`;
@@ -75,5 +83,7 @@ describe('getSchemaStatus', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('information_schema.columns'));
     expect(query).toHaveBeenCalledWith(expect.stringContaining('dateYear'));
     expect(query).toHaveBeenCalledWith(expect.stringContaining('staff_template_members'));
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("'staff'"));
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("'rating'"));
   });
 });

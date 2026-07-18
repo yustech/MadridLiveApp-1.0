@@ -9,6 +9,7 @@ import {
   sanitizeNumber,
   sanitizeDateTime,
   validateEventPayload,
+  validateStaffPatchPayload,
 } from '../../src/validators';
 
 describe('sanitizeString', () => {
@@ -172,5 +173,28 @@ describe('validateEventPayload', () => {
     expect(validateEventPayload({ ...base, dateMonth: 'ZZZ' }).valid).toBe(false);
     const { title, ...noTitle } = base;
     expect(validateEventPayload(noTitle).valid).toBe(false);
+  });
+});
+
+describe('validateStaffPatchPayload rating', () => {
+  it('accepts integer ratings from 1 to 5 and explicit null', () => {
+    expect(validateStaffPatchPayload({ rating: 1 })).toMatchObject({
+      valid: true,
+      sanitized: { rating: 1 },
+    });
+    expect(validateStaffPatchPayload({ rating: 5 })).toMatchObject({
+      valid: true,
+      sanitized: { rating: 5 },
+    });
+    expect(validateStaffPatchPayload({ rating: null })).toMatchObject({
+      valid: true,
+      sanitized: { rating: null },
+    });
+  });
+
+  it('rejects out-of-range and fractional ratings', () => {
+    expect(validateStaffPatchPayload({ rating: 0 }).valid).toBe(false);
+    expect(validateStaffPatchPayload({ rating: 6 }).valid).toBe(false);
+    expect(validateStaffPatchPayload({ rating: 2.5 }).valid).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 export type StaffRole = 'Auxiliar' | 'Auxiliar Plus' | 'Coordinación' | (string & {});
+export type StaffRating = 1 | 2 | 3 | 4 | 5;
 
 export interface StaffMember {
   id: string; // e.g. 'usr_842'
@@ -12,6 +13,7 @@ export interface StaffMember {
   avatar: string;
   email?: string;
   phone?: string;
+  rating?: StaffRating | null;
   totalHours: number;
   currentShiftHours: number;
   currentShiftMins: number;

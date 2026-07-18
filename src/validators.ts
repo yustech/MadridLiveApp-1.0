@@ -614,6 +614,17 @@ export function validateStaffPayload(body: unknown): ValidationResult<any> {
     sanitized.phone = null;
   }
 
+  if (b.rating === undefined || b.rating === null) {
+    sanitized.rating = null;
+  } else {
+    const ratingRes = validateOptionalNumberField(b.rating, "rating", 1, 5, true);
+    if (!ratingRes.valid) {
+      errors.push(...ratingRes.errors);
+    } else {
+      sanitized.rating = ratingRes.sanitized;
+    }
+  }
+
   const totalHoursValue = Number(b.totalHours ?? 0);
   if (!Number.isFinite(totalHoursValue) || totalHoursValue < 0) {
     errors.push({ field: "totalHours", message: "totalHours must be a number >= 0", value: b.totalHours });
@@ -743,6 +754,16 @@ export function validateStaffPatchPayload(body: unknown): ValidationResult<Sanit
     const result = validateNullableStringField(b.phone, "phone", 32);
     if (!result.valid) errors.push(...result.errors);
     else sanitized.phone = result.sanitized;
+  }
+
+  if (b.rating !== undefined) {
+    if (b.rating === null) {
+      sanitized.rating = null;
+    } else {
+      const result = validateOptionalNumberField(b.rating, "rating", 1, 5, true);
+      if (!result.valid) errors.push(...result.errors);
+      else sanitized.rating = result.sanitized;
+    }
   }
 
   if (b.totalHours !== undefined) {
