@@ -20,6 +20,7 @@ import {
   isWorkerPresentNow,
 } from '../utils/shifts';
 import { formatMadridTimeWithZone } from '../utils/madridTime';
+import { getRecentCheckinRate } from '../utils/operationalMetrics';
 
 interface KPIScreenProps {
   shifts: Shift[];
@@ -107,6 +108,11 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
   const kpi = useMemo(() => {
     const activeShifts = filteredShifts.filter((shift) => isShiftActiveNow(shift, now));
     const completedShifts = filteredShifts.filter((shift) => shift.status.toLowerCase() === 'completed');
+    const recentCheckins = getRecentCheckinRate(
+      shifts,
+      filteredEvents.map((event) => event.id),
+      now,
+    );
 
     const checkinsLastHour = filteredShifts.filter((shift) => {
       const date = extractShiftDate(shift);
@@ -203,9 +209,8 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
       activeNow,
       eventRequired,
       coverage,
-      scanRatePerMin: filteredEvents.length
-        ? (filteredEvents.reduce((acc, curr) => acc + Number(curr.scanRate || 0), 0) / filteredEvents.length).toFixed(1)
-        : '0.0',
+      checkinsLastFiveMinutes: recentCheckins.count,
+      checkinRatePerMin: recentCheckins.ratePerMinute,
       avgShiftHours,
       checkinsLastHour,
       activeShiftsNow: shiftStatus.active,
@@ -219,6 +224,7 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     filteredShifts,
     filteredStaff,
     filteredEvents,
+    shifts,
     activeShiftWorkerIdsByEvent,
     now,
     oneHourAgoMs,
@@ -338,17 +344,17 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-3xl p-5 flex items-center gap-4 shadow-hud-glow relative overflow-hidden group">
+        <div data-testid="kpi-checkin-rate" className="bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-3xl p-5 flex items-center gap-4 shadow-hud-glow relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/5 rounded-full blur-2xl group-hover:bg-pink-500/10 transition-all duration-300" />
           <div className="w-12 h-12 rounded-2xl bg-pink-500/10 border border-pink-500/25 flex items-center justify-center text-pink-400 shrink-0">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div className="text-left">
-            <span className="text-[9px] font-mono text-pink-300 uppercase block tracking-wider">Frecuencia de Registro</span>
+            <span className="text-[9px] font-mono text-pink-300 block tracking-wider">Media de fichajes/min · últimos 5 min</span>
             <span className="text-xl font-sans font-black text-white mt-0.5 block">
-              {kpi.scanRatePerMin} <span className="text-xs text-white/40 font-normal">scans/m</span>
+              {kpi.checkinRatePerMin.toFixed(1)} <span className="text-xs text-white/40 font-normal">fichajes/min</span>
             </span>
-            <span className="text-[10px] text-white/40 block mt-0.5">Velocidad de check-in QR</span>
+            <span className="text-[10px] text-white/40 block mt-0.5">{kpi.checkinsLastFiveMinutes} fichajes en 5 min</span>
           </div>
         </div>
 
@@ -611,7 +617,7 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
               <AlertTriangle className="w-4 h-4 text-indigo-300 shrink-0 mt-0.5" />
               <div>
                 <p className="text-white/90">Evento foco: <strong className="text-white">{currentEvent?.title || 'Global'}</strong></p>
-                <p className="text-white/50">Scan rate promedio: {kpi.scanRatePerMin} scans/m</p>
+                <p className="text-white/50">{kpi.checkinsLastFiveMinutes} fichajes en 5 min · {kpi.checkinRatePerMin.toFixed(1)} fichajes/min</p>
               </div>
             </div>
           </div>

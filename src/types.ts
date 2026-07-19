@@ -77,9 +77,10 @@ export interface LiveEvent {
   dateYear: string; // e.g. '2026'
   doorsOpen: string; // e.g. '19:00'
   requiredStaff: number;
+  assignedStaffCount?: number;
   activeStaff: number;
   totalStaffNeeded: number;
-  scanRate: number; // scans/min
+  scanRate: number; // legacy persisted field; real-time rates derive from canonical shifts.startedAt
   loadInPercent: number; // e.g. 100
 }
 

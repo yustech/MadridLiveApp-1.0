@@ -31,11 +31,17 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
           COALESCE(dateYear, ?) AS dateYear,
           doorsOpen AS doorsOpen,
           required_staff AS requiredStaff,
+          COALESCE(event_assignments.assignedStaffCount, 0) AS assignedStaffCount,
           active_staff AS activeStaff,
           total_staff_needed AS totalStaffNeeded,
           scan_rate AS scanRate,
           load_in_percent AS loadInPercent
         FROM events
+        LEFT JOIN (
+          SELECT event_id, COUNT(*) AS assignedStaffCount
+          FROM event_staff
+          GROUP BY event_id
+        ) AS event_assignments ON event_assignments.event_id = events.id
       `, [String(getMadridCivilDateParts().year)]);
       return res.json(rows);
     } catch (error: any) {

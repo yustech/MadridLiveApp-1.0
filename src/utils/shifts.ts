@@ -35,7 +35,7 @@ const MONTH_INDEX: Record<string, number> = {
 const ACTIVE_SHIFT_MAX_AGE_MS = 20 * 60 * 60 * 1000;
 const FUTURE_CLOCK_TOLERANCE_MS = 5 * 60 * 1000;
 
-function getValidDateTimestamp(value?: string): number | null {
+export function getValidDateTimestamp(value?: string): number | null {
   if (!value) return null;
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) ? timestamp : null;
