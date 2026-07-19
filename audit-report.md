@@ -626,6 +626,44 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   staging-first, mismo checklist de revisión que #19/#20/#27.
   ```
 
+- [ ] **29. Duraciones de turno exactas: derivar de `startedAt`/`endedAt`, no del `durationLabel` degradado.** *(añadida 2026-07-19, bug reportado por el owner con fichajes reales y demostrado por Claude contra la BD de staging)*
+  **Bug demostrado con datos reales**: el owner detectó que un turno de 15:16→17:30 mostraba "2h 12m" en vez de ~2h 14m. Causa raíz verificada: en el checkout (`server/mysql/lifecycle/workerLifecycle.ts`), la duración se calcula exacta en ms (`endTs - startTs`) pero se guarda como `netAccruedHours.toFixed(1)` en `shifts.duration_label` — **un decimal de horas = bloques de 6 minutos**. Todo el frontend muestra/agrega ese label degradado en vez de los timestamps exactos. Demostración contra staging: 2h 14m 33s reales → "2.2h" → se muestra 2h 12m (−2m 33s); 2h 15m 29s reales → "2.3h" → se muestra **2h 18m** (+2m 31s, ¡de más!). Todo entre ~2h09m y ~2h15m colapsa en "2h 12m". La ironía: desde la #16, `startedAt`/`endedAt` canónicos están en BD al segundo exacto y la API ya los devuelve — el dato exacto existe, solo que no se usa para mostrar.
+  **Superficies afectadas (inventario completo por grep, verificado 2026-07-19)**: `ShiftsScreen.tsx` — celda de tabla (~línea 766), tarjeta móvil (~891), modal de detalle (~1021), fila del CSV exportado (~360), y el acumulador de la tarjeta "Horas acumuladas" (~330-332, suma `parseFloat(durationLabel)` de los completados); `databaseManager/ShiftsTab.tsx` (~33); `KPIScreen.tsx` `avgShiftHours` (~123, media sobre `parseDecimalHours(durationLabel)`).
+  **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo-medio: sin backend nuevo obligatorio, sin migración, sin backfill — las filas ya guardadas tienen los timestamps correctos (solo su label está degradado), así que derivar en presentación las corrige automáticamente.
+  **Alcance**:
+  - Util compartida (p. ej. en `src/utils/shifts.ts`, junto a `formatShiftTimeRange` de la #27 que sigue el mismo patrón): duración en minutos exactos = `endedAt − startedAt` canónicos (vía `getValidDateTimestamp`, ya exportada) cuando ambos son válidos; fallback a parsear `durationLabel` legacy solo si falta alguno. Redondeo final al minuto solo en el formato visible (`Xh YYm`), nunca antes de agregar.
+  - Sustituir el uso de `durationLabel` por esa util en las 7 superficies del inventario. Las agregaciones ("Horas acumuladas" del Historial, `avgShiftHours` de KPI) deben sumar minutos exactos y formatear al final — no sumar labels ya redondeados.
+  - En el checkout, guardar el label nuevo con 2 decimales (`toFixed(2)`, granularidad 36s) en vez de 1 — sigue siendo solo un fallback/legado, pero deja de degradar tanto (cabe en el `VARCHAR(64)` actual, sin migración).
+  - `durationLabel = 'Active'` (turnos abiertos) se mantiene tal cual — esta tarea solo toca turnos completados.
+  - **Fuera de alcance, decidido por el owner (2026-07-19)**: `staff.totalHours` es `DECIMAL(10,2)` en esquema (redondeo de ±18s por checkout al acumular con `toFixed(2)`). El owner confirmó que solo necesita **exactitud al minuto** — ±18s queda muy por debajo de ese umbral, así que NO hay tarea de seguimiento ni migración pendiente por esto. No reabrir salvo que cambie el requisito.
+  - No tocar `formatShiftTimeRange` ni nada de la #27; no tocar el formulario manual de turnos del Database Manager (el campo de texto libre sigue aceptando labels).
+  - Tests: duración exacta desde timestamps (casos del bug real: 2h14m33s y 2h15m29s deben mostrar 2h 15m/2h 15m... según redondeo al minuto elegido — definir redondeo half-up al minuto y testearlo explícito), fallback a label legacy cuando falta `endedAt`, agregación que suma minutos exactos (no labels), CSV con el valor exacto, turno 'Active' intacto.
+  **Prompt**:
+  ```
+  Bug demostrado con datos reales: las duraciones visibles de turnos completados salen de
+  shifts.duration_label, que el checkout guarda como netAccruedHours.toFixed(1) -- un decimal
+  de horas = bloques de 6 minutos (2h14m33s reales -> "2.2h" -> se muestra 2h 12m; 2h15m29s
+  -> "2.3h" -> 2h 18m, de más). Los timestamps canónicos startedAt/endedAt están en BD al
+  segundo exacto desde la #16 -- úsalos. Crea una util compartida en src/utils/shifts.ts
+  (junto a formatShiftTimeRange de la #27, mismo patrón): duración en minutos exactos =
+  endedAt - startedAt (vía getValidDateTimestamp, ya exportada) cuando ambos válidos;
+  fallback a parsear durationLabel legacy solo si falta alguno; redondeo half-up al minuto
+  SOLO en el formato visible (Xh YYm), nunca antes de agregar. Sustituye durationLabel en:
+  ShiftsScreen celda de tabla (~766), tarjeta móvil (~891), modal detalle (~1021), fila CSV
+  (~360) y el acumulador de "Horas acumuladas" (~330: debe sumar minutos exactos y formatear
+  al final, no sumar labels redondeados); databaseManager/ShiftsTab (~33); KPIScreen
+  avgShiftHours (~123, media sobre minutos exactos). En el checkout
+  (server/mysql/lifecycle/workerLifecycle.ts), guarda el label con toFixed(2) en vez de
+  toFixed(1) (solo fallback/legado; cabe en VARCHAR(64), sin migración). durationLabel
+  'Active' se mantiene tal cual. NO toques staff.totalHours (DECIMAL(10,2), fuera de alcance
+  -- exigiría migración), ni formatShiftTimeRange/#27, ni el formulario manual del Database
+  Manager. Sin migración ni backfill: las filas ya guardadas tienen timestamps correctos y
+  se corrigen solas al derivar en presentación. Tests: los dos casos reales del bug
+  (2h14m33s y 2h15m29s con el redondeo al minuto explícito), fallback legacy sin endedAt,
+  agregación por minutos exactos, CSV exacto, turno Active intacto. PR propia, staging-first,
+  mismo checklist de revisión que #27.
+  ```
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)
