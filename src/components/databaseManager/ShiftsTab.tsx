@@ -1,7 +1,6 @@
 import { Shift } from '../../types';
-import { formatHoursMinutesFromDecimal } from '../../utils/duration';
 import { RecordCard } from './RecordCard';
-import { formatShiftDateLabel, formatShiftTimeRange } from '../../utils/shifts';
+import { formatShiftDateLabel, formatShiftDuration, formatShiftTimeRange } from '../../utils/shifts';
 
 interface ShiftsTabProps {
   items: Shift[];
@@ -30,7 +29,7 @@ export function ShiftsTab({ items, onEdit, onDelete }: ShiftsTabProps) {
               {item.eventTitle} ({formatShiftTimeRange(item)})
             </p>
             <p className="text-[10px] text-indigo-300 font-mono mt-0.5">
-              Fecha: {formatShiftDateLabel(item)} | Duración: {item.durationLabel === 'Active' ? 'Activo' : formatHoursMinutesFromDecimal(item.durationLabel)}
+              Fecha: {formatShiftDateLabel(item)} | Duración: {item.durationLabel === 'Active' ? 'Activo' : formatShiftDuration(item)}
             </p>
           </div>
         </RecordCard>

@@ -9,9 +9,13 @@ import {
   madridCivilDateTimeToInstant,
   shiftMadridCivilDateKey,
 } from './madridTime';
+import { parseDecimalHours } from './duration';
 
 export type ShiftDateLike = Pick<Shift, 'dateString' | 'timespan'> &
   Partial<Pick<Shift, 'id' | 'startedAt' | 'endedAt' | 'updatedAt' | 'status'>>;
+
+export type ShiftDurationLike = Pick<Shift, 'durationLabel'> &
+  Partial<Pick<Shift, 'startedAt' | 'endedAt'>>;
 
 const MONTH_INDEX: Record<string, number> = {
   ENE: 0,
@@ -176,6 +180,38 @@ export function formatShiftTimeRange(shift: ShiftDateLike, includeZone = false):
   const startLabel = formatTime(startTimestamp);
   const endLabel = endTimestamp === null ? 'Presente' : formatTime(endTimestamp);
   return `${startLabel} - ${endLabel}`;
+}
+
+export function getShiftDurationMinutes(shift: ShiftDurationLike): number | null {
+  const startedAt = getValidDateTimestamp(shift.startedAt);
+  const endedAt = getValidDateTimestamp(shift.endedAt);
+
+  if (startedAt !== null && endedAt !== null) {
+    return Math.max(0, endedAt - startedAt) / (60 * 1000);
+  }
+
+  const legacyHours = parseDecimalHours(shift.durationLabel);
+  return legacyHours === null ? null : legacyHours * 60;
+}
+
+export function sumShiftDurationMinutes(shifts: ShiftDurationLike[]): number {
+  return shifts.reduce((total, shift) => total + (getShiftDurationMinutes(shift) ?? 0), 0);
+}
+
+export function formatDurationMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) {
+    return '0h 00m';
+  }
+
+  const roundedMinutes = Math.floor(Math.max(0, minutes) + 0.5);
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainingMinutes = roundedMinutes % 60;
+  return `${hours}h ${String(remainingMinutes).padStart(2, '0')}m`;
+}
+
+export function formatShiftDuration(shift: ShiftDurationLike): string {
+  if (shift.durationLabel === 'Active') return shift.durationLabel;
+  return formatDurationMinutes(getShiftDurationMinutes(shift));
 }
 
 export function isShiftActiveNow(shift: Shift, now = new Date()): boolean {
