@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { 
   ArrowLeft, 
+  Check,
+  CircleAlert,
   Clock, 
   Timer, 
   CalendarRange, 
   ChevronRight, 
+  LoaderCircle,
 } from 'lucide-react';
-import { StaffMember, Shift } from '../types';
+import { StaffMember, StaffRating, Shift } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
 import {
   formatShiftDateLabel,
@@ -18,11 +21,18 @@ import {
 } from '../utils/shifts';
 import StaffRatingWidget from './ratings/StaffRatingWidget';
 import StaffAvatar from './StaffAvatar';
+import { formatRosterApiError, patchRosterStaff } from './roster/rosterApi';
+
+type RatingFeedback = {
+  kind: 'success' | 'error';
+  message: string;
+};
 
 interface ProfileScreenProps {
   worker: StaffMember;
   onBack: () => void;
   onToggleStatus: (workerId: string) => void;
+  onRatingSaved: (workerId: string, rating: StaffRating | null) => void;
   workerShifts: Shift[];
 }
 
@@ -30,9 +40,12 @@ export default function ProfileScreen({
   worker,
   onBack,
   onToggleStatus,
+  onRatingSaved,
   workerShifts
 }: ProfileScreenProps) {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
+  const [isSavingRating, setIsSavingRating] = useState(false);
+  const [ratingFeedback, setRatingFeedback] = useState<RatingFeedback | null>(null);
 
   const isMarkedIn = worker.status === 'IN';
   const activeShift = getActiveShiftForWorker(workerShifts, worker.id);
@@ -69,6 +82,25 @@ export default function ProfileScreen({
   const confirmCheckIn = () => {
     onToggleStatus(worker.id);
     setIsCheckInModalOpen(false);
+  };
+
+  const saveRating = async (rating: StaffRating | null) => {
+    if (isSavingRating || (worker.rating ?? null) === rating) return;
+
+    setIsSavingRating(true);
+    setRatingFeedback(null);
+    try {
+      await patchRosterStaff(worker.id, { rating });
+      onRatingSaved(worker.id, rating);
+      setRatingFeedback({
+        kind: 'success',
+        message: rating === null ? 'Puntuación eliminada' : `Puntuación guardada: ${rating}/5`,
+      });
+    } catch (error) {
+      setRatingFeedback({ kind: 'error', message: formatRosterApiError(error) });
+    } finally {
+      setIsSavingRating(false);
+    }
   };
 
   return (
@@ -118,11 +150,37 @@ export default function ProfileScreen({
                 </p>
               </div>
 
-              <StaffRatingWidget
-                rating={worker.rating}
-                workerName={worker.name}
-                testId={`profile-rating-${worker.id}`}
-              />
+              <div className="flex min-h-11 flex-col items-center justify-center gap-1.5">
+                <div className="flex items-center gap-2">
+                  <StaffRatingWidget
+                    rating={worker.rating}
+                    workerName={worker.name}
+                    interactive
+                    disabled={isSavingRating}
+                    onChange={(rating) => void saveRating(rating)}
+                    testId={`profile-rating-${worker.id}`}
+                  />
+                  {isSavingRating && (
+                    <LoaderCircle className="h-4 w-4 animate-spin text-indigo-300" aria-hidden="true" />
+                  )}
+                </div>
+                {isSavingRating && (
+                  <p className="text-[10px] font-mono text-indigo-300" role="status">
+                    Guardando puntuación…
+                  </p>
+                )}
+                {!isSavingRating && ratingFeedback && (
+                  <p
+                    className={`flex items-center gap-1.5 text-[10px] font-mono ${ratingFeedback.kind === 'success' ? 'text-emerald-300' : 'text-red-300'}`}
+                    role={ratingFeedback.kind === 'error' ? 'alert' : 'status'}
+                  >
+                    {ratingFeedback.kind === 'success'
+                      ? <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      : <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />}
+                    <span>{ratingFeedback.message}</span>
+                  </p>
+                )}
+              </div>
 
               <div className="flex gap-2">
                 {isLiveNow ? (

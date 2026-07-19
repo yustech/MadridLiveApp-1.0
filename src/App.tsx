@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
-import { StaffMember, Shift, LiveEvent, EquipmentAlert, type WorkerToggleOutcome } from './types';
+import { StaffMember, StaffRating, Shift, LiveEvent, EquipmentAlert, type WorkerToggleOutcome } from './types';
 import {
   getEventTemporalState,
   isEventInDefaultRegistrationWindow,
@@ -315,6 +315,15 @@ export default function App() {
   const handleSelectWorker = (worker: StaffMember) => {
     setSelectedWorker(worker);
     setActiveScreen('profile');
+  };
+
+  const handleWorkerRatingSaved = (workerId: string, rating: StaffRating | null) => {
+    setStaff((current) => current.map((worker) => (
+      worker.id === workerId ? { ...worker, rating } : worker
+    )));
+    setSelectedWorker((current) => (
+      current?.id === workerId ? { ...current, rating } : current
+    ));
   };
 
   const renderActiveScreenFallback = () => {
@@ -784,6 +793,7 @@ export default function App() {
                 worker={selectedWorker}
                 workerShifts={getSelectedWorkerShifts()}
                 onToggleStatus={handleToggleWorkerStatus}
+                onRatingSaved={handleWorkerRatingSaved}
                 onBack={() => setActiveScreen('staff')}
               />
             )}

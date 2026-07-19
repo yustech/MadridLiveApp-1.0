@@ -16,9 +16,11 @@ const worker = {
   currentShiftMins: 0,
 };
 
-test('edits roster fields and rating through the real PATCH route', async ({ page }) => {
+test('edits roster fields and rates from the profile through the real PATCH route', async ({ page }) => {
   let persistedWorker = { ...worker };
   let receivedPatch: { method: string; url: string; payload: unknown } | null = null;
+  let delayNextPatch = false;
+  let rejectNextPatch = false;
 
   await page.route('**/api/auth/session', async (route) => {
     await route.fulfill({ json: { authenticated: true } });
@@ -29,6 +31,21 @@ test('edits roster fields and rating through the real PATCH route', async ({ pag
       url: route.request().url(),
       payload: route.request().postDataJSON(),
     };
+    if (delayNextPatch) {
+      delayNextPatch = false;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    if (rejectNextPatch) {
+      rejectNextPatch = false;
+      await route.fulfill({
+        status: 400,
+        json: {
+          message: 'Datos de colaborador no válidos.',
+          errors: [{ field: 'rating', message: 'Debe ser un entero entre 1 y 5 o null.' }],
+        },
+      });
+      return;
+    }
     persistedWorker = { ...persistedWorker, ...(receivedPatch.payload as Partial<typeof worker>) };
     await route.fulfill({ json: { success: true } });
   });
@@ -85,5 +102,49 @@ test('edits roster fields and rating through the real PATCH route', async ({ pag
   const staffCardRating = page.getByTestId(`staff-card-rating-${worker.id}`);
   await expect(staffCardRating).toHaveAttribute('data-rating', '4', { timeout: 10_000 });
   await staffCardRating.locator('xpath=ancestor::div[contains(@class,"cursor-pointer")]').click();
-  await expect(page.getByTestId(`profile-rating-${worker.id}`)).toContainText('4/5');
+  const profileRating = page.getByTestId(`profile-rating-${worker.id}`);
+  await expect(profileRating).toContainText('4/5');
+
+  delayNextPatch = true;
+  await profileRating.getByRole('button', { name: 'Puntuar a Ángela Muñoz Editada con 5 de 5 estrellas' }).click();
+  await expect(page.getByText('Guardando puntuación…', { exact: true })).toBeVisible();
+  await expect(page.getByText('Puntuación guardada: 5/5', { exact: true })).toBeVisible({ timeout: 1_000 });
+  expect(receivedPatch).toEqual({
+    method: 'PATCH',
+    url: expect.stringContaining(`/api/mysql/staff/${worker.id}`),
+    payload: { rating: 5 },
+  });
+  await expect(profileRating).toHaveAttribute('data-rating', '5');
+  await expect(profileRating.locator('svg[data-filled="true"]')).toHaveCount(5);
+
+  await profileRating.getByRole('button', { name: 'Quitar puntuación de Ángela Muñoz Editada' }).click();
+  await expect(page.getByText('Puntuación eliminada', { exact: true })).toBeVisible();
+  expect(receivedPatch).toEqual({
+    method: 'PATCH',
+    url: expect.stringContaining(`/api/mysql/staff/${worker.id}`),
+    payload: { rating: null },
+  });
+  await expect(profileRating).toHaveAttribute('data-rating', 'unrated');
+
+  await profileRating.getByRole('button', { name: 'Puntuar a Ángela Muñoz Editada con 3 de 5 estrellas' }).click();
+  await expect(page.getByText('Puntuación guardada: 3/5', { exact: true })).toBeVisible();
+  expect(receivedPatch).toEqual({
+    method: 'PATCH',
+    url: expect.stringContaining(`/api/mysql/staff/${worker.id}`),
+    payload: { rating: 3 },
+  });
+  await expect(profileRating).toHaveAttribute('data-rating', '3');
+
+  await page.reload();
+  await page.getByRole('button', { name: /^Plantilla$/i }).click();
+  const persistedCardRating = page.getByTestId(`staff-card-rating-${worker.id}`);
+  await expect(persistedCardRating).toHaveAttribute('data-rating', '3');
+  await persistedCardRating.locator('xpath=ancestor::div[contains(@class,"cursor-pointer")]').click();
+  const persistedProfileRating = page.getByTestId(`profile-rating-${worker.id}`);
+  await expect(persistedProfileRating).toHaveAttribute('data-rating', '3');
+
+  rejectNextPatch = true;
+  await persistedProfileRating.getByRole('button', { name: 'Puntuar a Ángela Muñoz Editada con 1 de 5 estrellas' }).click();
+  await expect(page.getByRole('alert')).toHaveText('rating: Debe ser un entero entre 1 y 5 o null.');
+  await expect(persistedProfileRating).toHaveAttribute('data-rating', '3');
 });
