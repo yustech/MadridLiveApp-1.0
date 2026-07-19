@@ -97,7 +97,7 @@ async function mockMetricsData(page: Page, requests: Array<{ method: string; pat
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));
 }
 
-test('shows canonical five-minute rates and event-scoped presence in Dashboard and KPIs', async ({ page }) => {
+test('shows canonical operational metrics without exposing technical load-in progress', async ({ page }) => {
   const requests: Array<{ method: string; pathname: string }> = [];
   await mockMetricsData(page, requests);
   await page.goto('/');
@@ -105,6 +105,22 @@ test('shows canonical five-minute rates and event-scoped presence in Dashboard a
   await expect(page.getByTestId('dashboard-personal-now')).toContainText('1 / 2');
   await expect(page.getByTestId('dashboard-checkin-rate')).toContainText('0.2');
   await expect(page.getByTestId('dashboard-checkin-rate')).toContainText('1 fichajes en 5 min');
+  await expect(page.getByText('Estado del Montaje')).toHaveCount(0);
+
+  await page.getByRole('heading', { name: activeEvent.title, exact: true }).click();
+  await expect(page.getByText('Detalles del Despliegue')).toBeVisible();
+  await expect(page.getByText('Avance del Montaje')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cerrar Ventana' }).click();
+
+  await page.getByRole('button', { name: 'EXPLORADOR BD' }).click();
+  const databaseManager = page.locator('#database-manager-screen');
+  await databaseManager.getByRole('button', { name: /Eventos/ }).click();
+  await expect(databaseManager).toContainText('Personal Requerido: 2 | Escaneos: 99 /min');
+  await expect(databaseManager.getByText(/Montaje:/)).toHaveCount(0);
+  await databaseManager.getByRole('button', { name: 'Editar' }).first().click();
+  await expect(databaseManager.getByText('Progreso %', { exact: true })).toBeVisible();
+  await databaseManager.locator('.fixed.inset-0.z-50').getByRole('button').first().click();
+  await databaseManager.getByRole('button').nth(1).click();
 
   await page.getByRole('button', { name: 'Solo déficit' }).click();
   await expect(page.getByText('No hay conciertos con déficit de personal para el filtro activo.')).toBeVisible();
