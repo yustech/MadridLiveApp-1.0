@@ -45,7 +45,7 @@ interface ScannerScreenProps {
   events: LiveEvent[];
   activeEventId: string;
   setActiveEventId: (id: string) => void;
-  onScanWorkerToggle: (workerId: string, customLocation?: string, force?: boolean) => Promise<WorkerToggleOutcome>;
+  onScanWorkerToggle: (workerId: string, force?: boolean) => Promise<WorkerToggleOutcome>;
   onNavigateToWorker: (worker: StaffMember) => void;
 }
 
@@ -307,7 +307,7 @@ export default function ScannerScreen({
       const prev = targetWorker.status;
       const nextStatus = prev === 'IN' ? 'OUT' : 'IN';
 
-      const outcome = await onScanWorkerToggle(workerId, 'Lector Puerta Principal', options.force);
+      const outcome = await onScanWorkerToggle(workerId, options.force);
       if (!outcome.success) {
         setScannedResult(null);
         if (outcome.errorCode === 'NOT_ASSIGNED' && nextStatus === 'IN' && !options.force) {

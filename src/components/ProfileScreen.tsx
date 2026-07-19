@@ -5,7 +5,6 @@ import {
   Timer, 
   CalendarRange, 
   ChevronRight, 
-  CheckCircle,
 } from 'lucide-react';
 import { StaffMember, Shift } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
@@ -23,18 +22,9 @@ import StaffAvatar from './StaffAvatar';
 interface ProfileScreenProps {
   worker: StaffMember;
   onBack: () => void;
-  onToggleStatus: (workerId: string, customLocation?: string) => void;
+  onToggleStatus: (workerId: string) => void;
   workerShifts: Shift[];
 }
-
-const zoneTranslationMap: Record<string, string> = {
-  'Stage Left': 'Escenario Izquierda',
-  'FOH Audio': 'Control de Audio (FOH)',
-  'Loading Dock': 'Muelle de Carga',
-  'Backstage VIP': 'Backstage / VIP',
-  'Artist Lounge': 'Camerino de Artistas',
-  'Artist Entrance': 'Entrada de Artistas'
-};
 
 export default function ProfileScreen({
   worker,
@@ -43,7 +33,6 @@ export default function ProfileScreen({
   workerShifts
 }: ProfileScreenProps) {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
-  const [customLocation, setCustomLocation] = useState(worker.location || 'Stage Left');
 
   const isMarkedIn = worker.status === 'IN';
   const activeShift = getActiveShiftForWorker(workerShifts, worker.id);
@@ -72,13 +61,13 @@ export default function ProfileScreen({
       // Check-out is straight-forward
       onToggleStatus(worker.id);
     } else {
-      // Open modal to select check-in location first
+      // Keep a deliberate confirmation step before opening the shift.
       setIsCheckInModalOpen(true);
     }
   };
 
   const confirmCheckIn = () => {
-    onToggleStatus(worker.id, customLocation);
+    onToggleStatus(worker.id);
     setIsCheckInModalOpen(false);
   };
 
@@ -349,27 +338,10 @@ export default function ProfileScreen({
       {isCheckInModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
           <div className="bg-[#120f26]/90 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
-            <h3 className="text-lg font-display font-medium text-white text-left">Confirmar Detalles de Entrada</h3>
+            <h3 className="text-lg font-display font-medium text-white text-left">Confirmar entrada</h3>
             <p className="text-xs font-mono text-white/50 text-left">
-              Seleccione la zona técnica de trabajo activa para iniciar el turno de {worker.name}:
+              Se iniciará el turno de {worker.name} para el evento activo.
             </p>
-
-            <div className="space-y-2 text-left">
-              {(['Stage Left', 'FOH Audio', 'Loading Dock', 'Backstage VIP', 'Artist Entrance'] as const).map(zone => (
-                <button
-                  key={zone}
-                  onClick={() => setCustomLocation(zone)}
-                  className={`w-full p-3 font-mono text-xs rounded-xl border text-left flex justify-between items-center transition-colors ${
-                    customLocation === zone
-                      ? 'bg-indigo-500/20 border-indigo-400 text-white'
-                      : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
-                  }`}
-                >
-                  <span>{zoneTranslationMap[zone] || zone}</span>
-                  {customLocation === zone && <CheckCircle className="w-4 h-4 text-indigo-400" />}
-                </button>
-              ))}
-            </div>
 
             <div className="flex gap-3 pt-2 font-mono">
               <button

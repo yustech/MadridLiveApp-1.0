@@ -165,17 +165,62 @@ test('confirms NOT_ASSIGNED separately and retries check-in with force true', as
   await expect(page.getByRole('heading', { name: 'No está convocado para este evento' })).toBeVisible();
   await page.getByRole('button', { name: 'Confirmar entrada' }).click();
   await expect(page.getByRole('heading', { name: 'Escaneo Completado' })).toBeVisible();
+  await expect(page.getByText('Lector Puerta Principal')).toHaveCount(0);
+  await expect(page.getByText('Zonas Activas:')).toHaveCount(0);
 
   expect(checkIns).toHaveLength(2);
   expect(checkIns[0]).toMatchObject({
     method: 'POST',
     url: expect.stringContaining('/api/mysql/checkin'),
-    body: { workerId: availableWorker.id, eventId: event.id, location: 'Lector Puerta Principal' },
+    body: { workerId: availableWorker.id, eventId: event.id },
   });
+  expect(checkIns[0].body).not.toHaveProperty('location');
   expect(checkIns[0].body).not.toHaveProperty('force');
   expect(checkIns[1]).toMatchObject({
     method: 'POST',
     url: expect.stringContaining('/api/mysql/checkin'),
-    body: { workerId: availableWorker.id, eventId: event.id, location: 'Lector Puerta Principal', force: true },
+    body: { workerId: availableWorker.id, eventId: event.id, force: true },
   });
+  expect(checkIns[1].body).not.toHaveProperty('location');
+});
+
+test('manual profile check-in confirms without worker zones or a location payload', async ({ page }) => {
+  let checkInBody: Record<string, unknown> | null = null;
+  await mockBaseData(page);
+  await page.route('**/api/mysql/checkin', async (route: Route) => {
+    checkInBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 201,
+      json: {
+        success: true,
+        action: 'checkin',
+        staff: { ...baseWorker, status: 'IN', checkedInTime: '2026-07-19T17:01:00.000Z' },
+        shift: {
+          id: 'shift-profile-e2e',
+          workerId: baseWorker.id,
+          dateString: '2026-07-19',
+          timespan: '19:01 - Present',
+          durationLabel: 'Active',
+          eventId: event.id,
+          eventTitle: event.title,
+          status: 'Active',
+          startedAt: '2026-07-19T17:01:00.000Z',
+        },
+      },
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('Zonas Activas:')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Plantilla$/i }).click();
+  await page.getByText(baseWorker.name, { exact: true }).first().click();
+  await page.getByRole('button', { name: 'Entrada Manual' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Confirmar entrada' })).toBeVisible();
+  await expect(page.getByText(/zona técnica de trabajo/i)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Stage Left|FOH Audio|Loading Dock|Backstage VIP|Artist Entrance/i })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Registrar Entrada' }).click();
+  await expect.poll(() => checkInBody).not.toBeNull();
+  expect(checkInBody).toEqual({ workerId: baseWorker.id, eventId: event.id });
 });

@@ -74,11 +74,6 @@ export default function App() {
   const [managedEventId, setManagedEventId] = useState<string>('');
 
   const presentStaffCount = staff.filter((member) => isWorkerPresentNow(member, shifts)).length;
-  const activeZonesCount = new Set(
-    staff
-      .filter((s) => isWorkerPresentNow(s, shifts) && s.location)
-      .map((s) => s.location.split('(')[0].trim())
-  ).size;
 
   // Sync activeEventId with loaded events
   useEffect(() => {
@@ -239,7 +234,6 @@ export default function App() {
   // Check worker toggle IN/OUT
   const handleToggleWorkerStatus = async (
     workerId: string,
-    customLocation?: string,
     force = false,
   ): Promise<WorkerToggleOutcome> => {
     const worker = staff.find(w => w.id === workerId);
@@ -269,7 +263,7 @@ export default function App() {
         return { success: false, errorMessage: 'El evento seleccionado no admite nuevas entradas.' };
       }
 
-      const result = await checkInWorker(workerId, activeEvent.id, customLocation || worker.location || '', force);
+      const result = await checkInWorker(workerId, activeEvent.id, undefined, force);
       setShifts((prev) => [result.shift, ...prev.filter((shift) => shift.id !== result.shift.id)]);
       setStaff((prev) => prev.map((staffMember) => (
         staffMember.id === workerId ? result.staff : staffMember
@@ -623,10 +617,6 @@ export default function App() {
             <div className="flex justify-between">
               <span className="text-white/40">Presentes:</span>
               <span className="text-emerald-400 font-bold">{presentStaffCount}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Zonas Activas:</span>
-              <span className="text-indigo-300 font-bold">{activeZonesCount}</span>
             </div>
           </div>
 
