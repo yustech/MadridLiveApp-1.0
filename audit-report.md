@@ -588,6 +588,44 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   PR propia, staging-first, mismo checklist de revisión que #80/#81/#84/#86.
   ```
 
+- [ ] **28. Lector QR: sección de convocatoria con selección rápida de pendientes de iniciar turno.** *(añadida 2026-07-19, decisión del owner)*
+  **Contexto verificado**: `ScannerScreen.tsx` hoy solo tiene un buscador libre (`searchQuery`/`filteredStaff`, líneas ~107 y ~312) que filtra sobre los 901 `staff` totales por nombre/idCode; no tiene ninguna noción de la convocatoria del evento (`event_staff`, tarea #19). El único punto de contacto con la convocatoria es reactivo: si se intenta un check-in de alguien no convocado, el backend devuelve 409 `NOT_ASSIGNED` y se abre el diálogo de "Acceso excepcional" (`notAssignedWorker`, PR #81). El endpoint `GET /api/mysql/events/:id/staff` ya existe y ya tiene cliente frontend listo: `getEventStaff(eventId)` en `src/components/eventStaff/eventStaffApi.ts`, que devuelve `EventStaffMember[]` (`id`, `idCode`, `name`, `assignedRole`, sin `status`/`checkedInTime` — eso vive en `staff`). Al tocar un colaborador de la búsqueda actual, solo se hace `setSelectedWorkerId(w.id)`; la confirmación real de entrada/salida es un botón aparte, `handlePrimaryAction` (línea ~772, "INICIO TURNO 1 CLIC" / "CERRAR TURNO GUIADO") que llama a `triggerScanOperation`.
+  **Decisiones del owner (2026-07-19)**: (1) tocar un colaborador de la nueva lista de convocatoria pendiente **selecciona, no fichar directo** — reutiliza exactamente el mismo mecanismo que la búsqueda general hoy (`setSelectedWorkerId` + confirmación con el botón `handlePrimaryAction` ya existente, sin botón ni endpoint nuevos). (2) si el evento activo no tiene convocatoria (`event_staff` vacío para ese `eventId` = check-in abierto a cualquiera, regla ya existente de #19/#80), la sección se muestra igualmente pero con un aviso explícito tipo "Este evento no tiene convocatoria — cualquier colaborador puede fichar", en vez de ocultarse silenciosamente.
+  **Definición exacta de "pendiente de iniciar turno"**: convocado (aparece en `getEventStaff(activeEventId)`) **y** sin ningún turno vinculado a este evento todavía — es decir, ningún `shift` en `shifts` donde `isShiftLinkedToEvent(shift, activeEvent)` sea true para ese `workerId` (util ya existente en `utils/shifts.ts`, usado hoy en `KPIScreen.tsx`). Esto excluye tanto a quien ya está dentro (`isWorkerPresentNow` true) como a quien ya fichó y salió (turno `Completed` para este evento) — ninguno de los dos "falta por iniciar turno". No confundir con el estado global `staff.status`, que no distingue de qué evento viene el turno activo.
+  **Modelo/Effort**: Codex-implementa + Claude-revisa (mismo patrón que #19/#20/#27). Effort medio-bajo: sin backend nuevo (el endpoint y el cliente ya existen), sin migración, solo UI + un fetch adicional en `ScannerScreen.tsx`.
+  **Alcance**:
+  - `ScannerScreen.tsx`: al cambiar `activeEventId`, llamar a `getEventStaff(activeEventId)` (mismo cliente que usa `EventStaffScreen.tsx`) y guardar el resultado en estado local. Cruzar contra `staff` (prop ya recibida) y `shifts` (prop ya recibida) con `isShiftLinkedToEvent` para calcular la lista de pendientes.
+  - Nueva sección visual dentro del panel derecho ("CREDENCIALES Y SIMULADOR"), separada del buscador libre actual (que se mantiene sin cambios) — por ejemplo como pestaña/segmento "Convocatoria" junto a "Todos", con contador tipo "N/M pendientes". Sigue las pautas de `AGENTS.md` (glassmorphism, tema oscuro, sin `window.confirm`/`alert`).
+  - Cada tarjeta de pendiente reutiliza el mismo patrón visual que las filas del buscador actual (avatar, nombre, `assignedRole` en vez del badge DENTRO/FUERA ya que por definición ninguno está dentro) y al tocarla hace `setSelectedWorkerId`.
+  - Estado vacío con convocatoria pero 0 pendientes (todos ya iniciaron turno): mensaje positivo tipo "Convocatoria completa — todos han iniciado turno".
+  - Estado sin convocatoria: aviso explícito acordado arriba, no ocultar la sección.
+  - Buscador/filtro dentro de la lista de convocatoria si hay muchos pendientes (conciertos de 30–160 personas) — reutilizar `rosterSearch` (NFD, insensible a acentos) igual que `RosterScreen`/`EventStaffScreen`, no reinventar otro matcher.
+  - No tocar el buscador general existente, `handlePrimaryAction`, `triggerScanOperation`, ni el flujo de escaneo óptico/manual — todo eso se queda igual, esta tarea solo añade una vía adicional de selección.
+  - No tocar `location`/"Lector Puerta Principal" (eso es la tarea #25, independiente).
+  **Prompt**:
+  ```
+  Añade al Lector QR (ScannerScreen.tsx) una sección de convocatoria junto al buscador libre
+  actual (que se mantiene sin cambios). Al cambiar el evento activo, obtén la convocatoria con
+  getEventStaff(activeEventId) (ya existe en src/components/eventStaff/eventStaffApi.ts, mismo
+  cliente que usa EventStaffScreen.tsx) y calcula quién "falta por iniciar turno": convocado
+  (aparece en el resultado) y SIN ningún shift en el array shifts (prop ya recibida) donde
+  isShiftLinkedToEvent(shift, activeEvent) sea true para ese workerId (util ya existente en
+  utils/shifts.ts). Esto excluye tanto a los que ya están dentro como a los que ya ficharon y
+  salieron -- ninguno "falta por iniciar". Al tocar un pendiente de esta lista, SOLO
+  seleccionalo (setSelectedWorkerId), exactamente igual que hace hoy el buscador general -- NO
+  dispares el check-in directo. La confirmación real sigue siendo el botón handlePrimaryAction
+  ya existente, sin cambios. Si el evento activo no tiene convocatoria (event_staff vacío),
+  muestra la sección igualmente con un aviso explícito de que cualquier colaborador puede
+  fichar libremente -- no la ocultes. Si hay convocatoria pero 0 pendientes, mensaje positivo de
+  convocatoria completa. Si hay muchos convocados, añade un filtro de texto dentro de esa lista
+  reutilizando rosterSearch (NFD, insensible a acentos), el mismo matcher que RosterScreen y
+  EventStaffScreen -- no reinventes otro. Sigue el estilo visual de AGENTS.md (glassmorphism,
+  sin window.confirm/alert). NO toques el buscador general existente, handlePrimaryAction,
+  triggerScanOperation, el flujo de escaneo óptico/manual, ni nada relacionado con
+  'Lector Puerta Principal'/location (eso es la tarea #25, independiente). PR propia,
+  staging-first, mismo checklist de revisión que #19/#20/#27.
+  ```
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)
