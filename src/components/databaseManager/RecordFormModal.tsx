@@ -4,11 +4,10 @@ import { EquipmentAlert, LiveEvent, Shift, StaffMember } from '../../types';
 import {
   DEFAULT_FEMALE_AVATAR,
   DEFAULT_MALE_AVATAR,
-  getAvatarSrc,
-  setFallbackAvatar,
 } from '../../utils/avatarUpload';
 import { sectorTranslationMap, tabLabelMap } from './constants';
 import { CollectionTab } from './types';
+import StaffAvatar from '../StaffAvatar';
 
 interface RecordFormModalProps {
   activeTab: CollectionTab;
@@ -156,11 +155,10 @@ export function RecordFormModal({
                 <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="Pega una URL o usa una foto subida desde este dispositivo" />
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
-                <img
-                  src={getAvatarSrc(staffData.avatar)}
+                <StaffAvatar
+                  worker={staffData}
                   alt="Vista previa avatar"
-                  className="h-14 w-14 rounded-2xl object-cover border border-white/10"
-                  onError={(event) => setFallbackAvatar(event.currentTarget)}
+                  className="h-14 w-14 rounded-2xl object-cover border border-white/10 text-base"
                 />
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>

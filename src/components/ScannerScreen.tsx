@@ -33,11 +33,11 @@ import {
   getShiftStartTimestamp,
   isWorkerPresentNow,
 } from '../utils/shifts';
-import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import { formatMadridDateTime } from '../utils/madridTime';
 import { formatEventStaffApiError, getEventStaff } from './eventStaff/eventStaffApi';
 import { filterRosterStaff } from './roster/rosterSearch';
 import { getPendingEventStaff } from './scanner/scannerEventStaff';
+import StaffAvatar from './StaffAvatar';
 
 interface ScannerScreenProps {
   staff: StaffMember[];
@@ -778,11 +778,10 @@ export default function ScannerScreen({
                         : 'bg-white/5 border-transparent text-white/60 hover:bg-white/10'
                     }`}
                   >
-                    <img
-                      src={getAvatarSrc(w.avatar)}
-                      className="w-6 h-6 rounded-full object-cover shrink-0"
+                    <StaffAvatar
+                      worker={w}
+                      className="w-6 h-6 rounded-full object-cover shrink-0 text-[9px]"
                       alt=""
-                      onError={(event) => setFallbackAvatar(event.currentTarget)}
                     />
                     <span className="truncate flex-1 font-semibold">{w.name}</span>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
@@ -823,11 +822,10 @@ export default function ScannerScreen({
             {/* Profile Micro Details */}
             <div className="flex items-center gap-3.5 w-full text-left">
               <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-white/15 bg-white/5 shadow-inner">
-                <img
-                  src={getAvatarSrc(activeSelectedWorker.avatar)}
-                  className="w-full h-full object-cover"
+                <StaffAvatar
+                  worker={activeSelectedWorker}
+                  className="w-full h-full object-cover text-base"
                   alt={activeSelectedWorker.name}
-                  onError={(event) => setFallbackAvatar(event.currentTarget)}
                 />
               </div>
 
@@ -1095,12 +1093,10 @@ export default function ScannerScreen({
 
             {/* Inboard Member Micro Card */}
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 flex items-center gap-3.5 text-left font-mono">
-              <img
-                src={getAvatarSrc(scannedResult.worker.avatar)}
-                referrerPolicy="no-referrer"
-                className="w-12 h-12 rounded-full object-cover border border-indigo-400 shrink-0"
+              <StaffAvatar
+                worker={scannedResult.worker}
+                className="w-12 h-12 rounded-full object-cover border border-indigo-400 shrink-0 text-sm"
                 alt=""
-                onError={(event) => setFallbackAvatar(event.currentTarget)}
               />
               <div className="min-w-0 flex-1">
                 <h4 className="text-sm font-semibold text-white truncate">{scannedResult.worker.name}</h4>
