@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Activity, 
   MapPin, 
@@ -25,9 +25,16 @@ import {
 import {
   getActiveShiftForWorker,
   getShiftStartTimestamp,
-  isWorkerPresentNow,
+  isShiftLinkedToEvent,
 } from '../utils/shifts';
-import { getEventStaff } from './eventStaff/eventStaffApi';
+import {
+  getEventListEmptyMessage,
+  getEventStaffingCoverage,
+  getPresentStaffForEvent,
+  getRecentCheckinRate,
+  getStaffingCoverage,
+  hasEventStaffDeficit,
+} from '../utils/operationalMetrics';
 
 interface DashboardScreenProps {
   events: LiveEvent[];
@@ -57,25 +64,6 @@ export default function DashboardScreen({
   const [eventListTab, setEventListTab] = useState<'upcoming' | 'past'>('upcoming');
   const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
-  const [detailAssignedCount, setDetailAssignedCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!selectedDetailEvent) {
-      setDetailAssignedCount(null);
-      return undefined;
-    }
-
-    setDetailAssignedCount(null);
-    getEventStaff(selectedDetailEvent.id)
-      .then((assigned) => {
-        if (!cancelled) setDetailAssignedCount(assigned.length);
-      })
-      .catch(() => {
-        if (!cancelled) setDetailAssignedCount(0);
-      });
-    return () => { cancelled = true; };
-  }, [selectedDetailEvent]);
 
   // Focus card follows the selected event. Yesterday remains operational until
   // 23:59 the next day; future events stay in planning mode.
@@ -107,10 +95,19 @@ export default function DashboardScreen({
     );
   }, [nonLiveEvents]);
 
-  const presentStaff = useMemo(() => {
-    const now = new Date();
-    return staff.filter((member) => isWorkerPresentNow(member, shifts, now));
-  }, [staff, shifts]);
+  const liveEventShifts = useMemo(() => (
+    liveEvent
+      ? shifts.filter((shift) => isShiftLinkedToEvent(shift, liveEvent))
+      : []
+  ), [shifts, liveEvent?.id, liveEvent?.title]);
+
+  const presentStaff = useMemo(() => (
+    getPresentStaffForEvent(staff, shifts, isOperationalFocus ? liveEvent : null)
+  ), [staff, shifts, isOperationalFocus, liveEvent?.id, liveEvent?.title]);
+
+  const liveCheckinRate = useMemo(() => (
+    getRecentCheckinRate(shifts, isOperationalFocus && liveEvent ? [liveEvent.id] : [])
+  ), [shifts, isOperationalFocus, liveEvent?.id]);
 
   // Active staff is intentionally "active now", not stale IN flags from old fixtures.
   const checkedInStaffCount = presentStaff.length;
@@ -123,7 +120,7 @@ export default function DashboardScreen({
 
     return presentStaff
       .map((member) => {
-        const activeShift = getActiveShiftForWorker(shifts, member.id);
+        const activeShift = getActiveShiftForWorker(liveEventShifts, member.id);
         const fallbackMinutes = (member.currentShiftHours || 0) * 60 + (member.currentShiftMins || 0);
         const shiftStartTs = activeShift ? getShiftStartTimestamp(activeShift) : null;
         const workerStartTs = member.checkedInTime ? new Date(member.checkedInTime).getTime() : Number.NaN;
@@ -142,7 +139,7 @@ export default function DashboardScreen({
       })
       .filter((member) => member.shiftMinutes >= LONG_SHIFT_MINUTES)
       .sort((a, b) => b.shiftMinutes - a.shiftMinutes);
-  }, [presentStaff, shifts]);
+  }, [presentStaff, liveEventShifts]);
 
   const pendingNowCandidates = useMemo(() => {
     if (!isOperationalFocus) return [];
@@ -161,22 +158,35 @@ export default function DashboardScreen({
       };
     }
 
-    const required = event?.requiredStaff ?? event?.totalStaffNeeded ?? 0;
+    const required = event.requiredStaff ?? event.totalStaffNeeded ?? 0;
     const temporalState = getEventTemporalState(event);
     const isDefaultRegistrationEvent = isEventInDefaultRegistrationWindow(event);
-    const active = event
-      ? (isDefaultRegistrationEvent
-        ? (event.id === liveEvent?.id ? checkedInStaffCount : event.activeStaff ?? 0)
-        : 0)
-      : 0;
-
-    const coveragePct = required > 0 ? Math.round((active / required) * 100) : 100;
+    const assignedCoverage = getEventStaffingCoverage(event);
+    const coverage = isDefaultRegistrationEvent && event.id === liveEvent?.id
+      ? getStaffingCoverage(checkedInStaffCount, required)
+      : assignedCoverage;
 
     if (temporalState === 'future') {
+      if (coverage.missing > 0) {
+        return {
+          label: `Faltan ${coverage.missing}`,
+          tone: 'text-amber-300 border-amber-400/30 bg-amber-500/10',
+          coveragePct: coverage.percent,
+        };
+      }
+
+      if (coverage.excess > 0) {
+        return {
+          label: `Sobran ${coverage.excess}`,
+          tone: 'text-sky-300 border-sky-400/30 bg-sky-500/10',
+          coveragePct: coverage.percent,
+        };
+      }
+
       return {
-        label: `${required} planificados`,
-        tone: 'text-sky-300 border-sky-400/30 bg-sky-500/10',
-        coveragePct,
+        label: 'Cobertura completa',
+        tone: 'text-emerald-300 border-emerald-400/30 bg-emerald-500/10',
+        coveragePct: coverage.percent,
       };
     }
 
@@ -184,50 +194,48 @@ export default function DashboardScreen({
       return {
         label: 'Archivado',
         tone: 'text-white/50 border-white/15 bg-white/5',
-        coveragePct,
+        coveragePct: coverage.percent,
       };
     }
 
-    const gap = required - active;
-
-    if (gap > 0) {
+    if (coverage.missing > 0) {
       return {
-        label: `Faltan ${gap}`,
+        label: `Faltan ${coverage.missing}`,
         tone: 'text-amber-300 border-amber-400/30 bg-amber-500/10',
-        coveragePct,
+        coveragePct: coverage.percent,
       };
     }
 
-    if (gap < 0) {
+    if (coverage.excess > 0) {
       return {
-        label: `Sobran ${Math.abs(gap)}`,
+        label: `Sobran ${coverage.excess}`,
         tone: 'text-sky-300 border-sky-400/30 bg-sky-500/10',
-        coveragePct,
+        coveragePct: coverage.percent,
       };
     }
 
     return {
       label: 'Cobertura completa',
       tone: 'text-emerald-300 border-emerald-400/30 bg-emerald-500/10',
-      coveragePct,
+      coveragePct: coverage.percent,
     };
   };
 
-  const deficitUpcomingEvents = useMemo(() => {
-    return upcomingEvents.filter((event) => {
-      const required = event.requiredStaff ?? event.totalStaffNeeded ?? 0;
-      const active = event.activeStaff ?? 0;
-      return required > active;
-    });
+  const understaffedUpcomingEvents = useMemo(() => {
+    return upcomingEvents.filter(hasEventStaffDeficit);
   }, [upcomingEvents]);
 
-  const visibleUpcomingEvents = showOnlyDeficit ? deficitUpcomingEvents : upcomingEvents;
+  const visibleUpcomingEvents = showOnlyDeficit ? understaffedUpcomingEvents : upcomingEvents;
   const visiblePastEvents = pastEvents;
   const listedEvents = eventListTab === 'upcoming' ? visibleUpcomingEvents : visiblePastEvents;
 
   const upcomingFilterLabel = showOnlyDeficit
-    ? `Mostrando deficit (${visibleUpcomingEvents.length})`
+    ? `Mostrando déficit (${visibleUpcomingEvents.length})`
     : `Mostrando todos (${visibleUpcomingEvents.length})`;
+
+  const selectedDetailCheckinRate = selectedDetailEvent
+    ? getRecentCheckinRate(shifts, [selectedDetailEvent.id])
+    : { count: 0, ratePerMinute: 0 };
 
   const handleConfirmDeletePastEvent = async () => {
     if (!deleteTargetEvent) return;
@@ -319,7 +327,7 @@ export default function DashboardScreen({
           </div>
 
           <div className="grid grid-cols-3 gap-4 border-t border-white/10 pt-5 mt-auto">
-            <div>
+            <div data-testid="dashboard-personal-now">
               <p className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">
                 Personal Ahora
               </p>
@@ -327,12 +335,15 @@ export default function DashboardScreen({
                 {checkedInStaffCount} <span className="text-xs text-white/20">/ {liveEvent?.requiredStaff ?? liveEvent?.totalStaffNeeded ?? 0}</span>
               </p>
             </div>
-            <div>
+            <div data-testid="dashboard-checkin-rate">
               <p className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">
-                Escaneos / Min
+                Media de fichajes/min · últimos 5 min
               </p>
               <p className="text-xl font-display font-medium text-purple-300">
-                {liveEvent?.scanRate ?? 0}
+                {liveCheckinRate.ratePerMinute.toFixed(1)}
+              </p>
+              <p className="text-[9px] font-mono text-white/35 mt-0.5">
+                {liveCheckinRate.count} fichajes en 5 min
               </p>
             </div>
             <div>
@@ -402,9 +413,7 @@ export default function DashboardScreen({
           {listedEvents.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center">
               <p className="text-xs font-mono uppercase tracking-wider text-white/50">
-                {eventListTab === 'upcoming'
-                  ? 'No hay conciertos con deficit de personal ahora mismo.'
-                  : 'No hay conciertos pasados archivados ahora mismo.'}
+                {getEventListEmptyMessage(eventListTab, showOnlyDeficit)}
               </p>
             </div>
           )}
@@ -479,7 +488,7 @@ export default function DashboardScreen({
                   onClick={() => setShowOnlyDeficit((prev) => !prev)}
                   className="h-8 rounded-full border border-white/15 px-3 text-[10px] font-mono uppercase tracking-wider text-white/80 hover:bg-white/10 transition-colors"
                 >
-                  {showOnlyDeficit ? 'Ver todos' : 'Solo deficit'}
+                  {showOnlyDeficit ? 'Ver todos' : 'Solo déficit'}
                 </button>
               </>
             ) : (
@@ -642,10 +651,13 @@ export default function DashboardScreen({
                 </p>
               </div>
               <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
-                <p className="text-white/40 uppercase text-[9px] mb-1">Escaneos Actuales</p>
+                <p className="text-white/40 text-[9px] mb-1">Media de fichajes/min · últimos 5 min</p>
                 <p className="text-sm font-bold text-pink-300 flex items-center gap-1.5">
                   <QrCode className="w-4 h-4 text-pink-400" />
-                  {selectedDetailEvent.scanRate} scans/min
+                  {selectedDetailCheckinRate.ratePerMinute.toFixed(1)} fichajes/min
+                </p>
+                <p className="mt-1 text-[9px] text-white/35">
+                  {selectedDetailCheckinRate.count} fichajes en 5 min
                 </p>
               </div>
             </div>
@@ -661,7 +673,7 @@ export default function DashboardScreen({
                 className="w-full h-11 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/25 text-cyan-100 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Users className="w-4 h-4" />
-                <span>Gestionar equipo · {detailAssignedCount ?? '…'}/{selectedDetailEvent.requiredStaff}</span>
+                <span>Gestionar equipo · {selectedDetailEvent.assignedStaffCount ?? 0}/{selectedDetailEvent.requiredStaff}</span>
               </button>
 
               <button

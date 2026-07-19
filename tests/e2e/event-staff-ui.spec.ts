@@ -10,6 +10,7 @@ const event = {
   dateYear: String(now.getFullYear()),
   doorsOpen: '19:00',
   requiredStaff: 2,
+  assignedStaffCount: 1,
   activeStaff: 0,
   totalStaffNeeded: 2,
   scanRate: 0,

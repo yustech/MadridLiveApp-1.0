@@ -168,6 +168,15 @@ test("event_staff assignments gate check-in while empty rosters remain backward 
       failed: [],
     });
 
+    const eventsWithAssignmentCounts = await api(request, "GET", "/api/mysql/events");
+    expect(eventsWithAssignmentCounts.status, eventsWithAssignmentCounts.text).toBe(200);
+    expect(eventsWithAssignmentCounts.json.find((event: { id: string }) => event.id === emptyEventId)).toMatchObject({
+      assignedStaffCount: 0,
+    });
+    expect(eventsWithAssignmentCounts.json.find((event: { id: string }) => event.id === populatedEventId)).toMatchObject({
+      assignedStaffCount: 1,
+    });
+
     const rosterResponse = await api(
       request,
       "GET",
@@ -251,6 +260,11 @@ test("event_staff assignments gate check-in while empty rosters remain backward 
       "GET",
       `/api/mysql/events/${populatedEventId}/staff`
     )).json).toEqual([]);
+
+    const eventsAfterAssignmentDelete = await api(request, "GET", "/api/mysql/events");
+    expect(eventsAfterAssignmentDelete.json.find((event: { id: string }) => event.id === populatedEventId)).toMatchObject({
+      assignedStaffCount: 0,
+    });
   } finally {
     const shiftsResponse = await api(request, "GET", "/api/mysql/shifts");
     if (shiftsResponse.status === 200 && Array.isArray(shiftsResponse.json)) {
