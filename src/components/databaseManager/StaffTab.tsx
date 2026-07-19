@@ -3,6 +3,13 @@ import { formatHoursMinutesFromDecimal } from '../../utils/duration';
 import { getAvatarSrc, setFallbackAvatar } from '../../utils/avatarUpload';
 import { sectorTranslationMap } from './constants';
 import { RecordCard } from './RecordCard';
+import { formatMadridDateTime } from '../../utils/madridTime';
+
+function formatCheckInTime(value?: string) {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : formatMadridDateTime(parsed);
+}
 
 interface StaffTabProps {
   items: StaffMember[];
@@ -39,7 +46,7 @@ export function StaffTab({ items, onEdit, onDelete }: StaffTabProps) {
               {sectorTranslationMap[item.role] || item.role} ({item.location})
             </p>
             <p className="text-[10px] text-white/50 font-mono mt-1">
-              Horas Totales: {formatHoursMinutesFromDecimal(item.totalHours)} | Estado: {item.status === 'IN' ? 'DENTRO' : 'FUERA'} | Entrada: {item.checkedInTime || '—'}
+              Horas Totales: {formatHoursMinutesFromDecimal(item.totalHours)} | Estado: {item.status === 'IN' ? 'DENTRO' : 'FUERA'} | Entrada: {formatCheckInTime(item.checkedInTime)}
             </p>
           </div>
         </RecordCard>

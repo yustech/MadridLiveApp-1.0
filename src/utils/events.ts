@@ -1,4 +1,11 @@
 import { LiveEvent } from '../types';
+import {
+  getMadridCivilDateKey,
+  getMadridCivilDateParts,
+  madridCivilDateKeyToInstant,
+  madridCivilDateTimeToInstant,
+  shiftMadridCivilDateKey,
+} from './madridTime';
 
 export type EventTemporalState = 'past' | 'today' | 'future' | 'unknown';
 
@@ -62,7 +69,19 @@ function parseEventYear(rawYear: string | undefined, now: Date): number {
     return parsedYear;
   }
 
-  return now.getFullYear();
+  return getMadridCivilDateParts(now).year;
+}
+
+function getEventCivilDateKey(event: LiveEvent, now = new Date()): string | null {
+  const day = Number(event.dateDay);
+  const month = parseEventMonth(event.dateMonth);
+  const year = parseEventYear(event.dateYear, now);
+
+  if (!Number.isInteger(day) || day < 1 || day > 31 || month === null) {
+    return null;
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 export function getEventDate(event: LiveEvent, now = new Date()): Date | null {
@@ -71,36 +90,29 @@ export function getEventDate(event: LiveEvent, now = new Date()): Date | null {
   const year = parseEventYear(event.dateYear, now);
   const [hourRaw, minuteRaw] = event.doorsOpen.split(':');
 
-  if (!Number.isFinite(day) || month === null) {
+  if (!Number.isInteger(day) || day < 1 || day > 31 || month === null) {
     return null;
   }
 
-  return new Date(
+  return madridCivilDateTimeToInstant({
     year,
-    month,
+    month: month + 1,
     day,
-    Number(hourRaw) || 0,
-    Number(minuteRaw) || 0,
-    0,
-    0
-  );
+    hour: Number(hourRaw) || 0,
+    minute: Number(minuteRaw) || 0,
+    second: 0,
+  });
 }
 
 export function getEventTemporalState(event?: LiveEvent | null, now = new Date()): EventTemporalState {
   if (!event) return 'unknown';
 
-  const eventDate = getEventDate(event, now);
-  if (!eventDate) return 'unknown';
+  const eventDateKey = getEventCivilDateKey(event, now);
+  if (!eventDateKey) return 'unknown';
 
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-
-  const endOfToday = new Date(now);
-  endOfToday.setHours(23, 59, 59, 999);
-
-  const eventTs = eventDate.getTime();
-  if (eventTs < startOfToday.getTime()) return 'past';
-  if (eventTs > endOfToday.getTime()) return 'future';
+  const todayKey = getMadridCivilDateKey(now);
+  if (eventDateKey < todayKey) return 'past';
+  if (eventDateKey > todayKey) return 'future';
   return 'today';
 }
 
@@ -110,15 +122,12 @@ export function getEventDefaultRegistrationWindow(
 ): EventRegistrationWindow | null {
   if (!event) return null;
 
-  const eventDate = getEventDate(event, now);
-  if (!eventDate) return null;
+  const eventDateKey = getEventCivilDateKey(event, now);
+  if (!eventDateKey) return null;
 
-  const startsAt = new Date(eventDate);
-  startsAt.setHours(0, 0, 0, 0);
-
-  const endsAt = new Date(startsAt);
-  endsAt.setDate(endsAt.getDate() + 1);
-  endsAt.setHours(23, 59, 59, 999);
+  const startsAt = madridCivilDateKeyToInstant(eventDateKey);
+  const afterWindowKey = shiftMadridCivilDateKey(eventDateKey, 2);
+  const endsAt = new Date(madridCivilDateKeyToInstant(afterWindowKey).getTime() - 1);
 
   return { startsAt, endsAt };
 }
@@ -167,7 +176,7 @@ export function formatEventDate(event: LiveEvent): string {
   const monthKey = event.dateMonth.trim().toUpperCase();
   const numericMonth = Number(monthKey);
   const monthName = Number.isInteger(numericMonth)
-    ? new Date(parseEventYear(event.dateYear, new Date()), numericMonth - 1, 1).toLocaleString('es-ES', { month: 'long' })
+    ? ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][numericMonth - 1]
     : MONTH_NAME[monthKey] || event.dateMonth;
   const year = parseEventYear(event.dateYear, new Date());
 

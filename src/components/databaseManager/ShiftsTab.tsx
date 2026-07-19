@@ -1,24 +1,12 @@
 import { Shift } from '../../types';
 import { formatHoursMinutesFromDecimal } from '../../utils/duration';
 import { RecordCard } from './RecordCard';
+import { formatShiftDateLabel, formatShiftTimeRange } from '../../utils/shifts';
 
 interface ShiftsTabProps {
   items: Shift[];
   onEdit: (record: Shift) => void;
   onDelete: (id: string) => void;
-}
-
-function formatShiftTimespan(timespan: string) {
-  if (timespan === '14:00 - Present') return '14:00 - Presente';
-  if (timespan === '14:30 - Present') return '14:30 - Presente';
-  if (timespan === '09:00 - Present') return '09:00 - Presente';
-  return timespan;
-}
-
-function formatShiftDate(dateString: string) {
-  if (dateString === 'Today') return 'Hoy';
-  if (dateString === 'Yesterday') return 'Ayer';
-  return dateString;
 }
 
 export function ShiftsTab({ items, onEdit, onDelete }: ShiftsTabProps) {
@@ -39,10 +27,10 @@ export function ShiftsTab({ items, onEdit, onDelete }: ShiftsTabProps) {
           <div className="text-left">
             <h4 className="text-xs font-mono text-white/50">ID Colaborador: {item.workerId}</h4>
             <p className="text-sm font-bold text-white mt-1">
-              {item.eventTitle} ({formatShiftTimespan(item.timespan)})
+              {item.eventTitle} ({formatShiftTimeRange(item)})
             </p>
             <p className="text-[10px] text-indigo-300 font-mono mt-0.5">
-              Fecha: {formatShiftDate(item.dateString)} | Duración: {item.durationLabel === 'Active' ? 'Activo' : formatHoursMinutesFromDecimal(item.durationLabel)}
+              Fecha: {formatShiftDateLabel(item)} | Duración: {item.durationLabel === 'Active' ? 'Activo' : formatHoursMinutesFromDecimal(item.durationLabel)}
             </p>
           </div>
         </RecordCard>

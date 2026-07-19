@@ -23,6 +23,7 @@ import {
 import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
 import { isWorkerPresentNow } from '../utils/shifts';
 import StaffRatingWidget from './ratings/StaffRatingWidget';
+import { formatMadridDateTime } from '../utils/madridTime';
 
 interface StaffScreenProps {
   staff: StaffMember[];
@@ -39,16 +40,7 @@ function formatPresenceTimestamp(raw?: string): string {
 
   const trimmed = raw.trim();
   const parsed = new Date(trimmed);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  }
+  if (!Number.isNaN(parsed.getTime())) return formatMadridDateTime(parsed);
 
   return trimmed;
 }

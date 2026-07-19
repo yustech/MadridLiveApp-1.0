@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
+import { getMadridCivilDateParts } from '../src/utils/madridTime';
 
 dotenv.config();
 
@@ -105,8 +106,9 @@ async function backfillEventYears(db: any) {
 
   const [result] = await db.query(
     `UPDATE events
-     SET dateYear = CAST(YEAR(CURRENT_DATE()) AS CHAR)
-     WHERE dateYear IS NULL OR TRIM(dateYear) = ''`
+     SET dateYear = ?
+     WHERE dateYear IS NULL OR TRIM(dateYear) = ''`,
+    [String(getMadridCivilDateParts().year)]
   );
   return Number((result as { affectedRows?: number })?.affectedRows || 0);
 }
@@ -122,6 +124,7 @@ async function main() {
     user,
     password: process.env.MYSQL_PASSWORD || '',
     database,
+    timezone: 'Z',
     waitForConnections: true,
     connectionLimit: 2,
     queueLimit: 0,

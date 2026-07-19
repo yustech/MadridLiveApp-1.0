@@ -1,7 +1,17 @@
 import { LiveEvent, Shift, StaffMember } from '../types';
+import {
+  formatMadridShortDate,
+  formatMadridTime,
+  formatMadridTimeWithZone,
+  getMadridCivilDateKey,
+  getMadridCivilDateParts,
+  getMadridZoneAbbreviation,
+  madridCivilDateTimeToInstant,
+  shiftMadridCivilDateKey,
+} from './madridTime';
 
 export type ShiftDateLike = Pick<Shift, 'dateString' | 'timespan'> &
-  Partial<Pick<Shift, 'id' | 'startedAt' | 'updatedAt'>>;
+  Partial<Pick<Shift, 'id' | 'startedAt' | 'endedAt' | 'updatedAt' | 'status'>>;
 
 const MONTH_INDEX: Record<string, number> = {
   ENE: 0,
@@ -46,7 +56,6 @@ function getClockParts(timespan: string): { hour: number; minute: number } {
 
   const hour = Number(match[1]);
   const minute = Number(match[2]);
-
   return {
     hour: Number.isFinite(hour) ? hour : 0,
     minute: Number.isFinite(minute) ? minute : 0,
@@ -59,17 +68,23 @@ function buildTimestamp(year: number, monthZeroBased: number, day: number, times
   }
 
   const { hour, minute } = getClockParts(timespan);
-  const parsed = new Date(year, monthZeroBased, day, hour, minute, 0, 0);
+  const parsed = madridCivilDateTimeToInstant({
+    year,
+    month: monthZeroBased + 1,
+    day,
+    hour,
+    minute,
+    second: 0,
+  });
   const timestamp = parsed.getTime();
-
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function getDayStartTs(timestamp: number): number {
-  if (!Number.isFinite(timestamp)) return Number.NaN;
-  const date = new Date(timestamp);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
+function buildTimestampFromDateKey(dateKey: string, timespan: string): number | null {
+  const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match
+    ? buildTimestamp(Number(match[1]), Number(match[2]) - 1, Number(match[3]), timespan)
+    : null;
 }
 
 function parseMonthToken(token: string): number | undefined {
@@ -81,34 +96,24 @@ export function getShiftStartTimestamp(shift: ShiftDateLike): number | null {
   if (canonicalStart !== null) return canonicalStart;
 
   const now = new Date();
+  const madridNow = getMadridCivilDateParts(now);
   const trimmedDate = shift.dateString.trim();
   const normalized = trimmedDate.toLowerCase();
 
   const isoMatch = normalized.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) {
-    const timestamp = buildTimestamp(
-      Number(isoMatch[1]),
-      Number(isoMatch[2]) - 1,
-      Number(isoMatch[3]),
-      shift.timespan
-    );
+    const timestamp = buildTimestamp(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), shift.timespan);
     if (timestamp !== null) return timestamp;
   }
 
-  const slashDateMatch = normalized.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  const slashDateMatch = normalized.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
   if (slashDateMatch) {
     const first = Number(slashDateMatch[1]);
     const second = Number(slashDateMatch[2]);
     const rawYear = Number(slashDateMatch[3]);
     const year = rawYear < 100 ? 2000 + rawYear : rawYear;
-
-    let day = first;
-    let month = second - 1;
-    if (first <= 12 && second > 12) {
-      day = second;
-      month = first - 1;
-    }
-
+    const day = first <= 12 && second > 12 ? second : first;
+    const month = first <= 12 && second > 12 ? first - 1 : second - 1;
     const timestamp = buildTimestamp(year, month, day, shift.timespan);
     if (timestamp !== null) return timestamp;
   }
@@ -116,14 +121,14 @@ export function getShiftStartTimestamp(shift: ShiftDateLike): number | null {
   const dayMonthMatch = trimmedDate.match(/(\d{1,2})[\s,.-]+([a-záéíóúñ]{3,9})/i);
   const dayMonth = dayMonthMatch ? parseMonthToken(dayMonthMatch[2]) : undefined;
   if (dayMonthMatch && dayMonth !== undefined) {
-    const timestamp = buildTimestamp(now.getFullYear(), dayMonth, Number(dayMonthMatch[1]), shift.timespan);
+    const timestamp = buildTimestamp(madridNow.year, dayMonth, Number(dayMonthMatch[1]), shift.timespan);
     if (timestamp !== null) return timestamp;
   }
 
   const monthDayMatch = trimmedDate.match(/([a-záéíóúñ]{3,9})[\s,.-]+(\d{1,2})/i);
   const monthDay = monthDayMatch ? parseMonthToken(monthDayMatch[1]) : undefined;
   if (monthDayMatch && monthDay !== undefined) {
-    const timestamp = buildTimestamp(now.getFullYear(), monthDay, Number(monthDayMatch[2]), shift.timespan);
+    const timestamp = buildTimestamp(madridNow.year, monthDay, Number(monthDayMatch[2]), shift.timespan);
     if (timestamp !== null) return timestamp;
   }
 
@@ -131,24 +136,14 @@ export function getShiftStartTimestamp(shift: ShiftDateLike): number | null {
   if (idTimestamp !== null) return idTimestamp;
 
   const updatedAt = getValidDateTimestamp(shift.updatedAt);
-  const reference = updatedAt !== null ? new Date(updatedAt) : now;
-  const baseTimestamp = buildTimestamp(
-    reference.getFullYear(),
-    reference.getMonth(),
-    reference.getDate(),
-    shift.timespan
-  );
-
-  if (baseTimestamp === null) return null;
-
-  if (normalized.startsWith('ayer') || normalized.startsWith('yesterday')) {
-    return baseTimestamp - 24 * 60 * 60 * 1000;
-  }
-
-  return baseTimestamp;
+  const referenceKey = getMadridCivilDateKey(updatedAt ?? now);
+  const resolvedKey = normalized.startsWith('ayer') || normalized.startsWith('yesterday')
+    ? shiftMadridCivilDateKey(referenceKey, -1)
+    : referenceKey;
+  return buildTimestampFromDateKey(resolvedKey, shift.timespan);
 }
 
-export function formatShiftDateLabel(shift: ShiftDateLike): string {
+export function formatShiftDateLabel(shift: ShiftDateLike, now = new Date()): string {
   const trimmed = shift.dateString.trim();
   if (!trimmed) return 'Sin fecha';
 
@@ -157,24 +152,30 @@ export function formatShiftDateLabel(shift: ShiftDateLike): string {
     return trimmed.replace('Today', 'Hoy').replace('Yesterday', 'Ayer');
   }
 
-  const shiftDayStart = getDayStartTs(shiftTime);
-  if (!Number.isFinite(shiftDayStart)) {
-    return trimmed.replace('Today', 'Hoy').replace('Yesterday', 'Ayer');
+  const shiftKey = getMadridCivilDateKey(shiftTime);
+  const todayKey = getMadridCivilDateKey(now);
+  const yesterdayKey = shiftMadridCivilDateKey(todayKey, -1);
+  const fullLabel = formatMadridShortDate(shiftTime);
+
+  if (shiftKey === todayKey) return `Hoy · ${fullLabel}`;
+  if (shiftKey === yesterdayKey) return `Ayer · ${fullLabel}`;
+  return fullLabel;
+}
+
+export function formatShiftTimeRange(shift: ShiftDateLike, includeZone = false): string {
+  const startTimestamp = getValidDateTimestamp(shift.startedAt);
+  if (startTimestamp === null) {
+    return shift.timespan.replace('Present', 'Presente');
   }
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-  const fullLabel = new Date(shiftTime).toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-
-  if (shiftDayStart === todayStart) return `Hoy · ${fullLabel}`;
-  if (shiftDayStart === yesterdayStart) return `Ayer · ${fullLabel}`;
-
-  return fullLabel;
+  const endTimestamp = getValidDateTimestamp(shift.endedAt);
+  const startZone = getMadridZoneAbbreviation(startTimestamp);
+  const endZone = endTimestamp === null ? '' : getMadridZoneAbbreviation(endTimestamp);
+  const zoneChange = endTimestamp !== null && startZone !== endZone;
+  const formatTime = includeZone || zoneChange ? formatMadridTimeWithZone : formatMadridTime;
+  const startLabel = formatTime(startTimestamp);
+  const endLabel = endTimestamp === null ? 'Presente' : formatTime(endTimestamp);
+  return `${startLabel} - ${endLabel}`;
 }
 
 export function isShiftActiveNow(shift: Shift, now = new Date()): boolean {
@@ -189,10 +190,8 @@ export function isShiftActiveNow(shift: Shift, now = new Date()): boolean {
   const ageMs = nowTs - shiftStart;
   if (ageMs < 0 || ageMs > ACTIVE_SHIFT_MAX_AGE_MS) return false;
 
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const shiftDayStart = getDayStartTs(shiftStart);
-
-  return shiftDayStart === todayStart || ageMs <= ACTIVE_SHIFT_MAX_AGE_MS;
+  return getMadridCivilDateKey(shiftStart) === getMadridCivilDateKey(now)
+    || ageMs <= ACTIVE_SHIFT_MAX_AGE_MS;
 }
 
 export function getActiveShiftForWorker(shifts: Shift[], workerId: string, now = new Date()): Shift | null {
@@ -213,8 +212,6 @@ export function isWorkerPresentNow(worker: StaffMember, shifts: Shift[], now = n
 }
 
 export function isShiftLinkedToEvent(shift: Shift, event: LiveEvent): boolean {
-  return (
-    shift.eventId === event.id ||
-    shift.eventTitle.trim().toLowerCase() === event.title.trim().toLowerCase()
-  );
+  return shift.eventId === event.id
+    || shift.eventTitle.trim().toLowerCase() === event.title.trim().toLowerCase();
 }

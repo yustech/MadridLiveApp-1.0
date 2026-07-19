@@ -1,44 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import { MONTH_INDEX, parseEventDateTime } from '../../server/mysql/lifecycle/eventDateTime';
+import { getMadridCivilDateParts } from '../../src/utils/madridTime';
 
 describe('parseEventDateTime', () => {
   it('parses Spanish month labels with the provided year and doors time', () => {
     const parsed = parseEventDateTime('09', 'JUL', '2026', '21:30');
 
     expect(parsed).toBeInstanceOf(Date);
-    expect(parsed?.getFullYear()).toBe(2026);
-    expect(parsed?.getMonth()).toBe(6);
-    expect(parsed?.getDate()).toBe(9);
-    expect(parsed?.getHours()).toBe(21);
-    expect(parsed?.getMinutes()).toBe(30);
+    expect(parsed?.toISOString()).toBe('2026-07-09T19:30:00.000Z');
   });
 
   it('parses English fallback month labels used by the guard', () => {
     const parsed = parseEventDateTime('15', 'AUG', '2030', '08:05');
 
-    expect(parsed?.getFullYear()).toBe(2030);
-    expect(parsed?.getMonth()).toBe(7);
-    expect(parsed?.getDate()).toBe(15);
-    expect(parsed?.getHours()).toBe(8);
-    expect(parsed?.getMinutes()).toBe(5);
+    expect(parsed?.toISOString()).toBe('2030-08-15T06:05:00.000Z');
+  });
+
+  it('parses numeric month values accepted by the event validator', () => {
+    expect(parseEventDateTime('19', '7', '2026', '23:00')?.toISOString()).toBe('2026-07-19T21:00:00.000Z');
   });
 
   it('falls back to the current year when dateYear is missing or out of range', () => {
     const parsed = parseEventDateTime('01', 'ENE', '1800', '00:00');
 
-    expect(parsed?.getFullYear()).toBe(new Date().getFullYear());
-    expect(parsed?.getMonth()).toBe(0);
-    expect(parsed?.getDate()).toBe(1);
+    expect(getMadridCivilDateParts(parsed!)).toEqual({
+      year: getMadridCivilDateParts().year,
+      month: 1,
+      day: 1,
+    });
   });
 
   it('defaults invalid doorsOpen pieces to midnight components independently', () => {
     const parsed = parseEventDateTime('02', 'FEB', '2027', 'bad:also-bad');
 
-    expect(parsed?.getFullYear()).toBe(2027);
-    expect(parsed?.getMonth()).toBe(1);
-    expect(parsed?.getDate()).toBe(2);
-    expect(parsed?.getHours()).toBe(0);
-    expect(parsed?.getMinutes()).toBe(0);
+    expect(parsed?.toISOString()).toBe('2027-02-01T23:00:00.000Z');
   });
 
   it('returns null for invalid day or unknown month labels', () => {

@@ -8,7 +8,7 @@ export interface StaffMember {
   role: StaffRole;
   roleLabel: string; // e.g. "AUXILIAR", "AUXILIAR PLUS", "COORDINACIÓN"
   status: 'IN' | 'OUT';
-  checkedInTime?: string; // e.g. '14:30'
+  checkedInTime?: string; // canonical UTC ISO instant; legacy clock labels may still exist
   lastSeen?: string; // e.g. 'Yesterday', '3 days ago'
   avatar: string;
   email?: string;
@@ -63,9 +63,9 @@ export interface Shift {
   eventId?: string;
   eventTitle: string;
   status: 'Active' | 'Completed';
-  startedAt?: string;
-  endedAt?: string;
-  updatedAt?: string;
+  startedAt?: string; // canonical UTC ISO instant
+  endedAt?: string; // canonical UTC ISO instant
+  updatedAt?: string; // canonical UTC ISO instant
 }
 
 export interface LiveEvent {

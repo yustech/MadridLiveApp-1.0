@@ -1,4 +1,9 @@
 import { chromium } from '@playwright/test';
+import {
+  getMadridCivilDateKey,
+  getMadridCivilDateParts,
+  shiftMadridCivilDateKey,
+} from '../src/utils/madridTime.ts';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://www.madridliveapp.top';
 const RUN_STARTED_AT_MS = Date.now();
@@ -31,19 +36,21 @@ function assert(condition, message) {
 }
 
 function parseDateLabel(label) {
+  const dateKeyToTimestamp = (dateKey) => {
+    const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12) : Number.NaN;
+  };
   const clean = (label || "").trim();
   if (clean === "Hoy" || clean.startsWith("Hoy ·")) {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return dateKeyToTimestamp(getMadridCivilDateKey());
   }
   if (clean === "Ayer" || clean.startsWith("Ayer ·")) {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
+    return dateKeyToTimestamp(shiftMadridCivilDateKey(getMadridCivilDateKey(), -1));
   }
 
   const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) {
-    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])).getTime();
+    return Date.UTC(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 12);
   }
 
   // Supports localized labels rendered by the app like "12 abr" or "12 abr 2026".
@@ -54,9 +61,8 @@ function parseDateLabel(label) {
     const monthIndex = MONTH_TO_INDEX[monthKey];
 
     if (Number.isFinite(day) && monthIndex !== undefined) {
-      const now = new Date();
-      const year = shortMonthMatch[3] ? Number(shortMonthMatch[3]) : now.getFullYear();
-      return new Date(year, monthIndex, day).getTime();
+      const year = shortMonthMatch[3] ? Number(shortMonthMatch[3]) : getMadridCivilDateParts().year;
+      return Date.UTC(year, monthIndex, day, 12);
     }
   }
 

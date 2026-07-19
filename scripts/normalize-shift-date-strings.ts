@@ -1,5 +1,10 @@
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
+import {
+  getMadridCivilDateKey,
+  getMadridCivilDateParts,
+  shiftMadridCivilDateKey,
+} from '../src/utils/madridTime';
 
 dotenv.config({ path: '/opt/madridlive-app/.env' });
 dotenv.config();
@@ -32,10 +37,7 @@ type ShiftRow = {
 };
 
 function formatIsoDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return getMadridCivilDateKey(date);
 }
 
 function normalizeDateString(value: string, updatedAtRaw: string): string | null {
@@ -54,9 +56,7 @@ function normalizeDateString(value: string, updatedAtRaw: string): string | null
   }
 
   if (normalized.startsWith('ayer') || normalized.startsWith('yesterday')) {
-    const d = new Date(base);
-    d.setDate(d.getDate() - 1);
-    return formatIsoDate(d);
+    return shiftMadridCivilDateKey(getMadridCivilDateKey(base), -1);
   }
 
   const dayMonthMatch = normalized.match(/(\d{1,2})\s+([a-záéíóúñ]{3,9})/i);
@@ -65,8 +65,8 @@ function normalizeDateString(value: string, updatedAtRaw: string): string | null
     const monthKey = dayMonthMatch[2].slice(0, 3).toLowerCase();
     const month = MONTH_INDEX[monthKey];
     if (Number.isFinite(day) && month !== undefined) {
-      const inferred = new Date(base.getFullYear(), month, day);
-      return formatIsoDate(inferred);
+      const year = getMadridCivilDateParts(base).year;
+      return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
 
@@ -77,7 +77,7 @@ function normalizeDateString(value: string, updatedAtRaw: string): string | null
     const rawYear = Number(slashMatch[3]);
     const year = rawYear < 100 ? 2000 + rawYear : rawYear;
     if (Number.isFinite(day) && Number.isFinite(month) && Number.isFinite(year)) {
-      return formatIsoDate(new Date(year, month, day));
+      return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
 
@@ -91,6 +91,7 @@ async function main() {
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD || '',
     database: process.env.MYSQL_DATABASE,
+    timezone: 'Z',
   });
 
   let rows: unknown;

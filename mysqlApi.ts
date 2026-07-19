@@ -27,6 +27,12 @@ import { MIGRATIONS } from "./server/mysql/migrations";
 import { runVersionedMigrations } from "./server/mysql/migrations/runner";
 import { initSchema } from "./server/mysql/schema/initSchema";
 import { getSchemaStatus } from "./server/mysql/schema/schemaStatus";
+import {
+  formatMadridTime,
+  getMadridCivilDateKey,
+  madridCivilDateTimeToInstant,
+  shiftMadridCivilDateKey,
+} from "./src/utils/madridTime";
 
 const MYSQL_PREFIX = "/api/mysql";
 
@@ -40,7 +46,7 @@ function parseCount(value: unknown) {
 }
 
 function formatSeedClock(date: Date) {
-  return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return formatMadridTime(date);
 }
 
 function getSeedClockParts(timespan: string) {
@@ -53,15 +59,21 @@ function getSeedClockParts(timespan: string) {
 
 function buildSeedCompletedStart(timespan: string, daysAgo: number) {
   const { hour, minute } = getSeedClockParts(timespan);
-  const startedAt = new Date();
-  startedAt.setDate(startedAt.getDate() - daysAgo);
-  startedAt.setHours(Number.isFinite(hour) ? hour : 10, Number.isFinite(minute) ? minute : 0, 0, 0);
-  return startedAt;
+  const dateKey = shiftMadridCivilDateKey(getMadridCivilDateKey(), -daysAgo);
+  const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/)!;
+  return madridCivilDateTimeToInstant({
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number.isFinite(hour) ? hour : 10,
+    minute: Number.isFinite(minute) ? minute : 0,
+    second: 0,
+  });
 }
 
 function buildSeedActiveStart(index: number) {
   const startedAt = new Date(Date.now() - (90 + index * 20) * 60 * 1000);
-  startedAt.setSeconds(0, 0);
+  startedAt.setUTCSeconds(0, 0);
   return startedAt;
 }
 

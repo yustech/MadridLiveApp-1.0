@@ -94,7 +94,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  timezone: 'Z'
 });
 
 function requireAdminToken(req, res, next) {
@@ -153,7 +154,8 @@ const pool = mysql.createPool({
   database: '${config.name}',
   waitForConnections: true,
   connectionLimit: 10,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  timezone: 'Z'
 });
 
 function requireAdminToken(req, res, next) {

@@ -5,6 +5,7 @@ import { makeId } from "../ids";
 import { getPool } from "../pool";
 import { buildEventUpdatePayload, insertEventRecord } from "../repositories/eventsRepository";
 import { buildUpdateClause } from "../updateClause";
+import { getMadridCivilDateParts } from "../../../src/utils/madridTime";
 
 interface EventsRoutesOptions {
   prefix: string;
@@ -27,7 +28,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
           location,
           dateDay AS dateDay,
           dateMonth AS dateMonth,
-          COALESCE(dateYear, CAST(YEAR(CURRENT_DATE()) AS CHAR)) AS dateYear,
+          COALESCE(dateYear, ?) AS dateYear,
           doorsOpen AS doorsOpen,
           required_staff AS requiredStaff,
           active_staff AS activeStaff,
@@ -35,7 +36,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
           scan_rate AS scanRate,
           load_in_percent AS loadInPercent
         FROM events
-      `);
+      `, [String(getMadridCivilDateParts().year)]);
       return res.json(rows);
     } catch (error: any) {
       return res.status(500).json({ message: error.message });

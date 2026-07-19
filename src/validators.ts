@@ -1,3 +1,5 @@
+import { getMadridCivilDateParts } from './utils/madridTime';
+
 /**
  * Input Validation & Sanitization Module
  * 
@@ -81,7 +83,7 @@ function validateEventYearField(
 ): ValidationResult<string> {
   const shouldDefault = value === undefined || value === null || String(value).trim() === "";
   const rawValue = shouldDefault && options.defaultToCurrentYear
-    ? new Date().getFullYear()
+    ? getMadridCivilDateParts().year
     : value;
   const result = sanitizeNumber(rawValue, "dateYear", MIN_EVENT_YEAR, MAX_EVENT_YEAR);
 
@@ -468,10 +470,12 @@ export function sanitizeDateTime(value: unknown, fieldName: string): ValidationR
   }
 
   const sanitized = value.trim();
+  const zonedIsoPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/i;
 
-  // Validate ISO 8601 format and parsability
+  // Canonical instants must carry an explicit zone so parsing never depends on
+  // the host. Normalize every accepted offset to an unambiguous UTC ISO value.
   const dateObj = new Date(sanitized);
-  if (isNaN(dateObj.getTime())) {
+  if (!zonedIsoPattern.test(sanitized) || isNaN(dateObj.getTime())) {
     errors.push({
       field: fieldName,
       message: "Invalid datetime format (expected ISO 8601)",
@@ -480,7 +484,7 @@ export function sanitizeDateTime(value: unknown, fieldName: string): ValidationR
     return { valid: false, errors };
   }
 
-  return { valid: true, errors, sanitized };
+  return { valid: true, errors, sanitized: dateObj.toISOString() };
 }
 
 /**

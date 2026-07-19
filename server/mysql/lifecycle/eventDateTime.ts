@@ -1,3 +1,8 @@
+import {
+  getMadridCivilDateParts,
+  madridCivilDateTimeToInstant,
+} from "../../../src/utils/madridTime";
+
 export const MONTH_INDEX: Record<string, number> = {
   ENE: 0,
   JAN: 0,
@@ -20,11 +25,14 @@ export const MONTH_INDEX: Record<string, number> = {
 export function parseEventDateTime(dateDay?: string, dateMonth?: string, dateYear?: string, doorsOpen?: string) {
   const day = Number(String(dateDay || '').trim());
   const monthToken = String(dateMonth || '').trim().toUpperCase();
-  const month = MONTH_INDEX[monthToken];
+  const numericMonth = Number(monthToken);
+  const month = Number.isInteger(numericMonth) && numericMonth >= 1 && numericMonth <= 12
+    ? numericMonth - 1
+    : MONTH_INDEX[monthToken];
   const parsedYear = Number(String(dateYear || '').trim());
   const year = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2200
     ? parsedYear
-    : new Date().getFullYear();
+    : getMadridCivilDateParts().year;
 
   if (!Number.isInteger(day) || day < 1 || day > 31 || month === undefined) {
     return null;
@@ -33,15 +41,14 @@ export function parseEventDateTime(dateDay?: string, dateMonth?: string, dateYea
   const [hourRaw, minRaw] = String(doorsOpen || '00:00').split(':');
   const hour = Number(hourRaw);
   const minute = Number(minRaw);
-  const eventDate = new Date(
+  const eventDate = madridCivilDateTimeToInstant({
     year,
-    month,
+    month: month + 1,
     day,
-    Number.isFinite(hour) ? hour : 0,
-    Number.isFinite(minute) ? minute : 0,
-    0,
-    0
-  );
+    hour: Number.isFinite(hour) ? hour : 0,
+    minute: Number.isFinite(minute) ? minute : 0,
+    second: 0,
+  });
 
   if (Number.isNaN(eventDate.getTime())) {
     return null;

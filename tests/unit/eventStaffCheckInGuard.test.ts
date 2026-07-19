@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { evaluateEventStaffCheckIn } from "../../server/mysql/lifecycle/shiftGuards";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  ensureShiftNotLinkedToFutureEvent,
+  evaluateEventStaffCheckIn,
+} from "../../server/mysql/lifecycle/shiftGuards";
+
+afterEach(() => vi.useRealTimers());
 
 describe("event_staff check-in guard", () => {
   it("allows everyone when the event has no assignments", () => {
@@ -37,5 +42,44 @@ describe("event_staff check-in guard", () => {
       isAssigned: false,
       force: true,
     })).toEqual({ allowed: true });
+  });
+});
+
+describe("future event guard in Madrid", () => {
+  function dbWithEvent(dateDay: string) {
+    return {
+      query: vi.fn().mockResolvedValue([[
+        {
+          id: "event-time-guard",
+          title: "Evento Madrid",
+          dateDay,
+          dateMonth: "JUL",
+          dateYear: "2026",
+          doorsOpen: "23:00",
+        },
+      ]]),
+    };
+  }
+
+  it("allows the Madrid day that has already begun while the host is still on the prior UTC day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T22:30:00Z"));
+    await expect(ensureShiftNotLinkedToFutureEvent(
+      dbWithEvent("19"),
+      "Active",
+      "event-time-guard",
+      "Evento Madrid"
+    )).resolves.toBeUndefined();
+  });
+
+  it("still rejects the following Madrid civil day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T22:30:00Z"));
+    await expect(ensureShiftNotLinkedToFutureEvent(
+      dbWithEvent("20"),
+      "Active",
+      "event-time-guard",
+      "Evento Madrid"
+    )).rejects.toThrow("Cannot activate shifts for future event");
   });
 });
