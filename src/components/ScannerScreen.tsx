@@ -34,6 +34,7 @@ import {
   isWorkerPresentNow,
 } from '../utils/shifts';
 import { formatMadridDateTime } from '../utils/madridTime';
+import { buildWhatsAppShareUrl } from '../utils/whatsappShare';
 import { formatEventStaffApiError, getEventStaff } from './eventStaff/eventStaffApi';
 import { filterRosterStaff } from './roster/rosterSearch';
 import { getPendingEventStaff } from './scanner/scannerEventStaff';
@@ -390,6 +391,12 @@ export default function ScannerScreen({
   const activeSelectedWorkerDuration = activeSelectedWorker
     ? getWorkerDurationLabel(activeSelectedWorker)
     : '0h 0m';
+  const activeSelectedWorkerWhatsAppUrl = activeSelectedWorker
+    ? buildWhatsAppShareUrl(
+        activeSelectedWorker.phone,
+        `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${activeSelectedWorker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${activeSelectedWorker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${activeSelectedWorker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(activeSelectedWorker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`,
+      )
+    : null;
 
   const handlePrimaryAction = () => {
     if (!activeSelectedWorker) return;
@@ -875,17 +882,28 @@ export default function ScannerScreen({
                 Registra la entrada/salida de este colaborador de manera inmediata simulando la lectura óptica del QR de su credencial.
               </p>
 
-              <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                  `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${activeSelectedWorker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${activeSelectedWorker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${activeSelectedWorker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(activeSelectedWorker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
-              >
-                <span>💬</span>
-                <span>Enviar QR por WhatsApp</span>
-              </a>
+              {activeSelectedWorkerWhatsAppUrl ? (
+                <a
+                  href={activeSelectedWorkerWhatsAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Enviar QR por WhatsApp a ${activeSelectedWorker.name}`}
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                >
+                  <span>💬</span>
+                  <span>Enviar QR por WhatsApp</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  aria-label={`Sin teléfono registrado para ${activeSelectedWorker.name}`}
+                  className="mt-4 flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 font-mono text-xs font-bold uppercase tracking-wider text-white/35"
+                >
+                  <span>💬</span>
+                  <span>Sin teléfono registrado</span>
+                </button>
+              )}
             </div>
 
             {/* ACCIONES GUIADAS DE TURNO */}
