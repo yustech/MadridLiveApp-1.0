@@ -19,6 +19,7 @@ import {
   isShiftActiveNow,
   isWorkerPresentNow,
 } from '../utils/shifts';
+import { buildWhatsAppShareUrl } from '../utils/whatsappShare';
 import StaffRatingWidget from './ratings/StaffRatingWidget';
 import StaffAvatar from './StaffAvatar';
 import { formatRosterApiError, patchRosterStaff } from './roster/rosterApi';
@@ -102,6 +103,11 @@ export default function ProfileScreen({
       setIsSavingRating(false);
     }
   };
+
+  const whatsappShareUrl = buildWhatsAppShareUrl(
+    worker.phone,
+    `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${worker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${worker.roleLabel || worker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${worker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(worker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`,
+  );
 
   return (
     <div id="profile-view" className="space-y-6">
@@ -286,17 +292,28 @@ export default function ProfileScreen({
                 Muestra este código QR en el lector del acceso principal para registrar tu entrada o salida automáticamente.
               </p>
               
-              <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                  `🎸 *MADRID LIVE ACCESS* 🎸\n\nHola, *${worker.name}*.\nAquí tienes tu acreditación de acceso oficial para el concierto:\n\n📋 *PUESTO*: ${worker.roleLabel || worker.role}\n🔑 *CÓDIGO DE CREDENCIAL*: ${worker.idCode}\n\nAccede al siguiente enlace para ver y guardar tu código QR Oficial:\n👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&bgcolor=ffffff&color=120f26&qzone=1&data=${encodeURIComponent(worker.idCode)}\n\n⚠️ *INSTRUCCIONES*: Guarda esta imagen en tu móvil. Al llegar y salir del recinto de Madrid Live, muestra este código QR en el lector del supervisor para registrar tu entrada/salida rápidamente.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
-              >
-                <span>💬</span>
-                <span>COMPARTIR POR WHATSAPP</span>
-              </a>
+              {whatsappShareUrl ? (
+                <a
+                  href={whatsappShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Enviar QR por WhatsApp a ${worker.name}`}
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                >
+                  <span>💬</span>
+                  <span>Enviar QR por WhatsApp</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  aria-label={`Sin teléfono registrado para ${worker.name}`}
+                  className="mt-4 flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 font-mono text-xs font-bold uppercase tracking-wider text-white/35"
+                >
+                  <span>💬</span>
+                  <span>Sin teléfono registrado</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
