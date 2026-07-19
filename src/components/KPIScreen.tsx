@@ -11,9 +11,11 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { Shift, StaffMember, LiveEvent } from '../types';
-import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
+import { formatHoursMinutesFromDecimal } from '../utils/duration';
 import { getRoleBucket, getRoleDisplayName } from '../utils/roles';
 import {
+  formatDurationMinutes,
+  getShiftDurationMinutes,
   getShiftStartTimestamp,
   isShiftActiveNow,
   isShiftLinkedToEvent,
@@ -119,12 +121,12 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
       return date ? date.getTime() >= oneHourAgoMs : false;
     }).length;
 
-    const completedHours = completedShifts
-      .map((shift) => parseDecimalHours(shift.durationLabel))
+    const completedMinutes = completedShifts
+      .map(getShiftDurationMinutes)
       .filter((value): value is number => value !== null);
 
-    const avgShiftHours = completedHours.length
-      ? completedHours.reduce((acc, curr) => acc + curr, 0) / completedHours.length
+    const avgShiftMinutes = completedMinutes.length
+      ? completedMinutes.reduce((acc, curr) => acc + curr, 0) / completedMinutes.length
       : 0;
 
     const roleCountMap = new Map<string, number>();
@@ -211,7 +213,7 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
       coverage,
       checkinsLastFiveMinutes: recentCheckins.count,
       checkinRatePerMin: recentCheckins.ratePerMinute,
-      avgShiftHours,
+      avgShiftMinutes,
       checkinsLastHour,
       activeShiftsNow: shiftStatus.active,
       shiftStatus,
@@ -601,7 +603,7 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
               <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-white/90">Cobertura del filtro activo: <strong className="text-white">{kpi.coverage}%</strong></p>
-                <p className="text-white/50">Promedio de turno completado: {kpi.avgShiftHours.toFixed(1)}h</p>
+                <p className="text-white/50">Promedio de turno completado: {formatDurationMinutes(kpi.avgShiftMinutes)}</p>
               </div>
             </div>
 

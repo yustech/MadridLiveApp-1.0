@@ -17,12 +17,14 @@ import {
 } from 'lucide-react';
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
-import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
 import { getDynamicRoleFilters, getRoleBucket, getRoleDisplayName } from '../utils/roles';
 import {
+  formatDurationMinutes,
   formatShiftDateLabel,
+  formatShiftDuration,
   formatShiftTimeRange,
   getShiftStartTimestamp,
+  sumShiftDurationMinutes,
   ShiftDateLike,
 } from '../utils/shifts';
 import {
@@ -322,21 +324,14 @@ export default function ShiftsScreen({
   const stats = useMemo(() => {
     const total = filteredShifts.length;
     const active = filteredShifts.filter(s => s.status?.toLowerCase() === 'active').length;
-    const completed = filteredShifts.filter(s => s.status?.toLowerCase() === 'completed').length;
-    
-    // Sum hours parsed from Completed shifts
-    let totalHours = 0;
-    filteredShifts.forEach(sh => {
-      if (sh.status?.toLowerCase() === 'completed' && sh.durationLabel) {
-        // Extract numeric hours, e.g. "3.5 hrs" or "4h" -> 3.5 or 4
-        const hoursNum = parseFloat(sh.durationLabel.replace(/[^0-9.]/g, ''));
-        if (!isNaN(hoursNum)) {
-          totalHours += hoursNum;
-        }
-      }
-    });
+    const completedShifts = filteredShifts.filter(s => s.status?.toLowerCase() === 'completed');
 
-    return { total, active, completed, totalHours: parseFloat(totalHours.toFixed(1)) };
+    return {
+      total,
+      active,
+      completed: completedShifts.length,
+      totalMinutes: sumShiftDurationMinutes(completedShifts),
+    };
   }, [filteredShifts]);
 
   // 5. CSV Export Handler
@@ -357,7 +352,7 @@ export default function ShiftsScreen({
       normalizeShiftDateLabel(sh.dateString, sh.timespan, sh.updatedAt, sh.id, sh.startedAt),
       formatShiftTimeRange(sh, true),
       sh.eventTitle,
-      sh.durationLabel,
+      formatShiftDuration(sh),
       sh.status?.toLowerCase() === 'active' ? 'ACTIVO' : 'COMPLETADO'
     ]);
 
@@ -445,7 +440,7 @@ export default function ShiftsScreen({
         <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-4 text-left shadow-hud-glow">
           <span className="text-[10px] font-mono text-indigo-300/80 uppercase block">Horas Acumuladas</span>
           <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-indigo-200">{formatHoursMinutesFromDecimal(stats.totalHours)}</span>
+            <span className="text-2xl font-black text-indigo-200">{formatDurationMinutes(stats.totalMinutes)}</span>
             <span className="text-xs text-indigo-300/40 font-mono">horas totales</span>
           </div>
         </div>
@@ -763,7 +758,7 @@ export default function ShiftsScreen({
                             </span>
                           ) : (
                             <span className="text-indigo-200 bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                              {formatHoursMinutesFromDecimal(shift.durationLabel)}
+                              {formatShiftDuration(shift)}
                             </span>
                           )}
                         </td>
@@ -888,7 +883,7 @@ export default function ShiftsScreen({
                         {shift.status?.toLowerCase() === 'completed' && (
                           <div className="text-[10px] font-mono text-white/50 flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                            <span>Duración: <strong className="text-indigo-200">{formatHoursMinutesFromDecimal(shift.durationLabel)}</strong></span>
+                            <span>Duración: <strong className="text-indigo-200">{formatShiftDuration(shift)}</strong></span>
                           </div>
                         )}
                       </div>
@@ -1018,7 +1013,7 @@ export default function ShiftsScreen({
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Duración / Estado</span>
-                <p className="text-white mt-1 font-semibold">{formatHoursMinutesFromDecimal(selectedShiftDetail.durationLabel)} · {selectedShiftDetail.status?.toLowerCase() === 'active' ? 'Activo' : 'Completado'}</p>
+                <p className="text-white mt-1 font-semibold">{formatShiftDuration(selectedShiftDetail)} · {selectedShiftDetail.status?.toLowerCase() === 'active' ? 'Activo' : 'Completado'}</p>
               </div>
             </div>
 

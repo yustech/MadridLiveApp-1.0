@@ -166,7 +166,7 @@ export async function performWorkerCheckOut(conn: any, body: Record<string, unkn
      WHERE id = ?`,
     [
       `${startLabel} - ${nowLabel}`,
-      `${netAccruedHours.toFixed(1)}h`,
+      `${netAccruedHours.toFixed(2)}h`,
       nowMysql,
       activeShift.id,
     ]
