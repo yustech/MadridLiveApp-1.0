@@ -4,7 +4,7 @@ const now = new Date();
 const event = {
   id: 'evt-template-ui', title: 'Festival Plantillas UI', location: 'Sala Mock',
   dateDay: String(now.getDate()), dateMonth: String(now.getMonth() + 1), dateYear: String(now.getFullYear()),
-  doorsOpen: '18:00', requiredStaff: 2, activeStaff: 0, totalStaffNeeded: 2, scanRate: 0, loadInPercent: 10,
+  doorsOpen: '18:00', requiredStaff: 2, assignedStaffCount: 1, activeStaff: 0, totalStaffNeeded: 2, scanRate: 0, loadInPercent: 10,
 };
 const worker = {
   id: 'usr-template-ui', idCode: 'TPL-UI-1', name: 'Ángela Plantilla', role: 'Auxiliar', roleLabel: 'Auxiliar',
