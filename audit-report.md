@@ -360,7 +360,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   migración, tests, e2e con método+ruta reales).
   ```
 
-- [ ] **21. El QR por WhatsApp debe enviarse al teléfono del propio trabajador.** *(añadida 2026-07-18, decisión del owner)*
+- [x] **HECHA (PR #106 `dcd544e` → merge `5d5a978`, desplegada prod+staging 2026-07-19; regex restringido a móviles reales validado contra los 901 registros: 894 ok / 7 sin teléfono / 0 perdidos.)** **21. El QR por WhatsApp debe enviarse al teléfono del propio trabajador.** *(añadida 2026-07-18, decisión del owner)*
   **Contexto**: hoy el botón "Enviar QR por WhatsApp" (`ProfileScreen.tsx` y `ScannerScreen.tsx`, ambos con el mismo enlace duplicado) abre `https://api.whatsapp.com/send?text=...` **sin** parámetro `phone` — WhatsApp Web/App deja elegir manualmente cualquier contacto de la agenda del que pulsa el botón, en vez de ir directo al trabajador. A escala de 901 personas esto es lento y propenso a error (enviar el QR de una persona a otra). Verificado contra los datos reales cargados (`staff-clean.json`): el teléfono se guarda tal cual vino del Excel — dígitos españoles sin prefijo de país ni separadores (p.ej. `602618048`), **7 de 901 trabajadores no tienen teléfono registrado**.
   **Modelo/Effort**: Codex-implementa + Claude-revisa (mismo patrón que #19/#20). Effort bajo — sin migración ni backend nuevo (`staff.phone` ya existe), solo frontend + una función de normalización compartida.
   **Por qué**: pedido directo del owner para agilizar el envío de credenciales a los 901 trabajadores reales.
@@ -664,7 +664,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   mismo checklist de revisión que #27.
   ```
 
-- [ ] **30. Plantilla: los avatares de iniciales deben conservar sus colores (quitar el filtro gris de "FUERA").** *(añadida 2026-07-19, decisión del owner)*
+- [x] **HECHA (PR #105 → merge `8daa5c8`, implementada por Claude, desplegada prod+staging 2026-07-19; verificación visual con el roster real.)** **30. Plantilla: los avatares de iniciales deben conservar sus colores (quitar el filtro gris de "FUERA").** *(añadida 2026-07-19, decisión del owner)*
   **Contexto verificado**: tras la #26 (avatares de iniciales, PR #98), el owner observó que en Historial de Registros las iniciales se ven con fondos de colores, pero en Plantilla (StaffScreen) se ven todas grises. Causa exacta: `StaffScreen.tsx` línea ~429 aplica `grayscale opacity-75` al avatar cuando el trabajador NO está dentro (`!isCheckedIn`) — un efecto pensado en su día para fotos (foto en gris = fuera del recinto) que ahora desatura también los fondos de color de las iniciales; como la mayoría del roster está FUERA en cualquier momento dado, la Plantilla entera se ve gris. Es la ÚNICA ubicación con este filtro sobre un `StaffAvatar` (verificado por grep; el `grayscale` de `ScannerScreen.tsx` ~485 es una imagen decorativa de fondo, no un avatar — no tocar). El estado DENTRO/FUERA ya lo comunica el badge de cada tarjeta ("DENTRO"/"FUERA"/"IN ANTIGUO"), así que el filtro es redundante como señal.
   **Decisión del owner**: los fondos deben verse con sus colores también en Plantilla — mejora la interfaz.
   **Modelo/Effort**: trivial (una línea + ajuste de test si algún e2e asertaba el filtro). Puede hacerlo Claude directamente o Codex, a elección del owner.
