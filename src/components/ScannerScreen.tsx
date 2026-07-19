@@ -1,4 +1,4 @@
-import { useState, FormEvent, useEffect, useRef } from 'react';
+import { useState, FormEvent, useEffect, useMemo, useRef } from 'react';
 import { 
   Flashlight, 
   RotateCw, 
@@ -12,9 +12,12 @@ import {
   Calendar,
   Search,
   Users,
-  Tv
+  Tv,
+  ClipboardList,
+  LoaderCircle,
+  UserCheck,
 } from 'lucide-react';
-import { StaffMember, LiveEvent, Shift, type WorkerToggleOutcome } from '../types';
+import { StaffMember, LiveEvent, Shift, type EventStaffMember, type WorkerToggleOutcome } from '../types';
 import {
   formatEventDate,
   getEventStatusLabel,
@@ -32,6 +35,9 @@ import {
 } from '../utils/shifts';
 import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import { formatMadridDateTime } from '../utils/madridTime';
+import { formatEventStaffApiError, getEventStaff } from './eventStaff/eventStaffApi';
+import { filterRosterStaff } from './roster/rosterSearch';
+import { getPendingEventStaff } from './scanner/scannerEventStaff';
 
 interface ScannerScreenProps {
   staff: StaffMember[];
@@ -105,6 +111,43 @@ export default function ScannerScreen({
   // Digital credential presenter deck state
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>(staff[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
+  const [eventStaff, setEventStaff] = useState<EventStaffMember[]>([]);
+  const [eventStaffQuery, setEventStaffQuery] = useState('');
+  const [isEventStaffLoading, setIsEventStaffLoading] = useState(false);
+  const [eventStaffError, setEventStaffError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setEventStaffQuery('');
+    setEventStaffError('');
+
+    if (!activeEventId) {
+      setEventStaff([]);
+      setIsEventStaffLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsEventStaffLoading(true);
+    void getEventStaff(activeEventId)
+      .then((members) => {
+        if (!cancelled) setEventStaff(members);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setEventStaff([]);
+          setEventStaffError(formatEventStaffApiError(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsEventStaffLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEventId]);
   
   // Audio chime feedback using Web Audio API
   const playAccessBeep = () => {
@@ -312,6 +355,15 @@ export default function ScannerScreen({
   const filteredStaff = staff.filter(w => 
     w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     w.idCode.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const pendingEventStaff = useMemo(
+    () => getPendingEventStaff(eventStaff, shifts, activeEvent),
+    [activeEvent, eventStaff, shifts],
+  );
+  const filteredPendingEventStaff = useMemo(
+    () => filterRosterStaff(pendingEventStaff, eventStaffQuery),
+    [eventStaffQuery, pendingEventStaff],
   );
 
   const activeSelectedWorker = staff.find(w => w.id === selectedWorkerId) || staff[0];
@@ -602,6 +654,99 @@ export default function ScannerScreen({
           </p>
         </div>
 
+        {/* Event call sheet: selection only; check-in remains in the credential action below. */}
+        <section
+          aria-labelledby="scanner-event-staff-heading"
+          className="bg-white/5 backdrop-blur-xl border border-indigo-400/20 rounded-3xl p-4 flex flex-col space-y-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 id="scanner-event-staff-heading" className="text-sm font-display font-black text-white flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-indigo-300" />
+                CONVOCATORIA
+              </h4>
+              <p className="mt-1 text-[10px] font-mono text-white/45">
+                Pendientes de iniciar turno en el evento activo.
+              </p>
+            </div>
+            {!isEventStaffLoading && !eventStaffError && eventStaff.length > 0 && (
+              <span className="shrink-0 rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2.5 py-1 text-[10px] font-mono font-bold text-indigo-200">
+                {pendingEventStaff.length} pendientes
+              </span>
+            )}
+          </div>
+
+          {isEventStaffLoading ? (
+            <div data-testid="scanner-event-staff-loading" className="flex items-center justify-center gap-2 py-5 text-[11px] font-mono text-white/55">
+              <LoaderCircle className="h-4 w-4 animate-spin text-indigo-300" />
+              Cargando convocatoria…
+            </div>
+          ) : eventStaffError ? (
+            <div role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-3 text-[11px] font-mono text-rose-200">
+              No se pudo cargar la convocatoria: {eventStaffError}
+            </div>
+          ) : !activeEvent ? (
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-[11px] font-mono text-amber-200">
+              Selecciona un evento para consultar su convocatoria.
+            </div>
+          ) : eventStaff.length === 0 ? (
+            <div data-testid="scanner-event-staff-open" className="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-3 py-3 text-[11px] font-mono text-sky-100">
+              Este evento no tiene convocatoria: cualquier colaborador puede fichar libremente.
+            </div>
+          ) : pendingEventStaff.length === 0 ? (
+            <div data-testid="scanner-event-staff-complete" className="flex items-start gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-[11px] font-mono text-emerald-200">
+              <UserCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              Convocatoria completa: todas las personas convocadas ya han iniciado turno.
+            </div>
+          ) : (
+            <>
+              <label className="relative block">
+                <span className="sr-only">Filtrar pendientes de convocatoria</span>
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/30" />
+                <input
+                  type="text"
+                  value={eventStaffQuery}
+                  onChange={(event) => setEventStaffQuery(event.target.value)}
+                  placeholder="Filtrar pendientes por nombre, ID, email o teléfono…"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-9 pr-4 text-xs text-white focus:border-indigo-400 focus:outline-none"
+                />
+              </label>
+
+              <div data-testid="scanner-event-staff-list" className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1 no-scrollbar">
+                {filteredPendingEventStaff.length === 0 ? (
+                  <p className="py-4 text-center text-[11px] font-mono text-white/35">
+                    No hay pendientes que coincidan con el filtro.
+                  </p>
+                ) : (
+                  filteredPendingEventStaff.map((worker) => (
+                    <button
+                      key={worker.id}
+                      type="button"
+                      onClick={() => setSelectedWorkerId(worker.id)}
+                      aria-label={`Seleccionar a ${worker.name} de la convocatoria`}
+                      className={`w-full rounded-xl border p-2.5 text-left font-mono transition-colors cursor-pointer ${
+                        worker.id === activeSelectedWorker?.id
+                          ? 'border-indigo-400/40 bg-indigo-500/15 text-white'
+                          : 'border-transparent bg-white/5 text-white/65 hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-semibold">{worker.name}</span>
+                          <span className="mt-0.5 block truncate text-[9px] text-white/40">
+                            {worker.idCode} · {worker.assignedRole}
+                          </span>
+                        </span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-indigo-300/70" />
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </section>
+
         {/* Crew selector widget */}
         <div className="bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col space-y-3">
           <div className="relative">
@@ -687,7 +832,7 @@ export default function ScannerScreen({
               </div>
 
               <div className="min-w-0 flex-1">
-                <h4 className="text-base font-bold text-white leading-tight truncate">
+                <h4 data-testid="scanner-selected-worker-name" className="text-base font-bold text-white leading-tight truncate">
                   {activeSelectedWorker.name}
                 </h4>
                 <p className="text-[10px] font-mono text-indigo-300 mt-1 uppercase font-bold tracking-wider">
