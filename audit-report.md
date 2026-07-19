@@ -294,7 +294,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   tocar BD/prod/staging en la fase de diseño.
   ```
 
-- [ ] **19. Plantillas guardadas de equipo para "Convocatoria por evento".** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
+- [x] **HECHA (PR #84 `e748a7f`, migración 0003, desplegada prod+staging 2026-07-18.)** **19. Plantillas guardadas de equipo para "Convocatoria por evento".** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
   **Contexto**: la convocatoria por evento (#80/#81, ya en producción) obliga hoy a seleccionar manualmente entre los 901 de la plantilla cada vez que se arma el equipo de un concierto. El owner quiere guardar equipos-tipo reutilizables (p.ej. "Equipo estándar sala grande") y aplicarlos a un evento nuevo de una vez, en vez de repetir la selección. Esto estaba explícitamente listado como "fuera de alcance" en la PR #80.
   **Modelo/Effort**: Codex-implementa + Claude-revisa (mismo patrón que #80/#81). Effort medio — sigue las convenciones ya sentadas (migración versionada, routers en `server/mysql/routes/`, componente propio lazy-loaded).
   **Por qué**: reduce trabajo repetitivo antes de cada concierto y facilita reutilizar composiciones de equipo que ya funcionaron.
@@ -322,7 +322,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   reales).
   ```
 
-- [ ] **20. Puntuación de 1 a 5 estrellas para miembros de la plantilla (rojo → verde).** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
+- [x] **HECHA (PR #86 `d24cc5a`, migración 0004, paleta calculada en PR #85, desplegada prod+staging 2026-07-18.)** **20. Puntuación de 1 a 5 estrellas para miembros de la plantilla (rojo → verde).** *(añadida 2026-07-17, decisión del owner — para hacer mañana)*
   **Contexto**: el owner quiere poder puntuar a cada trabajador de la plantilla con una escala visual de 1 a 5 estrellas, con gradiente de color: 1 estrella = rojo, 5 estrellas = verde, con naranja y amarillo en los valores intermedios.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort medio-bajo — un campo nuevo en `staff` + widget de UI, sin lógica de negocio compleja.
   **Por qué**: dar al owner una forma rápida de valorar el desempeño/fiabilidad de cada persona de los 901, visible de un vistazo en la plantilla.
@@ -386,7 +386,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   PR propia, staging-first, mismo checklist de revisión que #80/#81/#84.
   ```
 
-- [ ] **22. "Escaneos/min" y "déficit de personal" deben salir de datos reales, no de campos manuales.** *(añadida 2026-07-18, análisis propio + ajustes de Codex, ambos verificados por Claude contra el código antes de aceptarlos)*
+- [x] **HECHA (PR #97 → merge `cf4ef7d`, desplegada prod+staging 2026-07-19; `assignedStaffCount` agregado en GET /events sin N+1.)** **22. "Escaneos/min" y "déficit de personal" deben salir de datos reales, no de campos manuales.** *(añadida 2026-07-18, análisis propio + ajustes de Codex, ambos verificados por Claude contra el código antes de aceptarlos)*
   **Contexto**: verificado en código línea a línea. `KPIScreen.tsx` promedia `event.scanRate` (campo manual estático, `validators.ts` lo acepta 0-100 sin relación con turnos reales) entre eventos filtrados; `DashboardScreen.tsx` muestra `liveEvent?.scanRate` directo. `workerLifecycle.ts` (el handler de `POST /checkin`) no escribe `scan_rate` en ningún punto — es un dato que nunca se actualiza solo. Por separado, `deficitUpcomingEvents` en `DashboardScreen.tsx` usa `event.activeStaff` (campo legacy) en vez de la convocatoria real (`event_staff`, migración #80/#81 ya en producción), y el mensaje vacío `"No hay conciertos con deficit de personal ahora mismo."` se muestra cuando `listedEvents.length === 0` **sin comprobar si el filtro "Solo déficit" está activo** — aparece igual aunque simplemente no haya próximos conciertos. Hallazgo adicional (no reportado originalmente): `getCoverageStats()` tiene la misma causa raíz pero peor — para eventos futuros fija `active = 0` siempre, así que hoy todo evento futuro muestra 0% de cobertura sin importar cuánta gente esté convocada.
   **Corrección propia tras revisión de Codex**: la primera versión de esta tarea recomendaba reutilizar `getShiftStartTimestamp` de `src/utils/shifts.ts` para el parseo — verificado que es un error: esa función **sí cae a reconstruir la fecha desde `dateString`/`timespan` legacy** cuando falta `startedAt` (líneas 82-94), pensada para turnos antiguos sin timestamp real. Para una métrica en tiempo real hay que usar **solo `startedAt` canónico** (vía `getValidDateTimestamp(shift.startedAt)`, sin fallback legacy) — si no hay `startedAt` válido, ese fichaje no cuenta para la ventana. Codex además detectó (verificado por Claude) que `presentStaff`/`checkedInStaffCount` en `DashboardScreen.tsx` (usado en "Pendientes ahora") calcula presencia con `isWorkerPresentNow`, que **no filtra por evento** — si dos eventos están operativos a la vez (p. ej. uno "hoy" y otro en registro extendido), el conteo mezcla presentes de ambos. Ya existe `isShiftLinkedToEvent(shift, event)` en el mismo archivo para filtrar correctamente, sin reinventar nada.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort medio.
@@ -433,7 +433,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   #80/#81/#84/#86.
   ```
 
-- [ ] **23. Ocultar "Avance de montaje" de las vistas operativas.** *(añadida 2026-07-18, decisión del owner)*
+- [x] **HECHA (PR #102 → merge `6b84210`, desplegada prod+staging 2026-07-19.)** **23. Ocultar "Avance de montaje" de las vistas operativas.** *(añadida 2026-07-18, decisión del owner)*
   **Contexto**: `events.loadInPercent` es un porcentaje manual e independiente de los fichajes reales — hoy solo es editable desde `DatabaseManagerScreen` → pestaña Eventos → `RecordFormModal.tsx`, un panel técnico que nadie usa en el día a día, así que el valor se queda fijo (p. ej. en 0%) aunque haya trabajadores dentro del recinto. El owner ha decidido que, al no existir un proceso real que lo mantenga actualizado, es mejor ocultarlo que mostrar un dato engañoso o construir un editor nuevo para un proceso que no existe.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo — solo dejar de renderizar, sin tocar esquema ni backend.
   **Por qué**: un indicador que nunca se actualiza es peor que no mostrarlo — induce a error sobre el estado real del montaje.
@@ -455,7 +455,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   concepto aparte. PR propia, staging-first.
   ```
 
-- [ ] **24. Puntuación por estrellas interactiva desde el perfil del trabajador.** *(añadida 2026-07-18, decisión del owner)*
+- [x] **HECHA (PR #103 → merge `f75710d`, desplegada prod+staging 2026-07-19.)** **24. Puntuación por estrellas interactiva desde el perfil del trabajador.** *(añadida 2026-07-18, decisión del owner)*
   **Contexto**: la PR #86 (ya mergeada y en producción, `bab82ff`) implementó `StaffRatingWidget` interactivo en `RosterScreen.tsx` (Plantilla → Editar plantilla) pero de solo lectura en `ProfileScreen.tsx`/`StaffScreen.tsx`, conforme al alcance acordado entonces. El owner quiere poder puntuar también directamente desde el perfil del trabajador, sin pasar por la plantilla — más descubrible en el uso diario.
   **Modelo/Effort**: Codex-implementa + Claude-revisa (mismo patrón que #86, del que reutiliza `StaffRatingWidget`/`staffRating.ts` tal cual). Effort bajo. **PR nueva** — #86 ya está mergeada y desplegada, no se reabre.
   **Por qué**: pedido directo del owner para agilizar la puntuación desde donde de verdad se consulta a cada trabajador.
@@ -477,7 +477,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   (NO reabrir #86, ya está en producción), staging-first, mismo checklist de revisión que #86.
   ```
 
-- [ ] **25. Retirar "Lector Puerta Principal" y el selector/contador de zonas obsoletos.** *(añadida 2026-07-18, decisión del owner + corrección de Codex verificada por Claude)*
+- [x] **HECHA (PR #99 → merge `cf518d1`, desplegada prod+staging 2026-07-19; revisión post-merge de Claude en el PR.)** **25. Retirar "Lector Puerta Principal" y el selector/contador de zonas obsoletos.** *(añadida 2026-07-18, decisión del owner + corrección de Codex verificada por Claude)*
   **Contexto**: verificado en código. `ScannerScreen.tsx` envía literalmente el string `'Lector Puerta Principal'` como `location` en cada checkin por QR; `workerLifecycle.ts` lo guarda en `staff.location`; `databaseManager/StaffTab.tsx` (pestaña "Colaboradores" de `DatabaseManagerScreen`, no `StaffScreen.tsx` principal) lo muestra entre paréntesis junto al rol. `ProfileScreen.tsx` tiene además su propio modal de check-in manual con un selector de 5 zonas fijas ("Stage Left", "FOH Audio", "Loading Dock", "Backstage VIP", "Artist Entrance") que también escribe en `staff.location`.
   **Corrección propia tras aviso de Codex**: la primera versión de esta tarea decía "no se encontró 'Zonas activas' en el código" — error de Claude, esa búsqueda solo cubrió `src/components/`, no `src/App.tsx`. Verificado ahora: **`App.tsx` SÍ contiene "Zonas Activas"** (línea ~636, label + valor) respaldado por `activeZonesCount` (línea ~76, `new Set(...)` sobre `staff.location`) — hay que retirar ambos. También revisar el resto de `App.tsx` por otras referencias textuales obsoletas a zonas de trabajadores que puedan quedar sueltas tras quitar el contador.
   **Ojo**: `alerts.zone` (usado en `databaseManager/AlertsTab.tsx`, "Zona: {item.zone}") es un campo completamente distinto — la zona física de una alerta de equipo, no la ubicación de un trabajador — no debe tocarse.
@@ -511,7 +511,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   en ningún sitio, ni quedar rastro de "Zonas Activas". PR propia, staging-first.
   ```
 
-- [ ] **26. Avatar de iniciales por defecto (sin inferencia de género por nombre).** *(añadida 2026-07-18, decisión del owner tras análisis de riesgo de privacidad + ajustes de Codex verificados por Claude)*
+- [x] **HECHA (PR #98 → merge `5ba61ab`, desplegada prod+staging 2026-07-19; verificación visual con datos reales.)** **26. Avatar de iniciales por defecto (sin inferencia de género por nombre).** *(añadida 2026-07-18, decisión del owner tras análisis de riesgo de privacidad + ajustes de Codex verificados por Claude)*
   **Contexto**: verificado en código — hoy **no existe ninguna inferencia de género por nombre**. `dbService.ts` aplica un único fallback fijo (`DEFAULT_STAFF_AVATAR`) a todo avatar vacío, sin mirar el nombre; es un fallback de **renderizado** (se calcula al leer, no se guarda en BD). El owner ha decidido explícitamente no introducir clasificación automática de género por nombre (riesgo de identidad/dignidad con 901 personas reales, nombres compuestos y de culturas distintas) y sustituir el fallback fijo por un avatar de iniciales generado de forma determinista.
   **Corrección propia tras ajuste de Codex**: la primera versión decía "inicial del nombre + inicial del primer apellido" — verificado contra una muestra real de `staff-clean.json` que esto es ambiguo: nombres compuestos ("Miguel Ángel Robles Álvarez") harían que la 2ª palabra sea parte del nombre, no el apellido, y partículas ("Alejandro **de la** Rosa Nuñez") romperían un split ingenuo por posición. Codex tiene razón: usar **primera y última palabra significativa** del campo `name` (ignorando partículas en minúscula como "de"/"la"/"del"/"los"), no intentar identificar "el primer apellido" con certeza — la BD no lo permite.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo-medio. **Sin backfill de base de datos** — al ser un cambio de renderizado (igual que el fallback actual), cubre automáticamente tanto los 898 trabajadores ya cargados sin avatar como cualquier alta nueva, con el mismo cambio de código.
@@ -551,7 +551,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   propia, staging-first.
   ```
 
-- [ ] **27. Toda hora visible y toda regla de calendario deben usar siempre `Europe/Madrid`.** *(añadida 2026-07-18, prioridad P0 extrema por decisión del owner)*
+- [x] **HECHA (PR #94 `194e152` → merge `1f56d40`, desplegada prod+staging 2026-07-19; pasada funcional real con navegador UTC.)** **27. Toda hora visible y toda regla de calendario deben usar siempre `Europe/Madrid`.** *(añadida 2026-07-18, prioridad P0 extrema por decisión del owner)*
   **Contexto verificado**: el host de la aplicación y MySQL trabajan hoy en UTC (`@@session.time_zone=SYSTEM`, `NOW()=UTC_TIMESTAMP()`), mientras Madrid está dos horas por delante en verano. Esto no es malo para persistencia, pero el código mezcla almacenamiento, lógica y presentación: `server/mysql/dateTime.ts::formatClockLabel()` usa la zona implícita del proceso y por eso genera `timespan` en UTC; `toMysqlDateTimeValue()` usa getters locales; el pool MySQL no fija zona explícita; `StaffScreen.tsx` y varios helpers llaman `toLocaleString`/`new Date(year, month, day...)` sin `timeZone`; y la clasificación de eventos/ventanas operativas usa el día local del host o navegador. El resultado depende de dónde se ejecute cada pieza y falla especialmente cerca de medianoche y en los cambios CET/CEST.
   **Decisión arquitectónica**: los instantes canónicos (`startedAt`, `endedAt`, `checkedInTime`, `updatedAt`, `createdAt`) se siguen almacenando y transmitiendo en **UTC**. Solo la presentación y las reglas basadas en día/hora civil se resuelven explícitamente en la zona IANA **`Europe/Madrid`**. No sumar `+1`/`+2` manualmente, no convertir la base de datos a hora local y no confiar únicamente en `process.env.TZ` o en la zona del navegador: Madrid cambia automáticamente entre CET y CEST.
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort alto por criticidad y bordes DST. **Debe implementarse antes de #22**, porque KPIs, agrupaciones horarias y ventanas de eventos dependen de una semántica temporal única.
@@ -588,7 +588,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   PR propia, staging-first, mismo checklist de revisión que #80/#81/#84/#86.
   ```
 
-- [ ] **28. Lector QR: sección de convocatoria con selección rápida de pendientes de iniciar turno.** *(añadida 2026-07-19, decisión del owner)*
+- [x] **HECHA (PR #96 `77c0c2e` → merge `5af1891`, desplegada prod+staging 2026-07-19; estados verificados en staging por el owner.)** **28. Lector QR: sección de convocatoria con selección rápida de pendientes de iniciar turno.** *(añadida 2026-07-19, decisión del owner)*
   **Contexto verificado**: `ScannerScreen.tsx` hoy solo tiene un buscador libre (`searchQuery`/`filteredStaff`, líneas ~107 y ~312) que filtra sobre los 901 `staff` totales por nombre/idCode; no tiene ninguna noción de la convocatoria del evento (`event_staff`, tarea #19). El único punto de contacto con la convocatoria es reactivo: si se intenta un check-in de alguien no convocado, el backend devuelve 409 `NOT_ASSIGNED` y se abre el diálogo de "Acceso excepcional" (`notAssignedWorker`, PR #81). El endpoint `GET /api/mysql/events/:id/staff` ya existe y ya tiene cliente frontend listo: `getEventStaff(eventId)` en `src/components/eventStaff/eventStaffApi.ts`, que devuelve `EventStaffMember[]` (`id`, `idCode`, `name`, `assignedRole`, sin `status`/`checkedInTime` — eso vive en `staff`). Al tocar un colaborador de la búsqueda actual, solo se hace `setSelectedWorkerId(w.id)`; la confirmación real de entrada/salida es un botón aparte, `handlePrimaryAction` (línea ~772, "INICIO TURNO 1 CLIC" / "CERRAR TURNO GUIADO") que llama a `triggerScanOperation`.
   **Decisiones del owner (2026-07-19)**: (1) tocar un colaborador de la nueva lista de convocatoria pendiente **selecciona, no fichar directo** — reutiliza exactamente el mismo mecanismo que la búsqueda general hoy (`setSelectedWorkerId` + confirmación con el botón `handlePrimaryAction` ya existente, sin botón ni endpoint nuevos). (2) si el evento activo no tiene convocatoria (`event_staff` vacío para ese `eventId` = check-in abierto a cualquiera, regla ya existente de #19/#80), la sección se muestra igualmente pero con un aviso explícito tipo "Este evento no tiene convocatoria — cualquier colaborador puede fichar", en vez de ocultarse silenciosamente.
   **Definición exacta de "pendiente de iniciar turno"**: convocado (aparece en `getEventStaff(activeEventId)`) **y** sin ningún turno vinculado a este evento todavía — es decir, ningún `shift` en `shifts` donde `isShiftLinkedToEvent(shift, activeEvent)` sea true para ese `workerId` (util ya existente en `utils/shifts.ts`, usado hoy en `KPIScreen.tsx`). Esto excluye tanto a quien ya está dentro (`isWorkerPresentNow` true) como a quien ya fichó y salió (turno `Completed` para este evento) — ninguno de los dos "falta por iniciar turno". No confundir con el estado global `staff.status`, que no distingue de qué evento viene el turno activo.
@@ -626,7 +626,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   staging-first, mismo checklist de revisión que #19/#20/#27.
   ```
 
-- [ ] **29. Duraciones de turno exactas: derivar de `startedAt`/`endedAt`, no del `durationLabel` degradado.** *(añadida 2026-07-19, bug reportado por el owner con fichajes reales y demostrado por Claude contra la BD de staging)*
+- [x] **HECHA (PR #101 `3314e34` → merge `fe7df65`, desplegada prod+staging 2026-07-19; duraciones verificadas contra los fichajes reales del bug.)** **29. Duraciones de turno exactas: derivar de `startedAt`/`endedAt`, no del `durationLabel` degradado.** *(añadida 2026-07-19, bug reportado por el owner con fichajes reales y demostrado por Claude contra la BD de staging)*
   **Bug demostrado con datos reales**: el owner detectó que un turno de 15:16→17:30 mostraba "2h 12m" en vez de ~2h 14m. Causa raíz verificada: en el checkout (`server/mysql/lifecycle/workerLifecycle.ts`), la duración se calcula exacta en ms (`endTs - startTs`) pero se guarda como `netAccruedHours.toFixed(1)` en `shifts.duration_label` — **un decimal de horas = bloques de 6 minutos**. Todo el frontend muestra/agrega ese label degradado en vez de los timestamps exactos. Demostración contra staging: 2h 14m 33s reales → "2.2h" → se muestra 2h 12m (−2m 33s); 2h 15m 29s reales → "2.3h" → se muestra **2h 18m** (+2m 31s, ¡de más!). Todo entre ~2h09m y ~2h15m colapsa en "2h 12m". La ironía: desde la #16, `startedAt`/`endedAt` canónicos están en BD al segundo exacto y la API ya los devuelve — el dato exacto existe, solo que no se usa para mostrar.
   **Superficies afectadas (inventario completo por grep, verificado 2026-07-19)**: `ShiftsScreen.tsx` — celda de tabla (~línea 766), tarjeta móvil (~891), modal de detalle (~1021), fila del CSV exportado (~360), y el acumulador de la tarjeta "Horas acumuladas" (~330-332, suma `parseFloat(durationLabel)` de los completados); `databaseManager/ShiftsTab.tsx` (~33); `KPIScreen.tsx` `avgShiftHours` (~123, media sobre `parseDecimalHours(durationLabel)`).
   **Modelo/Effort**: Codex-implementa + Claude-revisa. Effort bajo-medio: sin backend nuevo obligatorio, sin migración, sin backfill — las filas ya guardadas tienen los timestamps correctos (solo su label está degradado), así que derivar en presentación las corrige automáticamente.
@@ -662,6 +662,27 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   (2h14m33s y 2h15m29s con el redondeo al minuto explícito), fallback legacy sin endedAt,
   agregación por minutos exactos, CSV exacto, turno Active intacto. PR propia, staging-first,
   mismo checklist de revisión que #27.
+  ```
+
+- [ ] **30. Plantilla: los avatares de iniciales deben conservar sus colores (quitar el filtro gris de "FUERA").** *(añadida 2026-07-19, decisión del owner)*
+  **Contexto verificado**: tras la #26 (avatares de iniciales, PR #98), el owner observó que en Historial de Registros las iniciales se ven con fondos de colores, pero en Plantilla (StaffScreen) se ven todas grises. Causa exacta: `StaffScreen.tsx` línea ~429 aplica `grayscale opacity-75` al avatar cuando el trabajador NO está dentro (`!isCheckedIn`) — un efecto pensado en su día para fotos (foto en gris = fuera del recinto) que ahora desatura también los fondos de color de las iniciales; como la mayoría del roster está FUERA en cualquier momento dado, la Plantilla entera se ve gris. Es la ÚNICA ubicación con este filtro sobre un `StaffAvatar` (verificado por grep; el `grayscale` de `ScannerScreen.tsx` ~485 es una imagen decorativa de fondo, no un avatar — no tocar). El estado DENTRO/FUERA ya lo comunica el badge de cada tarjeta ("DENTRO"/"FUERA"/"IN ANTIGUO"), así que el filtro es redundante como señal.
+  **Decisión del owner**: los fondos deben verse con sus colores también en Plantilla — mejora la interfaz.
+  **Modelo/Effort**: trivial (una línea + ajuste de test si algún e2e asertaba el filtro). Puede hacerlo Claude directamente o Codex, a elección del owner.
+  **Alcance**:
+  - Quitar `grayscale opacity-75` del `className` condicional del `StaffAvatar` en `StaffScreen.tsx` (~429) — el avatar se ve siempre a todo color; el estado sigue comunicado por el badge existente.
+  - No tocar el `grayscale` decorativo de `ScannerScreen.tsx` (~485, imagen de fondo del lector).
+  - No tocar `StaffAvatar`/`staffAvatar.ts` — el componente es correcto; el problema es solo el filtro del consumidor.
+  - Verificación visual en staging con el roster real (mayoría FUERA → colores visibles).
+  **Prompt**:
+  ```
+  En StaffScreen.tsx (~línea 429), el StaffAvatar lleva `grayscale opacity-75` cuando el
+  trabajador no está dentro -- un efecto pensado para fotos que ahora desatura los fondos de
+  color de los avatares de iniciales (#26), dejando la Plantilla entera gris porque la mayoría
+  del roster está FUERA. Quita ese filtro condicional: el avatar se ve siempre a todo color y
+  el estado DENTRO/FUERA lo sigue comunicando el badge existente de la tarjeta. NO toques el
+  grayscale de ScannerScreen.tsx (~485, es una imagen decorativa de fondo, no un avatar) ni el
+  componente StaffAvatar/staffAvatar.ts. Ajusta cualquier test que asertara el filtro. PR
+  propia, staging-first.
   ```
 
 ---
