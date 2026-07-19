@@ -42,7 +42,7 @@ export function StaffTab({ items, onEdit, onDelete }: StaffTabProps) {
           <div className="text-left">
             <h4 className="text-sm font-bold text-white">{item.name}</h4>
             <p className="text-xs text-indigo-300 font-mono mt-0.5">
-              {sectorTranslationMap[item.role] || item.role} ({item.location})
+              {sectorTranslationMap[item.role] || item.role}
             </p>
             <p className="text-[10px] text-white/50 font-mono mt-1">
               Horas Totales: {formatHoursMinutesFromDecimal(item.totalHours)} | Estado: {item.status === 'IN' ? 'DENTRO' : 'FUERA'} | Entrada: {formatCheckInTime(item.checkedInTime)}
