@@ -18,7 +18,6 @@ import {
 import { Shift, StaffMember, LiveEvent } from '../types';
 import { deleteShift } from '../dbService';
 import { formatHoursMinutesFromDecimal, parseDecimalHours } from '../utils/duration';
-import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleBucket, getRoleDisplayName } from '../utils/roles';
 import {
   formatShiftDateLabel,
@@ -30,6 +29,7 @@ import {
   getMadridCivilDateKey,
   shiftMadridCivilDateKey,
 } from '../utils/madridTime';
+import StaffAvatar from './StaffAvatar';
 
 interface EnrichedShift extends Shift {
   workerName: string;
@@ -165,7 +165,7 @@ export default function ShiftsScreen({
         workerIdCode: worker ? worker.idCode : 'SIN-ID',
         workerRole: worker ? worker.role : 'Auxiliar',
         workerRoleLabel: worker ? worker.roleLabel : 'AUXILIAR',
-        workerAvatar: getAvatarSrc(worker?.avatar),
+        workerAvatar: worker?.avatar || '',
       };
     });
   }, [shifts, staff]);
@@ -705,11 +705,14 @@ export default function ShiftsScreen({
                         {/* Worker column */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={shift.workerAvatar}
+                            <StaffAvatar
+                              worker={{
+                                avatar: shift.workerAvatar,
+                                idCode: shift.workerIdCode,
+                                name: shift.workerName,
+                              }}
                               alt={shift.workerName}
-                              className="w-8 h-8 rounded-lg object-cover border border-white/10"
-                              onError={(event) => setFallbackAvatar(event.currentTarget)}
+                              className="w-8 h-8 rounded-lg object-cover border border-white/10 text-[10px]"
                             />
                             <div>
                               <button
@@ -819,11 +822,14 @@ export default function ShiftsScreen({
                     {/* Worker Info */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <img
-                          src={shift.workerAvatar}
+                        <StaffAvatar
+                          worker={{
+                            avatar: shift.workerAvatar,
+                            idCode: shift.workerIdCode,
+                            name: shift.workerName,
+                          }}
                           alt={shift.workerName}
-                          className="w-9 h-9 rounded-lg object-cover border border-white/15"
-                          onError={(event) => setFallbackAvatar(event.currentTarget)}
+                          className="w-9 h-9 rounded-lg object-cover border border-white/15 text-xs"
                         />
                         <div>
                           <button
@@ -950,11 +956,14 @@ export default function ShiftsScreen({
             <div className="absolute top-0 inset-x-0 h-1 bg-indigo-500" />
 
             <div className="flex items-start gap-3.5">
-              <img
-                src={selectedShiftDetail.workerAvatar}
+              <StaffAvatar
+                worker={{
+                  avatar: selectedShiftDetail.workerAvatar,
+                  idCode: selectedShiftDetail.workerIdCode,
+                  name: selectedShiftDetail.workerName,
+                }}
                 alt={selectedShiftDetail.workerName}
-                className="w-16 h-16 rounded-2xl object-cover border border-white/15 shrink-0"
-                onError={(event) => setFallbackAvatar(event.currentTarget)}
+                className="w-16 h-16 rounded-2xl object-cover border border-white/15 shrink-0 text-lg"
               />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-indigo-300/80">Detalle del fichaje</p>

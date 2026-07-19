@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
 import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
 import { StaffMember, Shift, LiveEvent, EquipmentAlert, type WorkerToggleOutcome } from './types';
-import { getAvatarSrc, setFallbackAvatar } from './utils/avatarUpload';
 import {
   getEventTemporalState,
   isEventInDefaultRegistrationWindow,
@@ -9,6 +8,8 @@ import {
   sortEventsByDate
 } from './utils/events';
 import { isWorkerPresentNow } from './utils/shifts';
+
+const ADMIN_PROFILE_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4';
 
 
 import {
@@ -650,10 +651,9 @@ export default function App() {
               className="w-full p-2.5 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-xl text-left flex items-center gap-2.5 cursor-pointer transition-all"
             >
               <img
-                src={getAvatarSrc('https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4')}
+                src={ADMIN_PROFILE_AVATAR}
                 className="w-7 h-7 rounded-lg object-cover border border-white/20 shrink-0"
                 alt=""
-                onError={(event) => setFallbackAvatar(event.currentTarget)}
               />
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-bold text-white truncate">Javier R.</p>
@@ -727,8 +727,7 @@ export default function App() {
               <img 
                 alt="Avatar de perfil" 
                 className="w-full h-full object-cover" 
-                src={getAvatarSrc('https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4')}
-                onError={(event) => setFallbackAvatar(event.currentTarget)}
+                src={ADMIN_PROFILE_AVATAR}
               />
             </button>
           </div>

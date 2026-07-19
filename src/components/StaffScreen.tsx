@@ -17,13 +17,12 @@ import {
   DEFAULT_FEMALE_AVATAR,
   DEFAULT_MALE_AVATAR,
   fileToAvatarDataUrl,
-  getAvatarSrc,
-  setFallbackAvatar,
 } from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
 import { isWorkerPresentNow } from '../utils/shifts';
 import StaffRatingWidget from './ratings/StaffRatingWidget';
 import { formatMadridDateTime } from '../utils/madridTime';
+import StaffAvatar from './StaffAvatar';
 
 interface StaffScreenProps {
   staff: StaffMember[];
@@ -424,12 +423,11 @@ export default function StaffScreen({
 
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/5 shrink-0 border border-white/10">
-                    <img
+                    <StaffAvatar
+                      worker={worker}
                       alt={worker.name}
-                      referrerPolicy="no-referrer"
-                      className={`w-full h-full object-cover transition-all ${!isCheckedIn ? 'grayscale opacity-75' : ''}`}
-                      src={getAvatarSrc(worker.avatar)}
-                      onError={(event) => setFallbackAvatar(event.currentTarget)}
+                      className={`w-full h-full object-cover text-sm transition-all ${!isCheckedIn ? 'grayscale opacity-75' : ''}`}
+                      testId={`staff-avatar-${worker.id}`}
                     />
                   </div>
 
@@ -694,11 +692,14 @@ export default function StaffScreen({
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
-                  <img
-                    src={getAvatarSrc(newAvatar)}
+                  <StaffAvatar
+                    worker={{
+                      avatar: newAvatar,
+                      idCode: newIdCode || 'NUEVO',
+                      name: newName || 'Nuevo colaborador',
+                    }}
                     alt="Vista previa avatar"
-                    className="h-14 w-14 rounded-2xl object-cover border border-white/10"
-                    onError={(event) => setFallbackAvatar(event.currentTarget)}
+                    className="h-14 w-14 rounded-2xl object-cover border border-white/10 text-base"
                   />
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>
@@ -756,11 +757,10 @@ export default function StaffScreen({
             </div>
 
             <div className="flex items-center gap-3 text-left bg-white/5 p-3 rounded-2xl border border-white/5 font-mono">
-              <img
-                src={getAvatarSrc(selectedQrWorker.avatar)}
-                className="w-10 h-10 rounded-xl object-cover border border-indigo-400 shrink-0"
+              <StaffAvatar
+                worker={selectedQrWorker}
+                className="w-10 h-10 rounded-xl object-cover border border-indigo-400 shrink-0 text-xs"
                 alt=""
-                onError={(event) => setFallbackAvatar(event.currentTarget)}
               />
               <div className="min-w-0 flex-1">
                 <h4 className="text-xs font-bold text-white truncate">{selectedQrWorker.name}</h4>

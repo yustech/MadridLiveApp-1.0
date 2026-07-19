@@ -1,6 +1,6 @@
 import { StaffMember } from '../../types';
 import { formatHoursMinutesFromDecimal } from '../../utils/duration';
-import { getAvatarSrc, setFallbackAvatar } from '../../utils/avatarUpload';
+import StaffAvatar from '../StaffAvatar';
 import { sectorTranslationMap } from './constants';
 import { RecordCard } from './RecordCard';
 import { formatMadridDateTime } from '../../utils/madridTime';
@@ -27,11 +27,10 @@ export function StaffTab({ items, onEdit, onDelete }: StaffTabProps) {
           onEdit={onEdit}
           onDelete={onDelete}
           leading={(
-            <img
-              src={getAvatarSrc(item.avatar)}
+            <StaffAvatar
+              worker={item}
               alt=""
-              className="w-10 h-10 rounded-full object-cover border border-white/25 mt-0.5"
-              onError={(event) => setFallbackAvatar(event.currentTarget)}
+              className="w-10 h-10 rounded-full object-cover border border-white/25 mt-0.5 text-xs"
             />
           )}
           badges={(

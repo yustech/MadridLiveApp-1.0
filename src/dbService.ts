@@ -4,7 +4,6 @@ import type { SharedPoller } from './utils/sharedPoller';
 
 const MYSQL_API_BASE = import.meta.env.VITE_MYSQL_API_BASE || '/api/mysql';
 const POLL_MS = 3000;
-const DEFAULT_STAFF_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
 
 export interface ShiftToggleResult {
   success: boolean;
@@ -25,10 +24,9 @@ export class MysqlApiError extends Error {
   }
 }
 
-function normalizeStaffAvatar(worker: StaffMember): StaffMember {
+function normalizeStaff(worker: StaffMember): StaffMember {
   return {
     ...worker,
-    avatar: worker.avatar?.trim() || DEFAULT_STAFF_AVATAR,
     location: worker.location?.trim() || '',
   };
 }
@@ -112,7 +110,7 @@ export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
     '/staff',
     callback,
     {
-      mapItems: (items) => items.map(normalizeStaffAvatar),
+      mapItems: (items) => items.map(normalizeStaff),
       sortFn: (a, b) => a.name.localeCompare(b.name),
     }
   );

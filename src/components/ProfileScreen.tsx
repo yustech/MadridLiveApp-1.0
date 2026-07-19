@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { StaffMember, Shift } from '../types';
 import { formatHoursMinutesFromDecimal } from '../utils/duration';
-import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import {
   formatShiftDateLabel,
   getActiveShiftForWorker,
@@ -19,6 +18,7 @@ import {
   isWorkerPresentNow,
 } from '../utils/shifts';
 import StaffRatingWidget from './ratings/StaffRatingWidget';
+import StaffAvatar from './StaffAvatar';
 
 interface ProfileScreenProps {
   worker: StaffMember;
@@ -113,12 +113,10 @@ export default function ProfileScreen({
             <div className="flex flex-col items-center text-center space-y-4 pt-4">
               {/* Avatar Container */}
               <div className="w-24 h-24 rounded-full bg-white/5 border-2 border-indigo-400 overflow-hidden p-1 shadow-hud-glow">
-                <img
+                <StaffAvatar
+                  worker={worker}
                   alt={worker.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-full"
-                  src={getAvatarSrc(worker.avatar)}
-                  onError={(event) => setFallbackAvatar(event.currentTarget)}
+                  className="w-full h-full object-cover rounded-full text-2xl"
                 />
               </div>
 
