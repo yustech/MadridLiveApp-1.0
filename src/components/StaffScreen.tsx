@@ -426,7 +426,7 @@ export default function StaffScreen({
                     <StaffAvatar
                       worker={worker}
                       alt={worker.name}
-                      className={`w-full h-full object-cover text-sm transition-all ${!isCheckedIn ? 'grayscale opacity-75' : ''}`}
+                      className="w-full h-full object-cover text-sm"
                       testId={`staff-avatar-${worker.id}`}
                     />
                   </div>
