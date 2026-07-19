@@ -22,9 +22,14 @@ import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
 import { getDynamicRoleFilters, getRoleBucket, getRoleDisplayName } from '../utils/roles';
 import {
   formatShiftDateLabel,
+  formatShiftTimeRange,
   getShiftStartTimestamp,
   ShiftDateLike,
 } from '../utils/shifts';
+import {
+  getMadridCivilDateKey,
+  shiftMadridCivilDateKey,
+} from '../utils/madridTime';
 
 interface EnrichedShift extends Shift {
   workerName: string;
@@ -150,18 +155,6 @@ export default function ShiftsScreen({
     });
   }, [shifts]);
 
-  const customDateFromTs = useMemo(() => {
-    if (!customDateFrom) return null;
-    const ts = new Date(`${customDateFrom}T00:00:00`).getTime();
-    return Number.isNaN(ts) ? null : ts;
-  }, [customDateFrom]);
-
-  const customDateToTs = useMemo(() => {
-    if (!customDateTo) return null;
-    const ts = new Date(`${customDateTo}T23:59:59.999`).getTime();
-    return Number.isNaN(ts) ? null : ts;
-  }, [customDateTo]);
-
   // 2. Map shifts to enrich them with full worker details
   const enrichedShifts = useMemo(() => {
     return shifts.map(shift => {
@@ -200,9 +193,10 @@ export default function ShiftsScreen({
       const matchesDate = selectedDate === 'All' || normalizedDateLabel === selectedDate;
 
       const shiftTime = parseShiftDateTime(shift.dateString, shift.timespan, shift.updatedAt, shift.id, shift.startedAt);
+      const shiftDateKey = shiftTime ? getMadridCivilDateKey(shiftTime) : '';
       const matchesCustomDateRange =
-        (customDateFromTs === null || shiftTime >= customDateFromTs) &&
-        (customDateToTs === null || shiftTime <= customDateToTs);
+        (!customDateFrom || shiftDateKey >= customDateFrom) &&
+        (!customDateTo || shiftDateKey <= customDateTo);
 
       // Status filtering
       const matchesStatus = selectedStatus === 'All' || (shift.status?.toLowerCase() === selectedStatus?.toLowerCase());
@@ -211,26 +205,20 @@ export default function ShiftsScreen({
       const matchesRole = selectedRole === 'All' || shift.workerRole === selectedRole;
 
         // Quick time scope filtering
-        const now = new Date();
-        const startOfToday = new Date(now);
-        startOfToday.setHours(0, 0, 0, 0);
-        const endOfToday = new Date(now);
-        endOfToday.setHours(23, 59, 59, 999);
-        const startOfLast7d = new Date(startOfToday);
-        startOfLast7d.setDate(startOfLast7d.getDate() - 6);
-
-        const isInTodayRange = shiftTime >= startOfToday.getTime() && shiftTime <= endOfToday.getTime();
+        const todayKey = getMadridCivilDateKey();
+        const startOfLast7dKey = shiftMadridCivilDateKey(todayKey, -6);
+        const isInTodayRange = shiftDateKey === todayKey;
 
         const matchesTimeScope =
           selectedTimeScope === 'All'
             ? true
             : selectedTimeScope === 'Today'
               ? isInTodayRange
-              : shiftTime >= startOfLast7d.getTime() && shiftTime <= endOfToday.getTime();
+              : shiftDateKey >= startOfLast7dKey && shiftDateKey <= todayKey;
 
       return matchesSearch && matchesEvent && matchesDate && matchesCustomDateRange && matchesStatus && matchesRole && matchesTimeScope;
       });
-  }, [enrichedShifts, searchQuery, selectedEventId, selectedDate, selectedStatus, selectedRole, selectedTimeScope, customDateFromTs, customDateToTs, events]);
+  }, [enrichedShifts, searchQuery, selectedEventId, selectedDate, selectedStatus, selectedRole, selectedTimeScope, customDateFrom, customDateTo, events]);
 
   const orderedShifts = useMemo(() => {
     const copied = [...filteredShifts];
@@ -367,7 +355,7 @@ export default function ShiftsScreen({
       sh.workerName,
       sh.workerRoleLabel,
       normalizeShiftDateLabel(sh.dateString, sh.timespan, sh.updatedAt, sh.id, sh.startedAt),
-      sh.timespan,
+      formatShiftTimeRange(sh, true),
       sh.eventTitle,
       sh.durationLabel,
       sh.status?.toLowerCase() === 'active' ? 'ACTIVO' : 'COMPLETADO'
@@ -384,7 +372,7 @@ export default function ShiftsScreen({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `registros_personal_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `registros_personal_${getMadridCivilDateKey()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -760,7 +748,7 @@ export default function ShiftsScreen({
 
                         {/* Hours span Column */}
                         <td className="px-6 py-4 text-white/70">
-                          {shift.timespan}
+                          <span data-testid={`shift-time-range-${shift.id}`}>{formatShiftTimeRange(shift)}</span>
                         </td>
 
                         {/* Duration Column */}
@@ -877,7 +865,7 @@ export default function ShiftsScreen({
                       </div>
                       <div>
                         <span className="text-white/30 block text-[8px] uppercase">Horario</span>
-                        <span className="text-white/80">{shift.timespan}</span>
+                        <span className="text-white/80">{formatShiftTimeRange(shift)}</span>
                       </div>
                       <div className="col-span-2">
                         <span className="text-white/30 block text-[8px] uppercase">Evento</span>
@@ -991,8 +979,8 @@ export default function ShiftsScreen({
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Tramo horario</span>
                 <div className="flex items-center justify-between text-xs font-mono text-white/70 mt-2">
-                  <span>{selectedShiftDetail.timespan.split(' - ')[0] || '—'}</span>
-                  <span>{selectedShiftDetail.timespan.split(' - ')[1] || '—'}</span>
+                  <span>{formatShiftTimeRange(selectedShiftDetail, true).split(' - ')[0] || '—'}</span>
+                  <span>{formatShiftTimeRange(selectedShiftDetail, true).split(' - ')[1] || '—'}</span>
                 </div>
                 <div className="h-2 rounded-full bg-white/10 mt-2 overflow-hidden">
                   <div
@@ -1013,7 +1001,7 @@ export default function ShiftsScreen({
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Horario</span>
-                <p className="text-white mt-1 font-semibold">{selectedShiftDetail.timespan}</p>
+                <p data-testid="shift-detail-time-range" className="text-white mt-1 font-semibold">{formatShiftTimeRange(selectedShiftDetail, true)}</p>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 block">Evento</span>

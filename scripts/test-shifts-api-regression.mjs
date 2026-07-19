@@ -1,4 +1,10 @@
 import dotenv from 'dotenv';
+import {
+  getMadridCivilDateKey,
+  getMadridCivilDateParts,
+  madridCivilDateTimeToInstant,
+  shiftMadridCivilDateKey,
+} from '../src/utils/madridTime.ts';
 
 dotenv.config({ path: '/opt/madridlive-app/.env', quiet: true });
 dotenv.config({ quiet: true });
@@ -28,27 +34,29 @@ function parseEventDate(event) {
   const day = Number(event?.dateDay);
   const monthRaw = String(event?.dateMonth || '').trim().toUpperCase();
   const month = MONTH_TO_INDEX[monthRaw];
-  const year = Number(event?.dateYear || new Date().getFullYear());
+  const year = Number(event?.dateYear || getMadridCivilDateParts().year);
 
   if (!Number.isFinite(day) || month === undefined || !Number.isFinite(year)) {
     return null;
   }
 
-  return new Date(year, month, day);
+  return madridCivilDateTimeToInstant({ year, month: month + 1, day, hour: 0, minute: 0 });
 }
 
 function buildFutureEventPayload() {
-  const now = new Date();
-  const future = new Date(now);
-  future.setDate(now.getDate() + 14);
+  const futureKey = shiftMadridCivilDateKey(
+    getMadridCivilDateKey(),
+    14,
+  );
+  const [, year, month, day] = futureKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
-  const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  const stamp = `${futureKey.replaceAll('-', '')}${Date.now()}`;
   return {
     title: `Shift Regression Future Event ${stamp}`,
     location: 'Regression Gate',
-    dateDay: String(future.getDate()).padStart(2, '0'),
-    dateMonth: MONTH_INDEX_TO_TOKEN[future.getMonth()],
-    dateYear: String(future.getFullYear()),
+    dateDay: day,
+    dateMonth: MONTH_INDEX_TO_TOKEN[Number(month) - 1],
+    dateYear: year,
     doorsOpen: '23:59',
     requiredStaff: 0,
     activeStaff: 0,
@@ -539,6 +547,12 @@ async function run() {
     assert(Boolean(createdShift), 'No se encontró el turno creado al reconsultar shifts.');
 
     const hasCanonicalTimestamps = Boolean(createdShift.startedAt) && Boolean(createdShift.endedAt);
+    const canonicalTimestampsAreUtc = /Z$/.test(String(createdShift.startedAt))
+      && /Z$/.test(String(createdShift.endedAt));
+    assert(
+      canonicalTimestampsAreUtc,
+      `Los timestamps canónicos deben salir como ISO UTC con Z: ${JSON.stringify({ startedAt: createdShift.startedAt, endedAt: createdShift.endedAt })}`,
+    );
 
     // Validate overlap rule using a deterministic completed range window.
     const baselineStart = toIsoAtOffset(new Date().toISOString(), 30 * 60_000);
@@ -809,6 +823,7 @@ async function run() {
       allowedEvent: allowedEvent.title,
       futureEvent: futureEvent.title,
       hasCanonicalTimestamps,
+      canonicalTimestampsAreUtc,
       duplicateActiveBlocked,
       overlapRangeBlocked,
       contiguousRangeAllowed,

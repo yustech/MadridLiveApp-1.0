@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getMadridCivilDateParts } from '../../src/utils/madridTime';
 import {
   sanitizeString,
   sanitizeIdCode,
@@ -123,12 +124,17 @@ describe('sanitizeNumber', () => {
 
 describe('sanitizeDateTime', () => {
   it('accepts a parseable ISO 8601 datetime', () => {
-    expect(sanitizeDateTime('2026-07-15T20:00:00Z', 'startedAt').valid).toBe(true);
+    expect(sanitizeDateTime('2026-07-15T20:00:00Z', 'startedAt')).toMatchObject({
+      valid: true,
+      sanitized: '2026-07-15T20:00:00.000Z',
+    });
+    expect(sanitizeDateTime('2026-07-15T22:00:00+02:00', 'startedAt').sanitized).toBe('2026-07-15T20:00:00.000Z');
   });
 
   it('rejects unparseable values', () => {
     expect(sanitizeDateTime('not-a-date', 'startedAt').valid).toBe(false);
     expect(sanitizeDateTime(42, 'startedAt').valid).toBe(false);
+    expect(sanitizeDateTime('2026-07-15T20:00:00', 'startedAt').valid).toBe(false);
   });
 });
 
@@ -151,7 +157,7 @@ describe('validateEventPayload', () => {
     const { dateYear, ...noYear } = base;
     const r = validateEventPayload(noYear);
     expect(r.valid).toBe(true);
-    expect(r.sanitized.dateYear).toBe(String(new Date().getFullYear()));
+    expect(r.sanitized.dateYear).toBe(String(getMadridCivilDateParts().year));
   });
 
   it('rejects a year outside the supported range', () => {

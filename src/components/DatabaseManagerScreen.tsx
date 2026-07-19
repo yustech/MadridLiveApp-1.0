@@ -12,6 +12,7 @@ import {
   DEFAULT_FEMALE_AVATAR,
   fileToAvatarDataUrl,
 } from '../utils/avatarUpload';
+import { getMadridCivilDateParts } from '../utils/madridTime';
 import {
   addEvent, updateEvent, deleteEvent,
   addStaff, updateStaff, deleteStaff,
@@ -108,7 +109,7 @@ export default function DatabaseManagerScreen({
     location: '',
     dateDay: '',
     dateMonth: '',
-    dateYear: String(new Date().getFullYear()),
+    dateYear: String(getMadridCivilDateParts().year),
     doorsOpen: '',
     requiredStaff: 0,
     activeStaff: 0,
@@ -260,7 +261,7 @@ export default function DatabaseManagerScreen({
     setFormMode('add');
     setEditingId(null);
 
-    const currentYear = String(new Date().getFullYear());
+    const currentYear = String(getMadridCivilDateParts().year);
     setEventData({
       title: 'Nuevo Concierto Madrid',
       location: 'WiZink Center',
@@ -321,7 +322,7 @@ export default function DatabaseManagerScreen({
         location: event.location,
         dateDay: event.dateDay,
         dateMonth: event.dateMonth,
-        dateYear: event.dateYear || String(new Date().getFullYear()),
+        dateYear: event.dateYear || String(getMadridCivilDateParts().year),
         doorsOpen: event.doorsOpen,
         requiredStaff: event.requiredStaff,
         activeStaff: event.activeStaff,

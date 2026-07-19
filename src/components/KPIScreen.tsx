@@ -19,6 +19,7 @@ import {
   isShiftLinkedToEvent,
   isWorkerPresentNow,
 } from '../utils/shifts';
+import { formatMadridTimeWithZone } from '../utils/madridTime';
 
 interface KPIScreenProps {
   shifts: Shift[];
@@ -38,7 +39,7 @@ function extractShiftDate(shift: Shift): Date | null {
 }
 
 function getHourBucketKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`;
+  return String(Math.floor(date.getTime() / (60 * 60 * 1000)));
 }
 
 export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIScreenProps) {
@@ -187,8 +188,9 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     for (let i = 11; i >= 0; i -= 1) {
       const date = new Date(now.getTime() - i * 60 * 60 * 1000);
       const bucket = getHourBucketKey(date);
+      const bucketInstant = new Date(Number(bucket) * 60 * 60 * 1000);
       hourlyTrend.push({
-        label: `${String(date.getHours()).padStart(2, '0')}:00`,
+        label: formatMadridTimeWithZone(bucketInstant),
         value: hourMap.get(bucket) || 0,
       });
     }

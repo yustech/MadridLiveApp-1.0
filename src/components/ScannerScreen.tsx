@@ -31,6 +31,7 @@ import {
   isWorkerPresentNow,
 } from '../utils/shifts';
 import { getAvatarSrc, setFallbackAvatar } from '../utils/avatarUpload';
+import { formatMadridDateTime } from '../utils/madridTime';
 
 interface ScannerScreenProps {
   staff: StaffMember[];
@@ -703,6 +704,11 @@ export default function ScannerScreen({
                     {isActiveSelectedWorkerPresent ? 'EN EL RECINTO' : isActiveSelectedWorkerOpen ? 'IN FUERA DE FECHA' : 'FUERA DEL RECINTO'}
                   </span>
                 </div>
+                {isActiveSelectedWorkerOpen && activeSelectedWorker.checkedInTime && (
+                  <p data-testid="scanner-check-in-time" className="text-[10px] font-mono text-white/55 mt-2">
+                    Entrada: {formatMadridDateTime(activeSelectedWorker.checkedInTime)}
+                  </p>
+                )}
               </div>
             </div>
 

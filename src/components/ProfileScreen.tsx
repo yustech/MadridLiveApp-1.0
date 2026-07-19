@@ -14,6 +14,7 @@ import {
   formatShiftDateLabel,
   getActiveShiftForWorker,
   getShiftStartTimestamp,
+  formatShiftTimeRange,
   isShiftActiveNow,
   isWorkerPresentNow,
 } from '../utils/shifts';
@@ -34,10 +35,6 @@ const zoneTranslationMap: Record<string, string> = {
   'Artist Lounge': 'Camerino de Artistas',
   'Artist Entrance': 'Entrada de Artistas'
 };
-
-function formatTimespanLabel(timespan: string): string {
-  return timespan.replace('Present', 'Presente');
-}
 
 export default function ProfileScreen({
   worker,
@@ -324,7 +321,7 @@ export default function ProfileScreen({
                           {formatShiftDateLabel(shift)}
                         </span>
                         <span className="text-xs font-mono text-white/40 mt-1">
-                          {formatTimespanLabel(shift.timespan)}
+                          {formatShiftTimeRange(shift)}
                         </span>
                       </div>
 

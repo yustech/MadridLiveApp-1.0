@@ -8,6 +8,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import mysql from "mysql2/promise";
 import { registerMysqlApi } from "./mysqlApi";
+import { formatMadridTime } from "./src/utils/madridTime";
 
 dotenv.config();
 
@@ -374,11 +375,12 @@ async function startServer() {
     }
 
     const logMessages: string[] = [];
-    logMessages.push(`[${new Date().toLocaleTimeString()}] Iniciando prueba de conexión hacia ${host}:${parsedPort}...`);
+    const clockLabel = () => formatMadridTime(new Date());
+    logMessages.push(`[${clockLabel()}] Iniciando prueba de conexión hacia ${host}:${parsedPort}...`);
 
     let connection: any = null;
     try {
-      logMessages.push(`[${new Date().toLocaleTimeString()}] Intentando establecer socket TCP (timeout: 5s)...`);
+      logMessages.push(`[${clockLabel()}] Intentando establecer socket TCP (timeout: 5s)...`);
 
       connection = await mysql.createConnection({
         host,
@@ -387,23 +389,24 @@ async function startServer() {
         password: password || "",
         database: dbName || undefined,
         connectTimeout: 5000,
+        timezone: "Z",
       });
 
-      logMessages.push(`[${new Date().toLocaleTimeString()}] ¡Conexión TCP establecida correctamente!`);
-      logMessages.push(`[${new Date().toLocaleTimeString()}] Ejecutando consulta de verificación: SELECT VERSION();`);
+      logMessages.push(`[${clockLabel()}] ¡Conexión TCP establecida correctamente!`);
+      logMessages.push(`[${clockLabel()}] Ejecutando consulta de verificación: SELECT VERSION();`);
 
       const [rows] = await connection.execute("SELECT VERSION() as version");
       const version = (rows as any[])[0]?.version || "Desconocida";
 
-      logMessages.push(`[${new Date().toLocaleTimeString()}] Versión del servidor detectada: ${version}`);
+      logMessages.push(`[${clockLabel()}] Versión del servidor detectada: ${version}`);
 
       if (dbName) {
-        logMessages.push(`[${new Date().toLocaleTimeString()}] Verificando acceso a la base de datos: "${dbName}"...`);
+        logMessages.push(`[${clockLabel()}] Verificando acceso a la base de datos: "${dbName}"...`);
         await connection.query("USE ??", [dbName]);
-        logMessages.push(`[${new Date().toLocaleTimeString()}] ¡Acceso a "${dbName}" confirmado!`);
+        logMessages.push(`[${clockLabel()}] ¡Acceso a "${dbName}" confirmado!`);
       }
 
-      logMessages.push(`[${new Date().toLocaleTimeString()}] Conexión verificada correctamente.`);
+      logMessages.push(`[${clockLabel()}] Conexión verificada correctamente.`);
       return res.json({
         success: true,
         message: "¡Conexión exitosa a tu base de datos MariaDB!",
@@ -411,7 +414,7 @@ async function startServer() {
         logs: logMessages,
       });
     } catch (err: any) {
-      logMessages.push(`[${new Date().toLocaleTimeString()}] ❌ ERROR: ${err.message}`);
+      logMessages.push(`[${clockLabel()}] ❌ ERROR: ${err.message}`);
 
       let clientAdvice = "Verifica los parámetros y que la base de datos esté activa.";
       if (err.code === "ETIMEDOUT" || err.code === "ENOTFOUND") {

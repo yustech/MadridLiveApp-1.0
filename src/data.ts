@@ -1,4 +1,5 @@
 import { StaffMember, LiveEvent, Shift, EquipmentAlert } from './types';
+import { getMadridCivilDateParts } from './utils/madridTime';
 
 export const INITIAL_STAFF: StaffMember[] = [
   {
@@ -169,7 +170,7 @@ export const INITIAL_SHIFTS: Shift[] = [
   }
 ];
 
-const CURRENT_EVENT_YEAR = String(new Date().getFullYear());
+const CURRENT_EVENT_YEAR = String(getMadridCivilDateParts().year);
 
 export const INITIAL_EVENTS: LiveEvent[] = [
   {

@@ -153,7 +153,9 @@ export async function performWorkerCheckOut(conn: any, body: Record<string, unkn
   const elapsedMs = Number.isFinite(startTs) && endTs > startTs ? endTs - startTs : 0;
   const netAccruedHours = elapsedMs / (1000 * 60 * 60);
   const finalHours = Number((Number(staffRow.totalHours || 0) + netAccruedHours).toFixed(2));
-  const startLabel = String(activeShift.timespan || "").split(" - ")[0] || formatClockLabel(startedAtDate);
+  const startLabel = activeShift.startedAt
+    ? formatClockLabel(startedAtDate)
+    : String(activeShift.timespan || "").split(" - ")[0] || formatClockLabel(startedAtDate);
 
   await conn.execute(
     `UPDATE shifts

@@ -1,4 +1,5 @@
 import { toMysqlDateTimeValue } from "../dateTime";
+import { getMadridCivilDateKey, getMadridCivilDateParts } from "../../../src/utils/madridTime";
 import { parseEventDateTime } from "./eventDateTime";
 
 export interface EventStaffCheckInInput {
@@ -96,16 +97,11 @@ export async function ensureShiftNotLinkedToFutureEvent(db: any, status: unknown
   }
 
   // Allow check-ins for events happening today, even if doorsOpen is later.
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const eventDayStart = new Date(
-    eventDate.getFullYear(),
-    eventDate.getMonth(),
-    eventDate.getDate()
-  ).getTime();
+  const todayKey = getMadridCivilDateKey();
+  const eventDayKey = getMadridCivilDateKey(eventDate);
 
-  if (eventDayStart > todayStart) {
-    throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth} ${eventDate.getFullYear()}).`);
+  if (eventDayKey > todayKey) {
+    throw new Error(`Cannot activate shifts for future event: ${event.title} (${event.dateDay} ${event.dateMonth} ${getMadridCivilDateParts(eventDate).year}).`);
   }
 }
 

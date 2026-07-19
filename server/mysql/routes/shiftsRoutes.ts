@@ -99,8 +99,8 @@ export function registerShiftsRoutes(app: express.Express, options: ShiftsRoutes
         conn,
         sanitized.workerId,
         sanitized.status,
-        startedAtMysql,
-        endedAtMysql
+        sanitized.startedAt,
+        sanitized.endedAt
       );
 
       await conn.execute(

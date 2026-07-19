@@ -187,15 +187,6 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  const getIsoForTodayTime = (clockLabel: string) => {
-    const [hourRaw, minuteRaw] = clockLabel.split(':');
-    const hour = Number(hourRaw);
-    const minute = Number(minuteRaw);
-    const base = new Date();
-    base.setHours(Number.isFinite(hour) ? hour : 0, Number.isFinite(minute) ? minute : 0, 0, 0);
-    return base.toISOString();
-  };
-
   // Login handler
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();

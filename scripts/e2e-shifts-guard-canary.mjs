@@ -1,3 +1,10 @@
+import {
+  getMadridCivilDateKey,
+  getMadridCivilDateParts,
+  madridCivilDateTimeToInstant,
+  shiftMadridCivilDateKey,
+} from '../src/utils/madridTime.ts';
+
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 const RUN_STARTED_AT_MS = Date.now();
 const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN || '';
@@ -49,27 +56,26 @@ function parseEventDate(event) {
   const day = Number(event?.dateDay);
   const monthRaw = String(event?.dateMonth || '').trim().toUpperCase();
   const month = MONTH_TO_INDEX[monthRaw];
-  const year = Number(event?.dateYear || new Date().getFullYear());
+  const year = Number(event?.dateYear || getMadridCivilDateParts().year);
 
   if (!Number.isFinite(day) || month === undefined || !Number.isFinite(year)) {
     return null;
   }
 
-  return new Date(year, month, day);
+  return madridCivilDateTimeToInstant({ year, month: month + 1, day, hour: 0, minute: 0 });
 }
 
 function buildFutureEventPayload() {
-  const now = new Date();
-  const future = new Date(now);
-  future.setDate(now.getDate() + 14);
+  const futureKey = shiftMadridCivilDateKey(getMadridCivilDateKey(), 14);
+  const [, year, month, day] = futureKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
-  const stamp = future.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  const stamp = `${futureKey.replaceAll('-', '')}${Date.now()}`;
   return {
     title: `Shifts Guard Future Event ${stamp}`,
     location: 'QA Future Guard',
-    dateDay: String(future.getDate()).padStart(2, '0'),
-    dateMonth: MONTH_INDEX_TO_TOKEN[future.getMonth()],
-    dateYear: String(future.getFullYear()),
+    dateDay: day,
+    dateMonth: MONTH_INDEX_TO_TOKEN[Number(month) - 1],
+    dateYear: year,
     doorsOpen: '23:59',
     requiredStaff: 0,
     activeStaff: 0,
