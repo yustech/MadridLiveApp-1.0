@@ -23,7 +23,7 @@ export function EventsTab({ items, onEdit, onDelete }: EventsTabProps) {
               {item.location} • Apertura: {item.doorsOpen} • Día: {item.dateDay} {item.dateMonth} {item.dateYear}
             </p>
             <p className="text-[10px] text-indigo-400 mt-1 font-mono">
-              Personal Requerido: {item.totalStaffNeeded} | Escaneos: {item.scanRate} /min | Montaje: {item.loadInPercent}%
+              Personal Requerido: {item.totalStaffNeeded} | Escaneos: {item.scanRate} /min
             </p>
           </div>
         </RecordCard>

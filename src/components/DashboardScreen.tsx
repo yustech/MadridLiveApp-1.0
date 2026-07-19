@@ -326,7 +326,7 @@ export default function DashboardScreen({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 border-t border-white/10 pt-5 mt-auto">
+          <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-5 mt-auto">
             <div data-testid="dashboard-personal-now">
               <p className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">
                 Personal Ahora
@@ -344,14 +344,6 @@ export default function DashboardScreen({
               </p>
               <p className="text-[9px] font-mono text-white/35 mt-0.5">
                 {liveCheckinRate.count} fichajes en 5 min
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-mono text-white/40 uppercase tracking-wider mb-1">
-                Estado del Montaje
-              </p>
-              <p className="text-xl font-display font-medium text-pink-300">
-                {liveEvent?.loadInPercent ?? 0}%
               </p>
             </div>
           </div>
@@ -606,7 +598,7 @@ export default function DashboardScreen({
       {/* Event Details Modal */}
       {selectedDetailEvent && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
-          <div className="bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 w-full max-w-md relative overflow-hidden space-y-6 shadow-hud-glow">
+          <div className="bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 w-full max-w-2xl relative overflow-hidden space-y-6 shadow-hud-glow">
             {/* Gradient Line Accent */}
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-teal-400 via-indigo-500 to-purple-500" />
             
@@ -628,7 +620,7 @@ export default function DashboardScreen({
             </div>
 
             {/* Core Stats Bento Block */}
-            <div className="grid grid-cols-2 gap-3 font-mono text-xs text-left">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs text-left">
               <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
                 <p className="text-white/40 uppercase text-[9px] mb-1">Apertura de Puertas</p>
                 <p className="text-sm font-bold text-white flex items-center gap-1.5">
@@ -641,13 +633,6 @@ export default function DashboardScreen({
                 <p className="text-sm font-bold text-white flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-purple-300" />
                   {selectedDetailEvent.requiredStaff} Especialistas
-                </p>
-              </div>
-              <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
-                <p className="text-white/40 uppercase text-[9px] mb-1">Avance del Montaje</p>
-                <p className="text-sm font-bold text-emerald-300 flex items-center gap-1.5">
-                  <Activity className="w-4 h-4 text-emerald-400" />
-                  {selectedDetailEvent.loadInPercent}% completado
                 </p>
               </div>
               <div className="bg-white/5 border border-white/5 p-3.5 rounded-2xl">
