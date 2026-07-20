@@ -8,15 +8,15 @@ import { buildUpdateClause } from "../updateClause";
 
 interface StaffRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
-  requireAuthorizedRead: (req: express.Request, res: express.Response) => boolean;
+  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 export function registerStaffRoutes(app: express.Express, options: StaffRoutesOptions) {
-  const { prefix, isAuthorized, requireAuthorizedRead } = options;
+  const { prefix, requireAdmin, requireAuthorizedRead } = options;
 
   app.get(`${prefix}/staff`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     try {
       const db = getPool();
@@ -54,9 +54,7 @@ export function registerStaffRoutes(app: express.Express, options: StaffRoutesOp
   });
 
   app.post(`${prefix}/staff`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const body = req.body || {};
@@ -83,9 +81,7 @@ export function registerStaffRoutes(app: express.Express, options: StaffRoutesOp
   });
 
   app.patch(`${prefix}/staff/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     const allowed = [
       "idCode",
@@ -131,9 +127,7 @@ export function registerStaffRoutes(app: express.Express, options: StaffRoutesOp
   });
 
   app.delete(`${prefix}/staff/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();

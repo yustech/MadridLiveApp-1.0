@@ -35,6 +35,8 @@ interface ProfileScreenProps {
   onToggleStatus: (workerId: string) => void;
   onRatingSaved: (workerId: string, rating: StaffRating | null) => void;
   workerShifts: Shift[];
+  canCheckin: boolean;
+  canManage: boolean;
 }
 
 export default function ProfileScreen({
@@ -42,7 +44,9 @@ export default function ProfileScreen({
   onBack,
   onToggleStatus,
   onRatingSaved,
-  workerShifts
+  workerShifts,
+  canCheckin,
+  canManage,
 }: ProfileScreenProps) {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
   const [isSavingRating, setIsSavingRating] = useState(false);
@@ -161,8 +165,8 @@ export default function ProfileScreen({
                   <StaffRatingWidget
                     rating={worker.rating}
                     workerName={worker.name}
-                    interactive
-                    disabled={isSavingRating}
+                    interactive={canManage}
+                    disabled={!canManage || isSavingRating}
                     onChange={(rating) => void saveRating(rating)}
                     testId={`profile-rating-${worker.id}`}
                   />
@@ -330,6 +334,7 @@ export default function ProfileScreen({
             </p>
             <button
               onClick={handleToggle}
+              disabled={!canCheckin}
               className={`w-full h-12 bg-transparent text-indigo-300 hover:text-white font-mono text-xs rounded-2xl border border-indigo-400 transition-all uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer ${
                 isMarkedIn
                   ? 'hover:bg-rose-500/10 hover:border-rose-400 hover:text-rose-400' 
@@ -337,7 +342,7 @@ export default function ProfileScreen({
               }`}
             >
               <CalendarRange className="w-4 h-4" />
-              {isMarkedIn ? 'Salida Manual' : 'Entrada Manual'}
+              {!canCheckin ? 'Solo lectura' : isMarkedIn ? 'Salida Manual' : 'Entrada Manual'}
             </button>
           </div>
 

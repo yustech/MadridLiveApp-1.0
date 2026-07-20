@@ -46,6 +46,7 @@ interface DashboardScreenProps {
   onLaunchScanner: () => void;
   onManageEventStaff: (event: LiveEvent) => void;
   onDeletePastEvent: (eventId: string) => Promise<void>;
+  canManage: boolean;
 }
 
 export default function DashboardScreen({
@@ -57,7 +58,8 @@ export default function DashboardScreen({
   setActiveEventId,
   onLaunchScanner,
   onManageEventStaff,
-  onDeletePastEvent
+  onDeletePastEvent,
+  canManage,
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
   const [showOnlyDeficit, setShowOnlyDeficit] = useState(false);
@@ -546,6 +548,7 @@ export default function DashboardScreen({
                     }}
                     className="h-9 w-9 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 transition-colors flex items-center justify-center"
                     aria-label={`Borrar evento ${event.title}`}
+                    disabled={!canManage}
                     title="Borrar evento pasado"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -652,13 +655,14 @@ export default function DashboardScreen({
               <button
                 type="button"
                 onClick={() => {
-                  onManageEventStaff(selectedDetailEvent);
+                  if (canManage) onManageEventStaff(selectedDetailEvent);
                   setSelectedDetailEvent(null);
                 }}
+                disabled={!canManage}
                 className="w-full h-11 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/25 text-cyan-100 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Users className="w-4 h-4" />
-                <span>Gestionar equipo · {selectedDetailEvent.assignedStaffCount ?? 0}/{selectedDetailEvent.requiredStaff}</span>
+                <span>{canManage ? 'Gestionar equipo' : 'Equipo en solo lectura'} · {selectedDetailEvent.assignedStaffCount ?? 0}/{selectedDetailEvent.requiredStaff}</span>
               </button>
 
               <button

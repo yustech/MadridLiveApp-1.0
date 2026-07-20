@@ -83,7 +83,7 @@ const shifts = [
 ];
 
 async function mockMetricsData(page: Page, requests: Array<{ method: string; pathname: string }>) {
-  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true } }));
+  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => {
     requests.push({ method: route.request().method(), pathname: new URL(route.request().url()).pathname });
     return route.fulfill({ json: [activeEvent, simultaneousEvent] });

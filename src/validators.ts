@@ -22,6 +22,32 @@ export interface ValidationResult<T> {
 type SanitizedPayload = Record<string, unknown>;
 
 export const STAFF_ROLES: readonly string[] = ["Auxiliar", "Auxiliar Plus", "Coordinación"];
+export const USER_ROLES = ["admin", "operator", "viewer"] as const;
+export type UserRole = typeof USER_ROLES[number];
+export const MIN_USER_PASSWORD_LENGTH = 10;
+
+export function validateUserPayload(body: unknown): ValidationResult<{ email: string; password: string; role: UserRole }> {
+  const b = typeof body === "object" && body !== null ? body as Record<string, unknown> : {};
+  const errors: ValidationError[] = [];
+  const email = String(b.email || "").trim().toLowerCase();
+  const password = typeof b.password === "string" ? b.password : "";
+  const role = String(b.role || "") as UserRole;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) errors.push({ field: "email", message: "Expected a valid email" });
+  if (password.length < MIN_USER_PASSWORD_LENGTH) errors.push({ field: "password", message: `Password must be at least ${MIN_USER_PASSWORD_LENGTH} characters` });
+  if (!USER_ROLES.includes(role)) errors.push({ field: "role", message: "Invalid user role" });
+  return { valid: errors.length === 0, errors, sanitized: errors.length ? undefined : { email, password, role } };
+}
+
+export function validateUserPatchPayload(body: unknown): ValidationResult<{ role?: UserRole; status?: "active" | "inactive"; password?: string }> {
+  const b = typeof body === "object" && body !== null ? body as Record<string, unknown> : {};
+  const sanitized: { role?: UserRole; status?: "active" | "inactive"; password?: string } = {};
+  const errors: ValidationError[] = [];
+  if (b.role !== undefined) USER_ROLES.includes(b.role as UserRole) ? sanitized.role = b.role as UserRole : errors.push({ field: "role", message: "Invalid user role" });
+  if (b.status !== undefined) b.status === "active" || b.status === "inactive" ? sanitized.status = b.status : errors.push({ field: "status", message: "Invalid user status" });
+  if (b.password !== undefined) typeof b.password === "string" && b.password.length >= MIN_USER_PASSWORD_LENGTH ? sanitized.password = b.password : errors.push({ field: "password", message: `Password must be at least ${MIN_USER_PASSWORD_LENGTH} characters` });
+  if (!Object.keys(sanitized).length && !errors.length) errors.push({ field: "payload", message: "At least one change is required" });
+  return { valid: errors.length === 0, errors, sanitized };
+}
 
 const MIN_EVENT_YEAR = 1900;
 const MAX_EVENT_YEAR = 2200;

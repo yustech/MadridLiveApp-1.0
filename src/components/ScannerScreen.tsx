@@ -48,6 +48,7 @@ interface ScannerScreenProps {
   setActiveEventId: (id: string) => void;
   onScanWorkerToggle: (workerId: string, force?: boolean) => Promise<WorkerToggleOutcome>;
   onNavigateToWorker: (worker: StaffMember) => void;
+  canCheckin: boolean;
 }
 
 interface Html5QrcodeCameraConfig {
@@ -92,7 +93,8 @@ export default function ScannerScreen({
   activeEventId,
   setActiveEventId,
   onScanWorkerToggle,
-  onNavigateToWorker
+  onNavigateToWorker,
+  canCheckin,
 }: ScannerScreenProps) {
   const activeEvent = events.find(e => e.id === activeEventId) || null;
   const activeEventState = getEventTemporalState(activeEvent);
@@ -279,6 +281,10 @@ export default function ScannerScreen({
 
   // Execute actual database toggle and show success animation
   const triggerScanOperation = (workerId: string, options: TriggerScanOptions = {}) => {
+    if (!canCheckin) {
+      setScanError('Tu rol es de solo lectura y no permite registrar entradas o salidas.');
+      return;
+    }
     const targetWorker = staff.find(s => s.id === workerId);
     if (!targetWorker) return;
 
@@ -932,11 +938,11 @@ export default function ScannerScreen({
               )}
               <button
                 onClick={handlePrimaryAction}
-                disabled={isScanActive || (!isActiveSelectedWorkerOpen && !isActiveEventOperable)}
+                disabled={!canCheckin || isScanActive || (!isActiveSelectedWorkerOpen && !isActiveEventOperable)}
                 className="w-full h-12 bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white disabled:from-white/10 disabled:to-white/5 disabled:text-white/40 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-all duration-350 cursor-pointer shadow-indigo-500/10 hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
               >
                 <QrCode className={`w-4 h-4 ${isScanActive ? 'animate-spin' : ''}`} />
-                <span>{isActiveSelectedWorkerOpen ? 'CERRAR TURNO GUIADO' : 'INICIO TURNO 1 CLIC'}</span>
+                <span>{!canCheckin ? 'SOLO LECTURA' : isActiveSelectedWorkerOpen ? 'CERRAR TURNO GUIADO' : 'INICIO TURNO 1 CLIC'}</span>
               </button>
             </div>
 

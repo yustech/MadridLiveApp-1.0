@@ -30,6 +30,7 @@ interface StaffScreenProps {
   onSelectWorker: (worker: StaffMember) => void;
   onAddWorker: (worker: Omit<StaffMember, 'id'>) => Promise<void> | void;
   onEditRoster: () => void;
+  canManage: boolean;
 }
 
 type SortMode = 'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst';
@@ -57,6 +58,7 @@ export default function StaffScreen({
   onSelectWorker,
   onAddWorker,
   onEditRoster,
+  canManage,
 }: StaffScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<string>('All');
@@ -305,6 +307,7 @@ export default function StaffScreen({
           <button
             type="button"
             onClick={onEditRoster}
+            disabled={!canManage}
             className="flex items-center gap-2 rounded-xl border border-indigo-400/25 bg-indigo-500/15 px-3.5 py-2 text-xs font-mono font-bold text-indigo-200 transition-colors hover:bg-indigo-500/25"
           >
             <PencilLine className="h-3.5 w-3.5" />
@@ -512,10 +515,11 @@ export default function StaffScreen({
 
       <button
         onClick={() => setIsAddModalOpen(true)}
+        disabled={!canManage}
         className="w-full py-4 bg-transparent hover:bg-indigo-500/10 text-indigo-300 hover:text-white font-mono text-xs rounded-2xl border border-dashed border-indigo-500/30 transition-colors uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer"
       >
         <UserPlus className="w-4 h-4" />
-        Registrar Miembro de Personal
+        {canManage ? 'Registrar Miembro de Personal' : 'Solo lectura'}
       </button>
 
       {isAddModalOpen && (

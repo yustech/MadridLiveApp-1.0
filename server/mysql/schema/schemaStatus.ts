@@ -16,6 +16,12 @@ export const REQUIRED_SCHEMA_COLUMNS = [
   'staff_template_members.template_id',
   'staff_template_members.worker_id',
   'staff_template_members.assigned_role',
+  'users.id',
+  'users.email',
+  'users.password_hash',
+  'users.role',
+  'users.status',
+  'users.token_version',
 ];
 
 export interface SchemaColumnRow {
@@ -59,10 +65,11 @@ export async function getSchemaStatus(db: SchemaStatusDb): Promise<SchemaStatus>
     `SELECT table_name AS tableName, column_name AS columnName
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
-       AND table_name IN ('staff', 'events', 'shifts', 'event_staff', 'staff_templates', 'staff_template_members')
+       AND table_name IN ('staff', 'events', 'shifts', 'event_staff', 'staff_templates', 'staff_template_members', 'users')
        AND column_name IN (
          'updated_at', 'started_at', 'ended_at', 'event_id', 'event_title', 'dateYear',
-         'worker_id', 'assigned_role', 'created_at', 'id', 'name', 'template_id', 'rating'
+         'worker_id', 'assigned_role', 'created_at', 'id', 'name', 'template_id', 'rating',
+         'email', 'password_hash', 'role', 'status', 'token_version'
        )`
   );
 
