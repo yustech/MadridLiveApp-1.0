@@ -43,7 +43,7 @@ const availableWorker = {
 };
 
 async function mockBaseData(page: Page) {
-  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true } }));
+  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({ json: [event] }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: [baseWorker, availableWorker] }));
   await page.route(/\/api\/mysql\/(shifts|alerts)$/, (route) => route.fulfill({ json: [] }));

@@ -34,7 +34,7 @@ const workers = [
 ];
 
 async function mockAppData(page: Page) {
-  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true } }));
+  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: workers }));
   await page.route(/\/api\/mysql\/(events|shifts|alerts)$/, (route) => route.fulfill({ json: [] }));
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));

@@ -8,8 +8,8 @@ import { buildUpdateClause } from "../updateClause";
 
 interface ShiftsRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
-  requireAuthorizedRead: (req: express.Request, res: express.Response) => boolean;
+  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
   ensureShiftNotLinkedToFutureEvent: (
     db: any,
     status: unknown,
@@ -29,14 +29,14 @@ interface ShiftsRoutesOptions {
 export function registerShiftsRoutes(app: express.Express, options: ShiftsRoutesOptions) {
   const {
     prefix,
-    isAuthorized,
+    requireAdmin,
     requireAuthorizedRead,
     ensureShiftNotLinkedToFutureEvent,
     ensureWorkerShiftTimeIntegrity,
   } = options;
 
   app.get(`${prefix}/shifts`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     try {
       const db = getPool();
@@ -63,9 +63,7 @@ export function registerShiftsRoutes(app: express.Express, options: ShiftsRoutes
   });
 
   app.post(`${prefix}/shifts`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     let conn: any = null;
     try {
@@ -149,9 +147,7 @@ export function registerShiftsRoutes(app: express.Express, options: ShiftsRoutes
   });
 
   app.patch(`${prefix}/shifts/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     const allowed = ["worker_id", "date_string", "timespan", "duration_label", "event_id", "event_title", "status", "started_at", "ended_at"];
 
@@ -254,9 +250,7 @@ export function registerShiftsRoutes(app: express.Express, options: ShiftsRoutes
   });
 
   app.delete(`${prefix}/shifts/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();

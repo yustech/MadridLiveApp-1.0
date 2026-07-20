@@ -8,15 +8,15 @@ import { buildUpdateClause } from "../updateClause";
 
 interface AlertsRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
-  requireAuthorizedRead: (req: express.Request, res: express.Response) => boolean;
+  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 export function registerAlertsRoutes(app: express.Express, options: AlertsRoutesOptions) {
-  const { prefix, isAuthorized, requireAuthorizedRead } = options;
+  const { prefix, requireAdmin, requireAuthorizedRead } = options;
 
   app.get(`${prefix}/alerts`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     try {
       const db = getPool();
@@ -36,9 +36,7 @@ export function registerAlertsRoutes(app: express.Express, options: AlertsRoutes
   });
 
   app.post(`${prefix}/alerts`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const validation = validateAlertPayload(req.body || {});
@@ -61,9 +59,7 @@ export function registerAlertsRoutes(app: express.Express, options: AlertsRoutes
   });
 
   app.patch(`${prefix}/alerts/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     const allowed = ["message", "zone", "timestamp_label", "severity"];
 
@@ -103,9 +99,7 @@ export function registerAlertsRoutes(app: express.Express, options: AlertsRoutes
   });
 
   app.delete(`${prefix}/alerts/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();

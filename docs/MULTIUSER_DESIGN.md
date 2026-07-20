@@ -6,6 +6,13 @@ Estado: **diseño aprobado por el owner 2026-07-18** (roles, visibilidad de
 siguiendo el mismo precedente que `docs/MIGRATION_FRAMEWORK_DESIGN.md`
 (#14): Codex implementa, Claude revisa, staging-first.
 
+> Nota de implementación PR A: `ADMIN_LOGIN_EMAIL` y `ADMIN_LOGIN_PASSWORD`
+> se conservan únicamente para sembrar de forma idempotente la primera cuenta
+> admin durante la migración `0005`; el login ya no consulta esas variables.
+> El nuevo formato de cookie incluye `userId` y `tokenVersion`, por lo que las
+> cookies emitidas antes del despliegue dejan de ser válidas y requieren iniciar
+> sesión una vez de nuevo.
+
 ## Objetivo
 
 Sustituir la sesión única de admin (una sola identidad, definida por

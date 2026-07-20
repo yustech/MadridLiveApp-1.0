@@ -9,15 +9,15 @@ import { getMadridCivilDateParts } from "../../../src/utils/madridTime";
 
 interface EventsRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
-  requireAuthorizedRead: (req: express.Request, res: express.Response) => boolean;
+  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 export function registerEventsRoutes(app: express.Express, options: EventsRoutesOptions) {
-  const { prefix, isAuthorized, requireAuthorizedRead } = options;
+  const { prefix, requireAdmin, requireAuthorizedRead } = options;
 
   app.get(`${prefix}/events`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     try {
       const db = getPool();
@@ -50,9 +50,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
   });
 
   app.post(`${prefix}/events`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const body = req.body || {};
@@ -78,9 +76,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
   });
 
   app.patch(`${prefix}/events/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     const allowed = [
       "title",
@@ -130,9 +126,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
   });
 
   app.delete(`${prefix}/events/:id`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();

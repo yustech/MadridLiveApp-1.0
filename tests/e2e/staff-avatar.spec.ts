@@ -54,7 +54,7 @@ const staff = [
 test('renders initials without rewriting custom avatars and falls back on image errors', async ({ page }) => {
   const staffRequests: Array<{ method: string; pathname: string }> = [];
 
-  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true } }));
+  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route(customAvatarUrl, (route) => route.fulfill({
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="navy"/></svg>',

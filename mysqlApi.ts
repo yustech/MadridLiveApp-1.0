@@ -6,7 +6,7 @@ import {
   validateShiftPayload,
   validateStaffPayload,
 } from "./src/validators";
-import { isAdminAuthorized, unauthorizedResponse } from "./server/mysql/auth";
+import { unauthorizedResponse } from "./server/mysql/auth";
 import { getPool, isMysqlConfigured } from "./server/mysql/pool";
 import {
   ensureShiftNotLinkedToFutureEvent,
@@ -23,6 +23,9 @@ import { registerLifecycleRoutes } from "./server/mysql/routes/lifecycleRoutes";
 import { registerShiftsRoutes } from "./server/mysql/routes/shiftsRoutes";
 import { registerStaffRoutes } from "./server/mysql/routes/staffRoutes";
 import { registerStaffTemplatesRoutes } from "./server/mysql/routes/staffTemplatesRoutes";
+import { registerUsersRoutes } from "./server/mysql/routes/usersRoutes";
+import { ADMIN_ONLY, CHECKIN_ROLES, forbiddenResponse } from "./server/mysql/routes/routeAuth";
+import type { UserRecord, UserRole } from "./server/mysql/users/usersRepository";
 import { MIGRATIONS } from "./server/mysql/migrations";
 import { runVersionedMigrations } from "./server/mysql/migrations/runner";
 import { initSchema } from "./server/mysql/schema/initSchema";
@@ -37,7 +40,8 @@ import {
 const MYSQL_PREFIX = "/api/mysql";
 
 interface MysqlApiOptions {
-  isAdminAuthorized?: (req: express.Request) => boolean;
+  resolveRequestRole: (req: express.Request) => Promise<UserRole | null>;
+  resolveRequestUser: (req: express.Request) => Promise<UserRecord | null>;
 }
 
 function parseCount(value: unknown) {
@@ -194,16 +198,22 @@ async function resetInitialData() {
   }
 }
 
-export function registerMysqlApi(app: express.Express, options: MysqlApiOptions = {}) {
-  const isAuthorized = (req: express.Request) => options.isAdminAuthorized
-    ? options.isAdminAuthorized(req)
-    : isAdminAuthorized(req);
-
-  const requireAuthorizedRead = (req: express.Request, res: express.Response) => {
-    if (isAuthorized(req)) return true;
-    unauthorizedResponse(res);
-    return false;
+export function registerMysqlApi(app: express.Express, options: MysqlApiOptions) {
+  const requireRole = async (req: express.Request, res: express.Response, allowed: readonly UserRole[]) => {
+    const role = await options.resolveRequestRole(req);
+    if (!role) {
+      unauthorizedResponse(res);
+      return false;
+    }
+    if (!allowed.includes(role)) {
+      forbiddenResponse(res);
+      return false;
+    }
+    return true;
   };
+  const requireAuthorizedRead = (req: express.Request, res: express.Response) => requireRole(req, res, ["admin", "operator", "viewer"]);
+  const requireAdmin = (req: express.Request, res: express.Response) => requireRole(req, res, ADMIN_ONLY);
+  const requireCheckin = (req: express.Request, res: express.Response) => requireRole(req, res, CHECKIN_ROLES);
 
   app.get(`${MYSQL_PREFIX}/health-count`, async (_req, res) => {
     if (!isMysqlConfigured()) {
@@ -246,7 +256,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
   });
 
   app.get(`${MYSQL_PREFIX}/status`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     if (!isMysqlConfigured()) {
       return res.status(503).json({
@@ -266,7 +276,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
   });
 
   app.get(`${MYSQL_PREFIX}/schema-check`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     if (!isMysqlConfigured()) {
       return res.status(503).json({
@@ -291,9 +301,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
   });
 
   app.post(`${MYSQL_PREFIX}/schema-migrate`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();
@@ -314,9 +322,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
 
 
   app.post(`${MYSQL_PREFIX}/init`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();
@@ -329,9 +335,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
   });
 
   app.post(`${MYSQL_PREFIX}/reset-initial`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       await resetInitialData();
@@ -341,17 +345,23 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions 
     }
   });
 
-  registerLifecycleRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized });
-  registerStaffRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
-  registerEventsRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
-  registerEventStaffRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
-  registerStaffTemplatesRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
+  registerLifecycleRoutes(app, { prefix: MYSQL_PREFIX, requireCheckin });
+  registerStaffRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
+  registerEventsRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
+  registerEventStaffRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
+  registerStaffTemplatesRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
   registerShiftsRoutes(app, {
     prefix: MYSQL_PREFIX,
-    isAuthorized,
+    requireAdmin,
     requireAuthorizedRead,
     ensureShiftNotLinkedToFutureEvent,
     ensureWorkerShiftTimeIntegrity,
   });
-  registerAlertsRoutes(app, { prefix: MYSQL_PREFIX, isAuthorized, requireAuthorizedRead });
+  registerAlertsRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
+  registerUsersRoutes(app, {
+    prefix: MYSQL_PREFIX,
+    requireAdmin,
+    requireAuthenticated: requireAuthorizedRead,
+    resolveUser: options.resolveRequestUser,
+  });
 }

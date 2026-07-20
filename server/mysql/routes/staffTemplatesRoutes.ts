@@ -13,8 +13,8 @@ const MAX_TEMPLATE_MEMBERS = 1000;
 
 interface StaffTemplatesRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
-  requireAuthorizedRead: (req: express.Request, res: express.Response) => boolean;
+  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 interface TemplateRow {
@@ -156,11 +156,11 @@ async function readTemplates(templateId?: string) {
 }
 
 export function registerStaffTemplatesRoutes(app: express.Express, options: StaffTemplatesRoutesOptions) {
-  const { prefix, isAuthorized, requireAuthorizedRead } = options;
+  const { prefix, requireAdmin, requireAuthorizedRead } = options;
   const templatesPath = `${prefix}/staff-templates`;
 
   app.get(templatesPath, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
     try {
       return res.json(await readTemplates());
     } catch (error: any) {
@@ -169,7 +169,7 @@ export function registerStaffTemplatesRoutes(app: express.Express, options: Staf
   });
 
   app.post(templatesPath, async (req, res) => {
-    if (!isAuthorized(req)) return unauthorizedResponse(res);
+    if (!(await requireAdmin(req, res))) return;
 
     const validation = validateCreateTemplatePayload(req.body);
     if ("error" in validation) {
@@ -250,7 +250,7 @@ export function registerStaffTemplatesRoutes(app: express.Express, options: Staf
   });
 
   app.patch(`${templatesPath}/:templateId/members/:workerId`, async (req, res) => {
-    if (!isAuthorized(req)) return unauthorizedResponse(res);
+    if (!(await requireAdmin(req, res))) return;
 
     const validation = validateAssignedRolePayload(req.body);
     if ("error" in validation) {
@@ -286,7 +286,7 @@ export function registerStaffTemplatesRoutes(app: express.Express, options: Staf
   });
 
   app.post(`${templatesPath}/:templateId/apply`, async (req, res) => {
-    if (!isAuthorized(req)) return unauthorizedResponse(res);
+    if (!(await requireAdmin(req, res))) return;
 
     const eventValidation = validateEventId(
       typeof req.body === "object" && req.body !== null
@@ -325,7 +325,7 @@ export function registerStaffTemplatesRoutes(app: express.Express, options: Staf
   });
 
   app.delete(`${templatesPath}/:templateId`, async (req, res) => {
-    if (!isAuthorized(req)) return unauthorizedResponse(res);
+    if (!(await requireAdmin(req, res))) return;
 
     const db = getPool();
     const conn = await db.getConnection();

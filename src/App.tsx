@@ -34,11 +34,13 @@ const ScannerScreen = lazy(() => import('./components/ScannerScreen'));
 const ShiftsScreen = lazy(() => import('./components/ShiftsScreen'));
 const KPIScreen = lazy(() => import('./components/KPIScreen'));
 const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScreen'));
+const UsersScreen = lazy(() => import('./components/UsersScreen'));
 
 const isDatabaseManagerEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
 
-type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'event-staff' | 'scanner' | 'profile' | 'shifts' | 'kpis';
+type SessionRole = 'admin' | 'operator' | 'viewer';
+type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'event-staff' | 'scanner' | 'profile' | 'shifts' | 'kpis' | 'users';
 
 function selectDefaultActiveEvent(events: LiveEvent[]): string {
   const ordered = sortEventsByDate(events);
@@ -51,6 +53,7 @@ function selectDefaultActiveEvent(events: LiveEvent[]): string {
 export default function App() {
   // Authentication & Security Policy State (Option B)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sessionRole, setSessionRole] = useState<SessionRole | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(() => sessionStorage.getItem('ml_auth') === 'true');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -105,15 +108,18 @@ export default function App() {
         if (!cancelled) {
           if (payload?.authenticated) {
             setIsAuthenticated(true);
+            setSessionRole(payload.role as SessionRole);
           } else {
             sessionStorage.removeItem('ml_auth');
             setIsAuthenticated(false);
+            setSessionRole(null);
           }
         }
       } catch {
         if (!cancelled) {
           sessionStorage.removeItem('ml_auth');
           setIsAuthenticated(false);
+          setSessionRole(null);
         }
       } finally {
         if (!cancelled) {
@@ -219,6 +225,7 @@ export default function App() {
   const handleLogout = async () => {
     sessionStorage.removeItem("ml_auth");
     setIsAuthenticated(false);
+    setSessionRole(null);
     setLoginPassword("");
 
     try {
@@ -366,6 +373,11 @@ export default function App() {
         title: 'Historial de Registros',
         subtitle: 'Compilando entradas, salidas y filtros de turno...',
         icon: History,
+      },
+      users: {
+        title: 'Gestión de usuarios',
+        subtitle: 'Cargando cuentas y permisos...',
+        icon: Users,
       },
       kpis: {
         title: 'KPIs y Estadisticas',
@@ -630,7 +642,12 @@ export default function App() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {isDatabaseManagerEnabled && (
+            {sessionRole === 'admin' && (
+              <button onClick={() => setActiveScreen('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-mono text-xs font-semibold border ${activeScreen === 'users' ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200' : 'border-transparent text-white/50 hover:bg-white/5'}`}>
+                <Users className="w-[18px] h-[18px]" /><span>Usuarios</span>
+              </button>
+            )}
+            {isDatabaseManagerEnabled && sessionRole === 'admin' && (
               <button
                 onClick={() => setIsDbOpen(true)}
                 className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-mono text-[11px] font-bold text-white/80 cursor-pointer transition-colors flex items-center justify-center gap-2"
@@ -694,7 +711,7 @@ export default function App() {
 
           {/* Header Right Actions */}
           <div className="flex items-center gap-2">
-            {isDatabaseManagerEnabled && (
+            {isDatabaseManagerEnabled && sessionRole === 'admin' && (
               <button
                 onClick={() => setIsDbOpen(true)}
                 className="md:hidden p-2 hover:bg-white/10 rounded-full cursor-pointer text-[#dbfcff] opacity-85 hover:opacity-100 transition-all flex items-center justify-center"
@@ -751,6 +768,7 @@ export default function App() {
                   setActiveScreen('event-staff');
                 }}
                 onDeletePastEvent={handleDeletePastEvent}
+                canManage={sessionRole === 'admin'}
               />
             )}
 
@@ -761,14 +779,15 @@ export default function App() {
                 onSelectWorker={handleSelectWorker}
                 onAddWorker={handleAddNewCrewMember}
                 onEditRoster={() => setActiveScreen('roster')}
+                canManage={sessionRole === 'admin'}
               />
             )}
 
-            {activeScreen === 'roster' && (
+            {activeScreen === 'roster' && sessionRole === 'admin' && (
               <RosterScreen onBack={() => setActiveScreen('staff')} />
             )}
 
-            {activeScreen === 'event-staff' && events.some((event) => event.id === managedEventId) && (
+            {activeScreen === 'event-staff' && sessionRole === 'admin' && events.some((event) => event.id === managedEventId) && (
               <EventStaffScreen
                 event={events.find((event) => event.id === managedEventId)!}
                 staff={staff}
@@ -785,6 +804,7 @@ export default function App() {
                 setActiveEventId={setActiveEventId}
                 onScanWorkerToggle={handleToggleWorkerStatus}
                 onNavigateToWorker={handleSelectWorker}
+                canCheckin={sessionRole !== 'viewer'}
               />
             )}
 
@@ -795,6 +815,8 @@ export default function App() {
                 onToggleStatus={handleToggleWorkerStatus}
                 onRatingSaved={handleWorkerRatingSaved}
                 onBack={() => setActiveScreen('staff')}
+                canCheckin={sessionRole !== 'viewer'}
+                canManage={sessionRole === 'admin'}
               />
             )}
 
@@ -805,6 +827,8 @@ export default function App() {
                 events={events}
                 onToggleStatus={handleToggleWorkerStatus}
                 onSelectWorker={handleSelectWorker}
+                canCheckin={sessionRole !== 'viewer'}
+                canManage={sessionRole === 'admin'}
               />
             )}
 
@@ -816,13 +840,14 @@ export default function App() {
                 activeEventId={activeEventId}
               />
             )}
+            {activeScreen === 'users' && sessionRole === 'admin' && <UsersScreen />}
           </Suspense>
         </main>
       </div>
 
       {/* RENDER DIRECT CORE MYSQL DATABASE MANAGER MODAL */}
       <Suspense fallback={null}>
-        {isDatabaseManagerEnabled && isDbOpen && (
+        {isDatabaseManagerEnabled && sessionRole === 'admin' && isDbOpen && (
           <DatabaseManagerScreen
             events={events}
             staff={staff}

@@ -12,8 +12,8 @@ import {
 
 interface EventStaffRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
-  requireAuthorizedRead: (req: express.Request, res: express.Response) => boolean;
+  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 interface MutationResult {
@@ -21,10 +21,10 @@ interface MutationResult {
 }
 
 export function registerEventStaffRoutes(app: express.Express, options: EventStaffRoutesOptions) {
-  const { prefix, isAuthorized, requireAuthorizedRead } = options;
+  const { prefix, requireAdmin, requireAuthorizedRead } = options;
 
   app.get(`${prefix}/events/:eventId/staff`, async (req, res) => {
-    if (!requireAuthorizedRead(req, res)) return;
+    if (!(await requireAuthorizedRead(req, res))) return;
 
     try {
       const db = getPool();
@@ -59,9 +59,7 @@ export function registerEventStaffRoutes(app: express.Express, options: EventSta
   });
 
   app.post(`${prefix}/events/:eventId/staff`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     const validation = validateStaffIdsPayload(req.body);
     if ("error" in validation) {
@@ -83,9 +81,7 @@ export function registerEventStaffRoutes(app: express.Express, options: EventSta
   });
 
   app.delete(`${prefix}/events/:eventId/staff/:staffId`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     try {
       const db = getPool();
@@ -103,9 +99,7 @@ export function registerEventStaffRoutes(app: express.Express, options: EventSta
   });
 
   app.patch(`${prefix}/events/:eventId/staff/:staffId`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireAdmin(req, res))) return;
 
     const validation = validateAssignedRolePayload(req.body);
     if ("error" in validation) {

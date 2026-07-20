@@ -5,16 +5,14 @@ import { performWorkerCheckIn, performWorkerCheckOut } from "../lifecycle/worker
 
 interface LifecycleRoutesOptions {
   prefix: string;
-  isAuthorized: (req: express.Request) => boolean;
+  requireCheckin: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 export function registerLifecycleRoutes(app: express.Express, options: LifecycleRoutesOptions) {
-  const { prefix, isAuthorized } = options;
+  const { prefix, requireCheckin } = options;
 
   app.post(`${prefix}/checkin`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireCheckin(req, res))) return;
 
     let conn: any = null;
     try {
@@ -51,9 +49,7 @@ export function registerLifecycleRoutes(app: express.Express, options: Lifecycle
   });
 
   app.post(`${prefix}/checkout`, async (req, res) => {
-    if (!isAuthorized(req)) {
-      return unauthorizedResponse(res);
-    }
+    if (!(await requireCheckin(req, res))) return;
 
     let conn: any = null;
     try {

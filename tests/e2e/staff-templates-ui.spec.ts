@@ -20,7 +20,7 @@ test('saves, edits, applies and deletes a team template with exact method and ro
   let templates: Array<any> = [];
   const requests: Array<{ method: string; pathname: string; body: unknown }> = [];
 
-  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true } }));
+  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({ json: [event] }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: [worker] }));
   await page.route(/\/api\/mysql\/(shifts|alerts)$/, (route) => route.fulfill({ json: [] }));

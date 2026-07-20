@@ -23,7 +23,7 @@ test('edits roster fields and rates from the profile through the real PATCH rout
   let rejectNextPatch = false;
 
   await page.route('**/api/auth/session', async (route) => {
-    await route.fulfill({ json: { authenticated: true } });
+    await route.fulfill({ json: { authenticated: true, role: 'admin' } });
   });
   await page.route('**/api/mysql/staff/*', async (route) => {
     receivedPatch = {

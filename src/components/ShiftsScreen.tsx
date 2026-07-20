@@ -93,6 +93,8 @@ interface ShiftsScreenProps {
   events: LiveEvent[];
   onToggleStatus: (workerId: string) => void;
   onSelectWorker?: (worker: StaffMember) => void;
+  canCheckin: boolean;
+  canManage: boolean;
 }
 
 export default function ShiftsScreen({
@@ -100,7 +102,9 @@ export default function ShiftsScreen({
   staff,
   events,
   onToggleStatus,
-  onSelectWorker
+  onSelectWorker,
+  canCheckin,
+  canManage,
 }: ShiftsScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('All');
@@ -785,7 +789,7 @@ export default function ShiftsScreen({
                           <div className="flex items-center justify-end gap-2">
                             {shift.status?.toLowerCase() === 'active' && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); onToggleStatus(shift.workerId); }}
+                                onClick={(e) => { e.stopPropagation(); onToggleStatus(shift.workerId); }} disabled={!canCheckin}
                                 className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
                                 title="Finalizar Turno del personal"
                               >
@@ -794,7 +798,7 @@ export default function ShiftsScreen({
                               </button>
                             )}
                             <button
-                              onClick={(e) => { e.stopPropagation(); setDeleteTargetId(shift.id); }}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTargetId(shift.id); }} disabled={!canManage}
                               className="p-1.5 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/50 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
                               title="Eliminar este fichaje permanentemente"
                             >
@@ -891,7 +895,7 @@ export default function ShiftsScreen({
                       <div className="flex items-center gap-2">
                         {shift.status?.toLowerCase() === 'active' && (
                           <button
-                            onClick={() => onToggleStatus(shift.workerId)}
+                            onClick={() => onToggleStatus(shift.workerId)} disabled={!canCheckin}
                             className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-300 hover:text-white rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
                           >
                             <CheckCircle className="w-3 h-3" />
@@ -899,7 +903,7 @@ export default function ShiftsScreen({
                           </button>
                         )}
                         <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(shift.id); }}
+                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(shift.id); }} disabled={!canManage}
                           className="p-1.5 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 text-white/40 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" />

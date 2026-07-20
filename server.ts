@@ -9,6 +9,10 @@ import { createServer as createViteServer } from "vite";
 import mysql from "mysql2/promise";
 import { registerMysqlApi } from "./mysqlApi";
 import { formatMadridTime } from "./src/utils/madridTime";
+import { getPool } from "./server/mysql/pool";
+import { findByEmail, findById, type UserRecord, type UserRole } from "./server/mysql/users/usersRepository";
+import { verifyPassword } from "./server/mysql/users/passwordHash";
+import { resolveRole, type SessionIdentity } from "./server/mysql/auth/roleResolver";
 
 dotenv.config();
 
@@ -88,41 +92,48 @@ function timingSafeEqualString(left: string, right: string) {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function signSessionPayload(email: string, expiresAt: number) {
+interface SessionPayload extends SessionIdentity { email: string; expiresAt: number }
+
+function signSessionPayload(email: string, userId: string, tokenVersion: number, expiresAt: number) {
   const secret = getSessionSecret();
   if (!secret) return "";
   return crypto
     .createHmac("sha256", secret)
-    .update(`${email}.${expiresAt}`)
+    .update(`${email}.${userId}.${tokenVersion}.${expiresAt}`)
     .digest("base64url");
 }
 
-function buildSessionValue(email: string, expiresAt: number) {
+function buildSessionValue(email: string, userId: string, tokenVersion: number, expiresAt: number) {
   const normalizedEmail = email.trim().toLowerCase();
-  const signature = signSessionPayload(normalizedEmail, expiresAt);
+  const signature = signSessionPayload(normalizedEmail, userId, tokenVersion, expiresAt);
   if (!signature) return "";
-  return `${Buffer.from(normalizedEmail).toString("base64url")}.${expiresAt}.${signature}`;
+  return `${Buffer.from(normalizedEmail).toString("base64url")}.${Buffer.from(userId).toString("base64url")}.${tokenVersion}.${expiresAt}.${signature}`;
 }
 
-function verifyAdminSession(req: express.Request) {
+function readSessionPayload(req: express.Request): SessionPayload | null {
   const rawSession = getCookieValue(req, AUTH_COOKIE_NAME);
-  if (!rawSession) return false;
+  if (!rawSession) return null;
 
-  const [encodedEmail, expiresAtRaw, signature] = rawSession.split(".");
+  const [encodedEmail, encodedUserId, tokenVersionRaw, expiresAtRaw, signature, extra] = rawSession.split(".");
+  const tokenVersion = Number(tokenVersionRaw);
   const expiresAt = Number(expiresAtRaw);
-  if (!encodedEmail || !Number.isFinite(expiresAt) || !signature || expiresAt <= Date.now()) {
-    return false;
+  if (!encodedEmail || !encodedUserId || !Number.isInteger(tokenVersion) || tokenVersion < 0 || !Number.isFinite(expiresAt) || !signature || extra !== undefined || expiresAt <= Date.now()) {
+    return null;
   }
 
   let email = "";
   try {
     email = Buffer.from(encodedEmail, "base64url").toString("utf8").trim().toLowerCase();
   } catch {
-    return false;
+    return null;
   }
+  const userId = Buffer.from(encodedUserId, "base64url").toString("utf8");
+  if (!userId) return null;
 
-  const expectedSignature = signSessionPayload(email, expiresAt);
-  return Boolean(expectedSignature) && timingSafeEqualString(signature, expectedSignature);
+  const expectedSignature = signSessionPayload(email, userId, tokenVersion, expiresAt);
+  return Boolean(expectedSignature) && timingSafeEqualString(signature, expectedSignature)
+    ? { email, userId, tokenVersion, expiresAt }
+    : null;
 }
 
 function buildSessionCookie(value: string, maxAgeSeconds: number) {
@@ -143,17 +154,20 @@ function isAdminTokenAuthorized(req: express.Request) {
   return providedToken === expectedToken;
 }
 
-function isDbTestAuthorized(req: express.Request) {
-  const expectedToken = process.env.ADMIN_API_TOKEN;
-  if (!expectedToken) {
-    return verifyAdminSession(req);
-  }
-
-  return isAdminTokenAuthorized(req) || verifyAdminSession(req);
+async function resolveRequestUser(req: express.Request): Promise<UserRecord | null> {
+  const session = readSessionPayload(req);
+  if (!session) return null;
+  const user = await findById(getPool(), session.userId);
+  return user && user.status === "active" && user.tokenVersion === session.tokenVersion ? user : null;
 }
 
-function isAdminRequestAuthorized(req: express.Request) {
-  return isAdminTokenAuthorized(req) || verifyAdminSession(req);
+async function resolveRequestRole(req: express.Request): Promise<UserRole | null> {
+  const session = readSessionPayload(req);
+  return resolveRole({
+    serviceTokenValid: isAdminTokenAuthorized(req),
+    session: session ? { userId: session.userId, tokenVersion: session.tokenVersion } : null,
+    findUserById: (id) => findById(getPool(), id),
+  });
 }
 
 function isValidHost(host: string) {
@@ -263,7 +277,7 @@ async function startServer() {
   // Middleware to parse JSON
   app.use(express.json());
 
-  app.post("/api/auth/login", (req, res) => {
+  app.post("/api/auth/login", async (req, res) => {
     const clientIp = getClientIp(req);
     if (isLoginLocked(clientIp)) {
       return res.status(429).json({
@@ -272,11 +286,9 @@ async function startServer() {
       });
     }
 
-    const configuredEmail = process.env.ADMIN_LOGIN_EMAIL?.trim().toLowerCase();
-    const configuredPassword = process.env.ADMIN_LOGIN_PASSWORD || "";
     const sessionSecret = getSessionSecret();
 
-    if (!configuredEmail || !configuredPassword || !sessionSecret) {
+    if (!sessionSecret) {
       return res.status(503).json({
         success: false,
         message: "Admin authentication is not configured.",
@@ -285,10 +297,10 @@ async function startServer() {
 
     const email = String(req.body?.email || "").trim().toLowerCase();
     const password = String(req.body?.password || "");
-    const emailMatches = timingSafeEqualString(email, configuredEmail);
-    const passwordMatches = timingSafeEqualString(password, configuredPassword);
+    const user = await findByEmail(getPool(), email);
+    const passwordMatches = Boolean(user) && verifyPassword(password, user!.passwordHash);
 
-    if (!emailMatches || !passwordMatches) {
+    if (!user || user.status !== "active" || !passwordMatches) {
       recordFailedLogin(clientIp);
       return res.status(401).json({
         success: false,
@@ -298,7 +310,7 @@ async function startServer() {
 
     clearLoginFailures(clientIp);
     const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
-    const sessionValue = buildSessionValue(email, expiresAt);
+    const sessionValue = buildSessionValue(user.email, user.id, user.tokenVersion, expiresAt);
     if (!sessionValue) {
       return res.status(503).json({
         success: false,
@@ -311,9 +323,10 @@ async function startServer() {
     return res.json({ success: true, expiresAt });
   });
 
-  app.get("/api/auth/session", (req, res) => {
+  app.get("/api/auth/session", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    return res.json({ authenticated: verifyAdminSession(req) });
+    const role = await resolveRequestRole(req);
+    return res.json({ authenticated: role !== null, role });
   });
 
   app.post("/api/auth/logout", (_req, res) => {
@@ -323,7 +336,7 @@ async function startServer() {
   });
 
   // MySQL business CRUD API. Browser admin uses signed cookies; scripts/CI can still use x-admin-token.
-  registerMysqlApi(app, { isAdminAuthorized: isAdminRequestAuthorized });
+  registerMysqlApi(app, { resolveRequestRole, resolveRequestUser });
 
   // API Route: Test MariaDB Connection
   app.post("/api/test-mariadb", async (req, res) => {
@@ -338,7 +351,7 @@ async function startServer() {
       });
     }
 
-    if (!isDbTestAuthorized(req)) {
+    if (await resolveRequestRole(req) !== "admin") {
       return res.status(401).json({
         success: false,
         message: "No autorizado para usar esta operación.",
