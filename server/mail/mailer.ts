@@ -6,17 +6,24 @@ export function isMailConfigured() {
     .every((name) => Boolean(process.env[name]?.trim()));
 }
 
+export function buildSmtpTransportOptions(env: NodeJS.ProcessEnv = process.env) {
+  return {
+    host: env.MAIL_SMTP_HOST,
+    port: Number(env.MAIL_SMTP_PORT || 587),
+    secure: env.MAIL_SMTP_SECURE === "true",
+    auth: { user: env.MAIL_SMTP_USER, pass: env.MAIL_SMTP_PASSWORD },
+    ...(env.MAIL_TLS_INSECURE === "true"
+      ? { tls: { rejectUnauthorized: false } }
+      : {}),
+  };
+}
+
 export async function sendPasswordResetEmail(toEmail: string, token: string) {
   if (!isMailConfigured()) throw new Error("Password reset mail is not configured");
 
   const transport = process.env.MAIL_TRANSPORT === "json"
     ? nodemailer.createTransport({ jsonTransport: true })
-    : nodemailer.createTransport({
-        host: process.env.MAIL_SMTP_HOST,
-        port: Number(process.env.MAIL_SMTP_PORT || 587),
-        secure: process.env.MAIL_SMTP_SECURE === "true",
-        auth: { user: process.env.MAIL_SMTP_USER, pass: process.env.MAIL_SMTP_PASSWORD },
-      });
+    : nodemailer.createTransport(buildSmtpTransportOptions());
   const resetLink = buildResetLink(process.env.APP_PUBLIC_BASE_URL!, token);
   const minutes = Math.floor(RESET_TOKEN_TTL_MS / 60_000);
 
