@@ -10,11 +10,12 @@ export interface UserRecord {
   role: UserRole;
   status: UserStatus;
   tokenVersion: number;
+  resetTokenExpiresAt?: Date | string | null;
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }
 
-export type PublicUser = Omit<UserRecord, "passwordHash">;
+export type PublicUser = Omit<UserRecord, "passwordHash" | "resetTokenExpiresAt">;
 
 export interface UsersDb {
   query: (sql: string, values?: unknown[]) => Promise<[unknown, unknown?]>;
@@ -59,6 +60,21 @@ export async function setUserStatus(db: UsersDb, id: string, status: UserStatus)
 
 export async function setUserPassword(db: UsersDb, id: string, passwordHash: string) {
   await db.query("UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?", [passwordHash, id]);
+}
+
+export async function setResetToken(db: UsersDb, id: string, tokenHash: string, expiresAt: Date) {
+  await db.query("UPDATE users SET reset_token_hash = ?, reset_token_expires_at = ? WHERE id = ?", [tokenHash, expiresAt, id]);
+}
+
+export async function findByResetTokenHash(db: UsersDb, tokenHash: string) {
+  const [rows] = await db.query(`SELECT ${SELECT_COLUMNS}, reset_token_expires_at AS resetTokenExpiresAt
+    FROM users WHERE reset_token_hash = ? LIMIT 1`, [tokenHash]);
+  return first(rows);
+}
+
+export async function applyPasswordReset(db: UsersDb, id: string, passwordHash: string) {
+  await db.query(`UPDATE users SET password_hash = ?, token_version = token_version + 1,
+    reset_token_hash = NULL, reset_token_expires_at = NULL WHERE id = ?`, [passwordHash, id]);
 }
 
 export async function countActiveAdmins(db: UsersDb) {
