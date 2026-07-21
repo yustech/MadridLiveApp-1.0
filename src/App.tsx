@@ -35,6 +35,7 @@ const ShiftsScreen = lazy(() => import('./components/ShiftsScreen'));
 const KPIScreen = lazy(() => import('./components/KPIScreen'));
 const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScreen'));
 const UsersScreen = lazy(() => import('./components/UsersScreen'));
+const ResetPasswordScreen = lazy(() => import('./components/ResetPasswordScreen'));
 
 const isDatabaseManagerEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
@@ -60,6 +61,10 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
 
   // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('dashboard');
@@ -218,6 +223,20 @@ export default function App() {
       setLoginError(err instanceof Error ? err.message : "No se pudo autenticar contra el servidor.");
     } finally {
       setIsAuthenticating(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsRequestingReset(true);
+    try {
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+    } finally {
+      setForgotMessage('Si el email existe, recibirás un correo con instrucciones.');
+      setIsRequestingReset(false);
     }
   };
 
@@ -421,6 +440,10 @@ export default function App() {
     );
   };
 
+  if (window.location.pathname === '/reset-password') {
+    return <Suspense fallback={null}><ResetPasswordScreen /></Suspense>;
+  }
+
   if (isCheckingSession) {
     return (
       <div className="w-full min-h-screen bg-[#0A051A] text-[#e2e2e8] flex items-center justify-center font-sans px-4">
@@ -521,6 +544,19 @@ export default function App() {
               <span>{isAuthenticating ? "DECRIPTANDO..." : "AUTENTICAR EN ENTORNO"}</span>
             </button>
           </form>
+
+          <div className="mt-4 text-center">
+            <button type="button" onClick={() => setShowForgotPassword((visible) => !visible)} className="text-xs text-indigo-300 hover:text-indigo-200 transition-colors cursor-pointer">
+              ¿Olvidaste tu contraseña?
+            </button>
+            {showForgotPassword && (
+              <form onSubmit={handleForgotPassword} className="mt-4 space-y-3 text-left">
+                <input aria-label="Email para recuperar contraseña" type="email" required value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} className="w-full bg-[#120f26]/60 border border-white/10 focus:border-indigo-400/40 rounded-xl px-4 py-3 text-sm outline-none" placeholder="tu@email.com" />
+                <button disabled={isRequestingReset} className="w-full py-3 rounded-xl border border-indigo-400/30 bg-indigo-500/10 hover:bg-indigo-500/20 disabled:opacity-50 text-xs font-bold transition-all">{isRequestingReset ? 'ENVIANDO...' : 'ENVIAR INSTRUCCIONES'}</button>
+                {forgotMessage && <p className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-200">{forgotMessage}</p>}
+              </form>
+            )}
+          </div>
 
           <div className="mt-8 pt-6 border-t border-white/5 space-y-3">
             <div className="flex items-center justify-between">

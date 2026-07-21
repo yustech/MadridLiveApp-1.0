@@ -10,9 +10,12 @@ import mysql from "mysql2/promise";
 import { registerMysqlApi } from "./mysqlApi";
 import { formatMadridTime } from "./src/utils/madridTime";
 import { getPool } from "./server/mysql/pool";
-import { findByEmail, findById, type UserRecord, type UserRole } from "./server/mysql/users/usersRepository";
-import { verifyPassword } from "./server/mysql/users/passwordHash";
+import { applyPasswordReset, findByEmail, findById, findByResetTokenHash, setResetToken, type UserRecord, type UserRole } from "./server/mysql/users/usersRepository";
+import { hashPassword, verifyPassword } from "./server/mysql/users/passwordHash";
 import { resolveRole, type SessionIdentity } from "./server/mysql/auth/roleResolver";
+import { generateResetToken, hashResetToken, isResetTokenExpired, RESET_TOKEN_TTL_MS } from "./server/mail/resetToken";
+import { isMailConfigured, sendPasswordResetEmail } from "./server/mail/mailer";
+import { MIN_USER_PASSWORD_LENGTH } from "./src/validators";
 
 dotenv.config();
 
@@ -20,10 +23,15 @@ const DB_TEST_WINDOW_MS = 60_000;
 const DB_TEST_MAX_REQUESTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60_000;
 const LOGIN_MAX_FAILED_ATTEMPTS = 5;
+const PASSWORD_RESET_WINDOW_MS = 15 * 60_000;
+const PASSWORD_RESET_MAX_REQUESTS = 5;
 const AUTH_COOKIE_NAME = "ml_admin_session";
 const AUTH_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const dbTestRateLimits = new Map<string, { count: number; windowStart: number }>();
 const loginFailureTracker = new Map<string, { count: number; windowStart: number }>();
+const forgotPasswordIpRateLimits = new Map<string, { count: number; windowStart: number }>();
+const forgotPasswordEmailRateLimits = new Map<string, { count: number; windowStart: number }>();
+const resetPasswordIpRateLimits = new Map<string, { count: number; windowStart: number }>();
 const historyFilterTelemetry = new Map<string, number>();
 
 // Requires app.set("trust proxy", ...) so req.ip reflects the real client
@@ -333,6 +341,54 @@ async function startServer() {
     res.setHeader("Set-Cookie", clearSessionCookie());
     res.setHeader("Cache-Control", "no-store");
     return res.json({ success: true });
+  });
+
+  const forgotPasswordResponse = {
+    success: true,
+    message: "Si el email existe, recibirás un correo con instrucciones.",
+  };
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const limited = isRateLimited(forgotPasswordIpRateLimits, getClientIp(req), PASSWORD_RESET_WINDOW_MS, PASSWORD_RESET_MAX_REQUESTS)
+      || isRateLimited(forgotPasswordEmailRateLimits, email, PASSWORD_RESET_WINDOW_MS, PASSWORD_RESET_MAX_REQUESTS);
+    if (limited) return res.json(forgotPasswordResponse);
+
+    try {
+      const user = await findByEmail(getPool(), email);
+      if (user?.status === "active") {
+        const token = generateResetToken();
+        await setResetToken(getPool(), user.id, hashResetToken(token), new Date(Date.now() + RESET_TOKEN_TTL_MS));
+        if (isMailConfigured()) {
+          void sendPasswordResetEmail(user.email, token).catch((error) => console.error("reset-mail", error));
+        } else {
+          console.error("reset-mail", "mail configuration is missing");
+        }
+      }
+    } catch (error) {
+      console.error("forgot-password", error);
+    }
+    return res.json(forgotPasswordResponse);
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    if (isRateLimited(resetPasswordIpRateLimits, getClientIp(req), PASSWORD_RESET_WINDOW_MS, PASSWORD_RESET_MAX_REQUESTS)) {
+      return res.status(429).json({ success: false, message: "Demasiados intentos. Inténtalo de nuevo más tarde." });
+    }
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const newPassword = req.body?.newPassword;
+    if (typeof newPassword !== "string" || newPassword.length < MIN_USER_PASSWORD_LENGTH) {
+      return res.status(400).json({ success: false, errors: [{ field: "newPassword", message: `La contraseña debe tener al menos ${MIN_USER_PASSWORD_LENGTH} caracteres.` }] });
+    }
+
+    const invalid = () => res.status(400).json({ success: false, message: "El enlace no es válido o ha caducado." });
+    if (!token) return invalid();
+    const tokenHash = hashResetToken(token);
+    const user = await findByResetTokenHash(getPool(), tokenHash);
+    if (!user || user.status !== "active" || isResetTokenExpired(user.resetTokenExpiresAt)) return invalid();
+
+    await applyPasswordReset(getPool(), user.id, hashPassword(newPassword));
+    return res.json({ success: true, message: "Contraseña actualizada. Inicia sesión de nuevo." });
   });
 
   // MySQL business CRUD API. Browser admin uses signed cookies; scripts/CI can still use x-admin-token.
