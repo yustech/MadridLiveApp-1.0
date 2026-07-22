@@ -93,6 +93,9 @@ test("real users enforce role permissions, password changes and session revocati
       "users.id", "users.email", "users.password_hash", "users.role", "users.status", "users.token_version",
     ]));
 
+    // /api/test-mariadb rejects an anonymous caller with 401 (no session yet).
+    expect((await api(request, "POST", "/api/test-mariadb", {})).status).toBe(401);
+
     const worker = await api(request, "POST", "/api/mysql/staff", staffPayload(stamp), true);
     expect(worker.status, worker.text).toBe(201);
     workerId = String(worker.json?.id || "");
@@ -118,6 +121,8 @@ test("real users enforce role permissions, password changes and session revocati
     expect((await api(request, "GET", "/api/mysql/staff")).status).toBe(200);
     expect((await api(request, "POST", "/api/mysql/staff", staffPayload(stamp + 1))).status).toBe(403);
     expect((await api(request, "GET", "/api/mysql/users")).status).toBe(403);
+    // Authenticated but non-admin: 403 (not 401) for the admin-only DB test.
+    expect((await api(request, "POST", "/api/test-mariadb", {})).status).toBe(403);
 
     const checkin = await api(request, "POST", "/api/mysql/checkin", {
       workerId, eventId, location: "Users role gate",

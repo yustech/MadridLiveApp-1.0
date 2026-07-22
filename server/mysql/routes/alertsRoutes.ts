@@ -1,6 +1,5 @@
 import express from "express";
 import { validateAlertPatchPayload, validateAlertPayload } from "../../../src/validators";
-import { unauthorizedResponse } from "../auth";
 import { makeId } from "../ids";
 import { getPool } from "../pool";
 import { insertAlertRecord } from "../repositories/alertsRepository";

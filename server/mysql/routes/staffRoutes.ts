@@ -1,6 +1,5 @@
 import express from "express";
 import { validateStaffPatchPayload, validateStaffPayload } from "../../../src/validators";
-import { unauthorizedResponse } from "../auth";
 import { makeId } from "../ids";
 import { getPool } from "../pool";
 import { insertStaffRecord } from "../repositories/staffRepository";

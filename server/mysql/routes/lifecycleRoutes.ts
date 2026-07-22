@@ -1,5 +1,4 @@
 import express from "express";
-import { unauthorizedResponse } from "../auth";
 import { getPool } from "../pool";
 import { performWorkerCheckIn, performWorkerCheckOut } from "../lifecycle/workerLifecycle";
 
