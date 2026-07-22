@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
-import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle } from 'lucide-react';
+import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle, KeyRound } from 'lucide-react';
 import { StaffMember, StaffRating, Shift, LiveEvent, EquipmentAlert, type WorkerToggleOutcome } from './types';
 import {
   getEventTemporalState,
@@ -36,6 +36,7 @@ const KPIScreen = lazy(() => import('./components/KPIScreen'));
 const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScreen'));
 const UsersScreen = lazy(() => import('./components/UsersScreen'));
 const ResetPasswordScreen = lazy(() => import('./components/ResetPasswordScreen'));
+const ChangePasswordModal = lazy(() => import('./components/ChangePasswordModal'));
 
 const isDatabaseManagerEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
@@ -65,6 +66,7 @@ export default function App() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMessage, setForgotMessage] = useState('');
   const [isRequestingReset, setIsRequestingReset] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('dashboard');
@@ -242,6 +244,7 @@ export default function App() {
 
   // Logout handler
   const handleLogout = async () => {
+    setIsChangePasswordOpen(false);
     sessionStorage.removeItem("ml_auth");
     setIsAuthenticated(false);
     setSessionRole(null);
@@ -713,6 +716,16 @@ export default function App() {
               </div>
             </button>
 
+            {/* Change password trigger */}
+            <button
+              onClick={() => setIsChangePasswordOpen(true)}
+              className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/20 rounded-xl font-mono text-[11px] font-bold text-indigo-200 cursor-pointer transition-colors flex items-center justify-center gap-2"
+              title="Cambiar contraseña"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>CAMBIAR CONTRASEÑA</span>
+            </button>
+
             {/* Logout trigger */}
             <button
               onClick={handleLogout}
@@ -756,6 +769,16 @@ export default function App() {
                 <Database className="w-5 h-5" />
               </button>
             )}
+
+            {/* Header change password for quick access / mobile viewports too */}
+            <button
+              onClick={() => setIsChangePasswordOpen(true)}
+              className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/20 rounded-full cursor-pointer text-indigo-300 hover:text-indigo-200 transition-all flex items-center justify-center"
+              title="Cambiar contraseña"
+              aria-label="Cambiar contraseña"
+            >
+              <KeyRound className="w-4 h-4" />
+            </button>
 
             {/* Header Logout for Quick Access / Mobile viewports too */}
             <button
@@ -892,6 +915,11 @@ export default function App() {
             onClose={() => setIsDbOpen(false)}
           />
         )}
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
+          onPasswordChanged={handleLogout}
+        />
       </Suspense>
 
       {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}
