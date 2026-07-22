@@ -1,4 +1,5 @@
 import express from "express";
+import { timingSafeEqualString } from "./constantTime";
 
 export function isLocalRequest(req: express.Request) {
   const remoteAddress = req.socket.remoteAddress || '';
@@ -9,7 +10,7 @@ export function isAdminAuthorized(req: express.Request) {
   const expectedToken = process.env.ADMIN_API_TOKEN;
   if (!expectedToken) return false;
   const providedToken = req.header("x-admin-token");
-  return providedToken === expectedToken;
+  return timingSafeEqualString(providedToken || "", expectedToken);
 }
 
 export function unauthorizedResponse(res: express.Response) {

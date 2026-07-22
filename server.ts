@@ -16,6 +16,9 @@ import { resolveRole, type SessionIdentity } from "./server/mysql/auth/roleResol
 import { generateResetToken, hashResetToken, isResetTokenExpired, RESET_TOKEN_TTL_MS } from "./server/mail/resetToken";
 import { isMailConfigured, sendPasswordResetEmail } from "./server/mail/mailer";
 import { MIN_USER_PASSWORD_LENGTH } from "./src/validators";
+import { getSessionSecret } from "./server/mysql/authConfig";
+import { timingSafeEqualString } from "./server/mysql/constantTime";
+import { isRateLimited } from "./server/rateLimit";
 
 dotenv.config();
 
@@ -38,23 +41,6 @@ const historyFilterTelemetry = new Map<string, number>();
 // (nginx-forwarded) address instead of a client-spoofable X-Forwarded-For value.
 function getClientIp(req: express.Request) {
   return req.ip || req.socket.remoteAddress || "unknown";
-}
-
-function isRateLimited(
-  store: Map<string, { count: number; windowStart: number }>,
-  key: string,
-  windowMs: number,
-  maxRequests: number,
-) {
-  const now = Date.now();
-  const entry = store.get(key);
-  if (!entry || now - entry.windowStart > windowMs) {
-    store.set(key, { count: 1, windowStart: now });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > maxRequests;
 }
 
 // Only failed attempts count against the login lockout -- repeated
@@ -87,17 +73,6 @@ function getCookieValue(req: express.Request, name: string) {
   const prefix = `${name}=`;
   const match = cookies.find((cookie) => cookie.startsWith(prefix));
   return match ? decodeURIComponent(match.slice(prefix.length)) : "";
-}
-
-function getSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_API_TOKEN || "";
-}
-
-function timingSafeEqualString(left: string, right: string) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 interface SessionPayload extends SessionIdentity { email: string; expiresAt: number }
@@ -159,7 +134,7 @@ function isAdminTokenAuthorized(req: express.Request) {
   if (!expectedToken) return false;
 
   const providedToken = req.header("x-admin-token");
-  return providedToken === expectedToken;
+  return timingSafeEqualString(providedToken || "", expectedToken);
 }
 
 async function resolveRequestUser(req: express.Request): Promise<UserRecord | null> {

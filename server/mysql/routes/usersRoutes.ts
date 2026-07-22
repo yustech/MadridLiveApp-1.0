@@ -7,6 +7,11 @@ import {
 } from "../users/usersRepository";
 import { getPool } from "../pool";
 import type { RouteGuard } from "./routeAuth";
+import { isRateLimited, type RateLimitEntry } from "../../rateLimit";
+
+const PASSWORD_CHANGE_WINDOW_MS = 15 * 60_000;
+const PASSWORD_CHANGE_MAX_REQUESTS = 10;
+const passwordChangeRateLimits = new Map<string, RateLimitEntry>();
 
 interface Options {
   prefix: string;
@@ -73,6 +78,10 @@ export function registerUsersRoutes(app: express.Express, options: Options) {
   app.post(`${path}/me/password`, async (req, res) => {
     try {
       if (!(await options.requireAuthenticated(req, res))) return;
+      const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+      if (isRateLimited(passwordChangeRateLimits, clientIp, PASSWORD_CHANGE_WINDOW_MS, PASSWORD_CHANGE_MAX_REQUESTS)) {
+        return res.status(429).json({ success: false, message: "Demasiados intentos. Inténtalo de nuevo más tarde." });
+      }
       const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
       const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
       if (newPassword.length < MIN_USER_PASSWORD_LENGTH) return validationResponse(res, [{ field: "newPassword", message: `Password must be at least ${MIN_USER_PASSWORD_LENGTH} characters` }]);
