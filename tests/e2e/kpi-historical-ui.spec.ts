@@ -41,14 +41,16 @@ test('switches from zero live activity to exact completed-event historical KPIs'
   await page.getByRole('button', { name: 'KPIs y Estadísticas' }).first().click();
   await page.getByRole('combobox').selectOption(historicalEvent.id);
 
-  await expect(page.getByText('Turnos Activos Ahora')).toBeVisible();
-  await expect(page.getByText('Turnos Activos Ahora').locator('..')).toContainText('0');
+  // exact: true so the label span is matched, not the tile wrapper whose text also contains it.
+  const liveActiveShifts = page.getByText('Turnos Activos Ahora', { exact: true });
+  await expect(liveActiveShifts).toBeVisible();
+  await expect(liveActiveShifts.locator('..')).toContainText('0');
 
   await page.getByRole('button', { name: 'Histórico' }).click();
   await expect(page.getByTestId('historical-trabajadores-únicos')).toHaveText('2');
   await expect(page.getByTestId('historical-horas-totales')).toHaveText('5h 25m');
-  await expect(page.getByText('1. Ana Histórica')).toBeVisible();
-  await expect(page.getByText('4h 25m')).toBeVisible();
+  await expect(page.getByText('1. Ana Histórica', { exact: true })).toBeVisible();
+  await expect(page.getByText('4h 25m', { exact: true })).toBeVisible();
   await expect(page.getByText('Media de fichajes/min · últimos 5 min')).toHaveCount(0);
   await expect(page.getByText('Altas de turno en 60 min')).toHaveCount(0);
 });
