@@ -1,6 +1,5 @@
 import express from "express";
 import { validateShiftPatchPayload, validateShiftPayload } from "../../../src/validators";
-import { unauthorizedResponse } from "../auth";
 import { toMysqlDateTimeValue } from "../dateTime";
 import { makeId } from "../ids";
 import { getPool } from "../pool";

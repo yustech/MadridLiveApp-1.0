@@ -28,3 +28,13 @@ export function verifyPassword(plain: string, stored: string) {
     return false;
   }
 }
+
+// A precomputed, non-matching decoy hash. When no user matches an incoming
+// login, callers verify against this instead of skipping the check, so the
+// scrypt cost is paid either way and response latency does not reveal whether
+// the account exists (defends against email enumeration via timing).
+export const DECOY_PASSWORD_HASH = hashPassword(crypto.randomBytes(32).toString("hex"));
+
+export function verifyPasswordWithFallback(plain: string, stored: string | null | undefined) {
+  return verifyPassword(plain, stored ?? DECOY_PASSWORD_HASH);
+}

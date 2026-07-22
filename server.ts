@@ -11,7 +11,7 @@ import { registerMysqlApi } from "./mysqlApi";
 import { formatMadridTime } from "./src/utils/madridTime";
 import { getPool } from "./server/mysql/pool";
 import { applyPasswordReset, findByEmail, findById, findByResetTokenHash, setResetToken, type UserRecord, type UserRole } from "./server/mysql/users/usersRepository";
-import { hashPassword, verifyPassword } from "./server/mysql/users/passwordHash";
+import { hashPassword, verifyPasswordWithFallback } from "./server/mysql/users/passwordHash";
 import { resolveRole, type SessionIdentity } from "./server/mysql/auth/roleResolver";
 import { generateResetToken, hashResetToken, isResetTokenExpired, RESET_TOKEN_TTL_MS } from "./server/mail/resetToken";
 import { isMailConfigured, sendPasswordResetEmail } from "./server/mail/mailer";
@@ -306,7 +306,9 @@ async function startServer() {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const password = String(req.body?.password || "");
     const user = await findByEmail(getPool(), email);
-    const passwordMatches = Boolean(user) && verifyPassword(password, user!.passwordHash);
+    // Always run the scrypt verification -- even when the email is unknown --
+    // so login latency does not leak whether the account exists.
+    const passwordMatches = verifyPasswordWithFallback(password, user?.passwordHash);
 
     if (!user || user.status !== "active" || !passwordMatches) {
       recordFailedLogin(clientIp);
@@ -407,8 +409,15 @@ async function startServer() {
       });
     }
 
-    if (await resolveRequestRole(req) !== "admin") {
+    const requesterRole = await resolveRequestRole(req);
+    if (requesterRole === null) {
       return res.status(401).json({
+        success: false,
+        message: "No autorizado para usar esta operación.",
+      });
+    }
+    if (requesterRole !== "admin") {
+      return res.status(403).json({
         success: false,
         message: "No autorizado para usar esta operación.",
       });

@@ -1,6 +1,5 @@
 import express from "express";
 import { STAFF_ROLES } from "../../../src/validators";
-import { unauthorizedResponse } from "../auth";
 import { makeId } from "../ids";
 import { getPool } from "../pool";
 import { validateAssignedRolePayload } from "../staffAssignmentValidation";

@@ -1,6 +1,5 @@
 import express from "express";
 import { validateEventPatchPayload, validateEventPayload } from "../../../src/validators";
-import { unauthorizedResponse } from "../auth";
 import { makeId } from "../ids";
 import { getPool } from "../pool";
 import { buildEventUpdatePayload, insertEventRecord } from "../repositories/eventsRepository";
