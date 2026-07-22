@@ -23,6 +23,8 @@ import {
 } from '../utils/shifts';
 import { formatMadridTimeWithZone } from '../utils/madridTime';
 import { getRecentCheckinRate } from '../utils/operationalMetrics';
+import { computeHistoricalKpis } from '../utils/historicalKpis';
+import HistoricalKpiView from './HistoricalKpiView';
 
 interface KPIScreenProps {
   shifts: Shift[];
@@ -47,6 +49,7 @@ function getHourBucketKey(date: Date): string {
 
 export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIScreenProps) {
   const [selectedEventId, setSelectedEventId] = useState<string>(activeEventId || 'all');
+  const [mode, setMode] = useState<'live' | 'historical'>('live');
   const [hoveredAreaPoint, setHoveredAreaPoint] = useState<{ index: number; x: number; y: number; label: string; value: number } | null>(null);
 
   useEffect(() => {
@@ -103,6 +106,16 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
     if (selectedEventId === 'all') return events.find((event) => event.id === activeEventId) || null;
     return events.find((event) => event.id === selectedEventId) || null;
   }, [events, activeEventId, selectedEventId]);
+
+  const historicalKpi = useMemo(() => mode === 'historical'
+    ? computeHistoricalKpis({
+      shifts,
+      staff,
+      events,
+      event: selectedEventId === 'all' ? null : currentEvent,
+      now,
+    })
+    : null, [mode, shifts, staff, events, selectedEventId, currentEvent, now]);
 
   const oneHourAgoMs = now.getTime() - 60 * 60 * 1000;
   const twelveHoursAgoMs = now.getTime() - 12 * 60 * 60 * 1000;
@@ -298,7 +311,11 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
             </p>
           </div>
 
-          <div className="w-full md:w-auto min-w-[250px]">
+          <div className="w-full md:w-auto min-w-[250px] space-y-3">
+            <div role="group" aria-label="Modo de KPIs" className="grid grid-cols-2 rounded-xl border border-white/10 bg-[#0f0b22] p-1">
+              <button type="button" aria-pressed={mode === 'live'} onClick={() => setMode('live')} className={`cursor-pointer rounded-lg px-3 py-2 text-xs font-mono font-bold transition-all ${mode === 'live' ? 'bg-indigo-500/25 text-indigo-100' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}>En vivo</button>
+              <button type="button" aria-pressed={mode === 'historical'} onClick={() => setMode('historical')} className={`cursor-pointer rounded-lg px-3 py-2 text-xs font-mono font-bold transition-all ${mode === 'historical' ? 'bg-indigo-500/25 text-indigo-100' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}>Histórico</button>
+            </div>
             <label className="block text-[10px] font-mono uppercase tracking-widest text-indigo-300 mb-1.5">
               Filtrar por Evento
             </label>
@@ -320,6 +337,11 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
           </div>
         </div>
       </div>
+
+      {mode === 'historical' && historicalKpi ? (
+        <HistoricalKpiView kpi={historicalKpi} isAllEvents={selectedEventId === 'all'} />
+      ) : (
+        <>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         <div className="bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-3xl p-5 flex items-center gap-4 shadow-hud-glow relative overflow-hidden group">
@@ -625,6 +647,8 @@ export default function KPIScreen({ shifts, staff, events, activeEventId }: KPIS
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
