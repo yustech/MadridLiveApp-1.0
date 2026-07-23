@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const VIEWER_EMAIL = process.env.PLAYWRIGHT_VIEWER_EMAIL || '';
 const VIEWER_PASSWORD = process.env.PLAYWRIGHT_VIEWER_PASSWORD || '';
@@ -10,6 +11,7 @@ function isMysqlUnconfiguredMessage(payload: string) {
 async function loginWithViewer(page: import('@playwright/test').Page) {
   test.skip(!VIEWER_EMAIL || !VIEWER_PASSWORD, 'PLAYWRIGHT_VIEWER_EMAIL and PLAYWRIGHT_VIEWER_PASSWORD are required for readonly login UI tests.');
 
+  await seedOnboardingSeen(page, { email: VIEWER_EMAIL, role: 'viewer' });
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);

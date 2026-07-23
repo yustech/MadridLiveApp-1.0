@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const removedStockAvatar = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4';
 
 async function openWithSession(page: Page, session: { authenticated: true; role: 'admin'; email?: string }) {
+  await seedOnboardingSeen(page, { email: session.email, role: session.role });
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: session }));
   await page.route('**/api/mysql/**', (route) => route.fulfill({ json: [] }));

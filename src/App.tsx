@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState, useEffect, FormEvent } from 'react';
-import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle, KeyRound } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useRef, FormEvent } from 'react';
+import { Menu, Calendar, QrCode, Users, Database, History, TrendingUp, Lock, ShieldAlert, Eye, EyeOff, Terminal, LogOut, CheckCircle, KeyRound, BookOpen } from 'lucide-react';
 import { StaffMember, StaffRating, Shift, LiveEvent, EquipmentAlert, type WorkerToggleOutcome } from './types';
 import {
   getEventTemporalState,
@@ -10,6 +10,7 @@ import {
 import { isWorkerPresentNow } from './utils/shifts';
 import { getStaffAvatarColor, getStaffAvatarTextColor } from './utils/staffAvatar';
 import { getSessionUserInitials } from './utils/sessionUser';
+import { getOnboardingStorageKey, shouldShowOnboarding } from './utils/onboarding';
 
 import {
   subscribeToEvents,
@@ -36,6 +37,7 @@ const DatabaseManagerScreen = lazy(() => import('./components/DatabaseManagerScr
 const UsersScreen = lazy(() => import('./components/UsersScreen'));
 const ResetPasswordScreen = lazy(() => import('./components/ResetPasswordScreen'));
 const ChangePasswordModal = lazy(() => import('./components/ChangePasswordModal'));
+const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 
 const isDatabaseManagerEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
@@ -73,6 +75,8 @@ export default function App() {
   const [forgotMessage, setForgotMessage] = useState('');
   const [isRequestingReset, setIsRequestingReset] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const onboardingEvaluatedRef = useRef(false);
 
   // Screens navigation state: 'dashboard' | 'staff' | 'scanner' | 'profile' | 'shifts' | 'kpis'
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('dashboard');
@@ -150,6 +154,14 @@ export default function App() {
       cancelled = true;
     };
   }, [isAuthenticated, isCheckingSession]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !sessionRole || onboardingEvaluatedRef.current) return;
+    onboardingEvaluatedRef.current = true;
+    if (shouldShowOnboarding(localStorage, sessionEmail, sessionRole)) {
+      setIsOnboardingOpen(true);
+    }
+  }, [isAuthenticated, sessionEmail, sessionRole]);
 
   // Sync state with polling subscriptions
   useEffect(() => {
@@ -260,6 +272,8 @@ export default function App() {
     setIsAuthenticated(false);
     setSessionRole(null);
     setSessionEmail(null);
+    setIsOnboardingOpen(false);
+    onboardingEvaluatedRef.current = false;
     setLoginPassword("");
 
     try {
@@ -269,6 +283,16 @@ export default function App() {
       });
     } catch {
       // Local logout already cleared UI state.
+    }
+  };
+
+  const closeOnboarding = () => {
+    try {
+      localStorage.setItem(getOnboardingStorageKey(sessionEmail, sessionRole), '1');
+    } catch {
+      // Storage may be unavailable in hardened browser modes; closing must still work.
+    } finally {
+      setIsOnboardingOpen(false);
     }
   };
 
@@ -732,6 +756,16 @@ export default function App() {
               </div>
             </div>
 
+            {/* Quick guide trigger */}
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
+              className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-mono text-[11px] font-bold text-white/80 cursor-pointer transition-colors flex items-center justify-center gap-2"
+              title="Abrir guía rápida"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-indigo-300" />
+              <span>GUÍA RÁPIDA</span>
+            </button>
+
             {/* Change password trigger */}
             <button
               onClick={() => setIsChangePasswordOpen(true)}
@@ -920,6 +954,9 @@ export default function App() {
           onClose={() => setIsChangePasswordOpen(false)}
           onPasswordChanged={handleLogout}
         />
+        {isOnboardingOpen && sessionRole && (
+          <OnboardingModal role={sessionRole} onClose={closeOnboarding} />
+        )}
       </Suspense>
 
       {/* MOBILE FLOATING BOTTOM NAV BAR (Hidden on md viewports, gorgeous floating panel on handheld) */}

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const event = {
   id: 'event-duration-e2e',
@@ -61,6 +62,7 @@ const shifts = [
 ];
 
 async function mockDurationData(page: Page) {
+  await seedOnboardingSeen(page, { role: 'admin' });
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({ json: [event] }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: [worker] }));

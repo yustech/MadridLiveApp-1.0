@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const workers = [
   {
@@ -34,6 +35,7 @@ const workers = [
 ];
 
 async function mockAppData(page: Page) {
+  await seedOnboardingSeen(page, { role: 'admin' });
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: workers }));
   await page.route(/\/api\/mysql\/(events|shifts|alerts)$/, (route) => route.fulfill({ json: [] }));

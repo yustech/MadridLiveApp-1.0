@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const worker = {
   id: 'usr_roster_e2e',
@@ -17,6 +18,7 @@ const worker = {
 };
 
 test('edits roster fields and rates from the profile through the real PATCH route', async ({ page }) => {
+  await seedOnboardingSeen(page, { role: 'admin' });
   let persistedWorker = { ...worker };
   let receivedPatch: { method: string; url: string; payload: unknown } | null = null;
   let delayNextPatch = false;

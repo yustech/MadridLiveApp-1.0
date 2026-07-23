@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const now = new Date();
 const event = {
@@ -43,6 +44,7 @@ const availableWorker = {
 };
 
 async function mockBaseData(page: Page) {
+  await seedOnboardingSeen(page, { role: 'admin' });
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({ json: [event] }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: [baseWorker, availableWorker] }));

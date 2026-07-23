@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const customAvatarUrl = 'https://avatar.test/custom-worker.svg';
 const brokenAvatarUrl = 'https://avatar.test/broken-worker.jpg';
@@ -52,6 +53,7 @@ const staff = [
 ] as const;
 
 test('renders initials without rewriting custom avatars and falls back on image errors', async ({ page }) => {
+  await seedOnboardingSeen(page, { role: 'admin' });
   const staffRequests: Array<{ method: string; pathname: string }> = [];
 
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));

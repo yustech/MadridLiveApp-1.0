@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const workers = [
   { id: 'rating-5', name: 'Cinco Estrellas', rating: 5 },
@@ -21,6 +22,7 @@ const workers = [
 }));
 
 async function mockReadonlyData(page: Page, writeRequests: string[]) {
+  await seedOnboardingSeen(page, { role: 'viewer' });
   await page.route('**/api/auth/session', (route) => (
     route.fulfill({ json: { authenticated: true, role: 'viewer' } })
   ));

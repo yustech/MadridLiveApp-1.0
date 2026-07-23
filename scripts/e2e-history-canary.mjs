@@ -128,6 +128,9 @@ async function openHistoryScreen(page) {
 async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  await page.addInitScript(({ email }) => {
+    localStorage.setItem(`ml-onboarding-seen:${email || 'anon'}`, '1');
+  }, { email: LOGIN_EMAIL });
 
   try {
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
