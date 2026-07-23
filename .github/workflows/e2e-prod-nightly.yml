@@ -1,23 +1,23 @@
 name: E2E Prod Nightly
 
 on:
+  # Fixed UTC schedule; Madrid local time shifts by one hour with DST.
+  schedule:
+    - cron: '30 4 * * *'
   workflow_dispatch:
     inputs:
       base_url:
         description: 'Base URL for production regression'
         required: false
         default: 'https://www.madridliveapp.top'
-  # Scheduled runs disabled 2026-07-12 pending go-live — see docs/CI_CONSOLIDATION_PLAN.md.
-  # Readonly e2e against prod demo data has little value until there's real data.
-  # RE-ENABLE AT GO-LIVE: restore `schedule:` with cron '30 2 * * *'.
 
 jobs:
   e2e_prod:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
-      PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
+      PLAYWRIGHT_VIEWER_EMAIL: ${{ secrets.E2E_VIEWER_EMAIL }}
+      PLAYWRIGHT_VIEWER_PASSWORD: ${{ secrets.E2E_VIEWER_PASSWORD_PROD }}
 
     steps:
       - name: Checkout
@@ -35,10 +35,10 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Validate admin E2E credentials
+      - name: Validate viewer E2E credentials
         run: |
           missing=0
-          for name in PLAYWRIGHT_ADMIN_EMAIL PLAYWRIGHT_ADMIN_PASSWORD; do
+          for name in PLAYWRIGHT_VIEWER_EMAIL PLAYWRIGHT_VIEWER_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::${name} is required for E2E auth coverage."
               missing=1
@@ -54,11 +54,31 @@ jobs:
             echo "PLAYWRIGHT_BASE_URL=${{ vars.PROD_URL || 'https://www.madridliveapp.top' }}" >> "$GITHUB_ENV"
           fi
 
+      - name: Capture pre-test database counts
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$PLAYWRIGHT_BASE_URL/api/mysql/health-count" > health-count-before.json
+
       - name: Run production history canary
         run: npm run test:e2e:history:canary
 
       - name: Run production readonly regression
         run: npm run test:e2e:readonly
+
+      - name: Verify database counts are unchanged
+        if: always()
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$PLAYWRIGHT_BASE_URL/api/mysql/health-count" > health-count-after.json
+          before=$(jq -ce '[.counts.staff, .counts.events, .counts.shifts, .counts.alerts] | select(all(.[]; type == "number"))' health-count-before.json)
+          after=$(jq -ce '[.counts.staff, .counts.events, .counts.shifts, .counts.alerts] | select(all(.[]; type == "number"))' health-count-after.json)
+          if [ "$before" != "$after" ]; then
+            echo "::error::Nightly mutation tripwire detected changed database counts (staff/events/shifts/alerts): before=$before after=$after. Human review is required."
+            echo "- Mutation tripwire: **FAILED** — before \`$before\`, after \`$after\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Mutation tripwire passed: database counts unchanged ($after)."
+          echo "- Mutation tripwire: passed; staff/events/shifts/alerts unchanged at \`$after\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright HTML report
         if: always()
