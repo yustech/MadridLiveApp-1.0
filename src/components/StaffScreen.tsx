@@ -22,6 +22,11 @@ import { getDynamicRoleFilters, getRoleDisplayName } from '../utils/roles';
 import { isWorkerPresentNow } from '../utils/shifts';
 import StaffRatingWidget from './ratings/StaffRatingWidget';
 import { formatMadridDateTime } from '../utils/madridTime';
+import {
+  compareByRatingDesc,
+  matchesRatingFilter,
+  type RatingFilter,
+} from '../utils/staffRatingFilter';
 import StaffAvatar from './StaffAvatar';
 
 interface StaffScreenProps {
@@ -33,7 +38,7 @@ interface StaffScreenProps {
   canManage: boolean;
 }
 
-type SortMode = 'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst';
+type SortMode = 'Newest' | 'Oldest' | 'NameAZ' | 'NameZA' | 'ActiveFirst' | 'RatingDesc';
 
 function formatPresenceTimestamp(raw?: string): string {
   if (!raw) return 'Sin registro';
@@ -66,6 +71,7 @@ export default function StaffScreen({
   const [selectedQrWorker, setSelectedQrWorker] = useState<StaffMember | null>(null);
 
   const [sortMode, setSortMode] = useState<SortMode>('ActiveFirst');
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('All');
   const [pageSize, setPageSize] = useState<12 | 24 | 48>(12);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -116,9 +122,10 @@ export default function StaffScreen({
         worker.idCode.toLowerCase().includes(q) ||
         worker.role.toLowerCase().includes(q);
       const matchesRole = activeTab === 'All' || worker.role === activeTab;
-      return matchesSearch && matchesRole;
+      const matchesRating = matchesRatingFilter(worker.rating, ratingFilter);
+      return matchesSearch && matchesRole && matchesRating;
     });
-  }, [staff, searchQuery, activeTab]);
+  }, [staff, searchQuery, activeTab, ratingFilter]);
 
   const orderedStaff = useMemo(() => {
     const copied = [...filteredStaff];
@@ -132,6 +139,8 @@ export default function StaffScreen({
         return copied.sort((a, b) => b.id.localeCompare(a.id));
       case 'Oldest':
         return copied.sort((a, b) => a.id.localeCompare(b.id));
+      case 'RatingDesc':
+        return copied.sort(compareByRatingDesc);
       case 'ActiveFirst':
       default:
         return copied.sort((a, b) => {
@@ -370,6 +379,27 @@ export default function StaffScreen({
           <option value="Oldest">Más antiguo</option>
           <option value="NameAZ">Nombre A-Z</option>
           <option value="NameZA">Nombre Z-A</option>
+          <option value="RatingDesc">Mejor puntuación</option>
+        </select>
+
+        <span className="text-[10px] font-mono uppercase tracking-wider text-white/35">Puntuación:</span>
+        <select
+          aria-label="Puntuación"
+          value={ratingFilter}
+          onChange={(e) => {
+            const value = e.target.value;
+            setRatingFilter(value === 'All' || value === 'Unrated' ? value : Number(value) as RatingFilter);
+            setCurrentPage(1);
+          }}
+          className="bg-[#120f26] border border-white/10 rounded-lg px-2.5 py-1 text-[10px] font-mono text-white cursor-pointer"
+        >
+          <option value="All">Todas</option>
+          <option value={5}>5★</option>
+          <option value={4}>4★ o más</option>
+          <option value={3}>3★ o más</option>
+          <option value={2}>2★ o más</option>
+          <option value={1}>1★ o más</option>
+          <option value="Unrated">Sin puntuar</option>
         </select>
 
         <span className="text-[10px] font-mono uppercase tracking-wider text-white/35">Por página:</span>
