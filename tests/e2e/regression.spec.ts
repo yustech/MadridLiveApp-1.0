@@ -1,18 +1,18 @@
 import { expect, test } from '@playwright/test';
 
-const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || '';
-const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || '';
+const VIEWER_EMAIL = process.env.PLAYWRIGHT_VIEWER_EMAIL || '';
+const VIEWER_PASSWORD = process.env.PLAYWRIGHT_VIEWER_PASSWORD || '';
 
-async function loginWithAdmin(page: import('@playwright/test').Page) {
-  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'PLAYWRIGHT_ADMIN_EMAIL and PLAYWRIGHT_ADMIN_PASSWORD are required for login UI tests.');
+async function loginWithViewer(page: import('@playwright/test').Page) {
+  test.skip(!VIEWER_EMAIL || !VIEWER_PASSWORD, 'PLAYWRIGHT_VIEWER_EMAIL and PLAYWRIGHT_VIEWER_PASSWORD are required for readonly login UI tests.');
 
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
   if (alreadyInside) return;
 
-  await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
-  await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
+  await page.locator('input[type="email"]').fill(VIEWER_EMAIL);
+  await page.locator('input[type="password"]').fill(VIEWER_PASSWORD);
   await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
   await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
 }
@@ -52,10 +52,10 @@ test.describe('MadridLiveApp regression', () => {
   });
 
   test('[readonly] navigates across core modules after login', async ({ page }) => {
-    await loginWithAdmin(page);
+    await loginWithViewer(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
-    await expect(page.getByRole('button', { name: /Ingreso Manual de ID/i })).toBeVisible();
+    await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();
 
     await page.getByRole('button', { name: /Plantilla/i }).click();
     await expect(page.getByRole('heading', { name: /Plantilla de Personal/i })).toBeVisible();
@@ -67,14 +67,10 @@ test.describe('MadridLiveApp regression', () => {
     await expect(page.getByRole('heading', { name: /KPIs y Estadísticas Operativas/i })).toBeVisible();
   });
 
-  test('[readonly] shows validation error for invalid manual scanner id', async ({ page }) => {
-    await loginWithAdmin(page);
+  test('[readonly] disables manual scanner entry for viewer', async ({ page }) => {
+    await loginWithViewer(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
-    await page.getByRole('button', { name: /Ingreso Manual de ID/i }).click();
-    await page.locator('input[placeholder*="SEC-042"]').fill('INVALID-XYZ');
-    await page.getByRole('button', { name: /^ENVIAR$/i }).click();
-
-    await expect(page.getByText(/ID o nombre inválido/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'SOLO LECTURA' })).toBeDisabled();
   });
 });

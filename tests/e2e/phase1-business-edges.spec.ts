@@ -9,6 +9,8 @@ type ApiResult = {
 const ADMIN_API_TOKEN = process.env.PLAYWRIGHT_ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN || '';
 const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || '';
 const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || '';
+const VIEWER_EMAIL = process.env.PLAYWRIGHT_VIEWER_EMAIL || '';
+const VIEWER_PASSWORD = process.env.PLAYWRIGHT_VIEWER_PASSWORD || '';
 
 const MONTH_TO_INDEX: Record<string, number> = {
   JAN: 0,
@@ -138,6 +140,20 @@ async function loginWithAdmin(page: import('@playwright/test').Page) {
 
   await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
   await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
+  await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
+  await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
+}
+
+async function loginWithViewer(page: import('@playwright/test').Page) {
+  test.skip(!VIEWER_EMAIL || !VIEWER_PASSWORD, 'PLAYWRIGHT_VIEWER_EMAIL and PLAYWRIGHT_VIEWER_PASSWORD are required for readonly login UI tests.');
+
+  await page.goto('/');
+
+  const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
+  if (alreadyInside) return;
+
+  await page.locator('input[type="email"]').fill(VIEWER_EMAIL);
+  await page.locator('input[type="password"]').fill(VIEWER_PASSWORD);
   await page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i }).click();
   await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
 }
@@ -542,18 +558,18 @@ test.describe('Phase 1 - business edge coverage', () => {
   });
 
   test('[readonly] scanner module remains usable after page refresh', async ({ page }) => {
-    await loginWithAdmin(page);
+    await loginWithViewer(page);
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
     await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Ingreso Manual de ID/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'SOLO LECTURA' })).toBeDisabled();
 
     await page.reload();
     await expect(page.getByRole('button', { name: /Eventos \/ Control/i })).toBeVisible();
 
     await page.getByRole('button', { name: /Lector QR/i }).click();
     await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Ingreso Manual de ID/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'SOLO LECTURA' })).toBeDisabled();
   });
 
   test('scanner supports immediate manual check-in and check-out without reload', async ({ page, request }) => {

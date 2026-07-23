@@ -7,8 +7,8 @@ import {
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'https://www.madridliveapp.top';
 const RUN_STARTED_AT_MS = Date.now();
-const ADMIN_EMAIL = process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.ADMIN_LOGIN_EMAIL || '';
-const ADMIN_PASSWORD = process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || '';
+const LOGIN_EMAIL = process.env.PLAYWRIGHT_VIEWER_EMAIL || process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.ADMIN_LOGIN_EMAIL || '';
+const LOGIN_PASSWORD = process.env.PLAYWRIGHT_VIEWER_PASSWORD || process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || '';
 
 const MONTH_TO_INDEX = {
   jan: 0,
@@ -92,9 +92,8 @@ async function openHistoryScreen(page) {
         try {
           await locator.click({ force: true, timeout: 6000 });
           await historyRoot.waitFor({ state: 'visible', timeout: 6000 });
-          if (await page.locator('#shifts-history-system table tbody tr').count()) {
-            return;
-          }
+          // La pantalla abierta basta: el caller decide qué hacer si la tabla está vacía.
+          return;
         } catch {
           // Try other candidate/attempt.
         }
@@ -116,9 +115,8 @@ async function openHistoryScreen(page) {
 
     try {
       await historyRoot.waitFor({ state: 'visible', timeout: 3500 });
-      if (await page.locator('#shifts-history-system table tbody tr').count()) {
-        return;
-      }
+      // La pantalla abierta basta: el caller decide qué hacer si la tabla está vacía.
+      return;
     } catch {
       // Retry opening history on next attempt.
     }
@@ -136,9 +134,9 @@ async function run() {
 
     const authBtn = page.getByRole('button', { name: /AUTENTICAR EN ENTORNO/i });
     if (await authBtn.count()) {
-      assert(ADMIN_EMAIL && ADMIN_PASSWORD, 'Credenciales admin no configuradas para autenticar el canario.');
-      await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
-      await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
+      assert(LOGIN_EMAIL && LOGIN_PASSWORD, 'Credenciales viewer/admin no configuradas para autenticar el canario.');
+      await page.locator('input[type="email"]').fill(LOGIN_EMAIL);
+      await page.locator('input[type="password"]').fill(LOGIN_PASSWORD);
       await authBtn.click();
     }
 
@@ -149,8 +147,30 @@ async function run() {
 
     await openHistoryScreen(page);
 
-    const rowCountInitial = await page.locator('table tbody tr').count();
-    assert(rowCountInitial > 0, 'Historial sin filas iniciales para validar canario.');
+    let rowCountInitial = await page.locator('table tbody tr').count();
+    if (rowCountInitial === 0) {
+      // Con la BD real puede no haber turnos todavía (p. ej. tras retirar datos de prueba).
+      // Solo es fallo si la BD reporta shifts y la tabla no los muestra (regresión de render).
+      const healthResponse = await fetch(`${BASE_URL}/api/mysql/health-count`);
+      const healthJson = await healthResponse.json().catch(() => null);
+      const dbShiftCount = healthJson?.counts?.shifts;
+      if (dbShiftCount === 0) {
+        console.log(JSON.stringify({
+          canary: 'history',
+          status: 'skipped',
+          reason: 'Historial sin filas y shifts=0 en BD: estado legítimo, sin señal que validar.',
+          baseUrl: BASE_URL,
+          duration_ms: Date.now() - RUN_STARTED_AT_MS,
+        }));
+        return;
+      }
+      // La BD tiene turnos: dar margen a la carga asíncrona antes de declarar regresión.
+      for (let i = 0; i < 10 && rowCountInitial === 0; i += 1) {
+        await page.waitForTimeout(500);
+        rowCountInitial = await page.locator('table tbody tr').count();
+      }
+      assert(rowCountInitial > 0, `Historial sin filas pero la BD reporta shifts=${dbShiftCount ?? 'desconocido'}: posible regresión de render.`);
+    }
 
     const fromDateInput = page.getByLabel(/^Fecha desde$/i);
     const toDateInput = page.getByLabel(/^Fecha hasta$/i);
