@@ -48,7 +48,7 @@ test.describe('Phase 1 - core functional flows', () => {
     await expect(page.getByText(/Punto de Registro QR Activo/i)).toBeVisible();
   });
 
-  test('[readonly] opens profile from header avatar and returns to staff', async ({ page, request }) => {
+  test('[readonly] opens profile from a staff card and returns to staff', async ({ page, request }) => {
     const mysqlHealthResponse = await request.get('/api/mysql/health-count');
     const mysqlHealthJson = await mysqlHealthResponse.json().catch(() => null);
     const mysqlHealthPayload = String((mysqlHealthJson as { message?: string; error?: string } | null)?.message || (mysqlHealthJson as { message?: string; error?: string } | null)?.error || '');
@@ -60,7 +60,8 @@ test.describe('Phase 1 - core functional flows', () => {
 
     await loginWithViewer(page);
 
-    await page.getByTitle(/Ver perfil de Javier Rodríguez/i).click();
+    await page.getByRole('button', { name: /Plantilla/i }).click();
+    await page.locator('[data-testid^="staff-card-rating-"]').first().click();
     await expect(page.getByRole('heading', { name: /Perfil del Colaborador/i })).toBeVisible();
 
     await page.locator('#profile-view button').first().click();

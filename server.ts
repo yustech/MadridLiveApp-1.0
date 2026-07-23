@@ -305,13 +305,25 @@ async function startServer() {
 
     res.setHeader("Set-Cookie", buildSessionCookie(sessionValue, Math.floor(AUTH_SESSION_TTL_MS / 1000)));
     res.setHeader("Cache-Control", "no-store");
-    return res.json({ success: true, expiresAt });
+    return res.json({
+      success: true,
+      expiresAt,
+      role: user.role,
+      email: user.email,
+    });
   });
 
   app.get("/api/auth/session", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    const role = await resolveRequestRole(req);
-    return res.json({ authenticated: role !== null, role });
+    if (isAdminTokenAuthorized(req)) {
+      return res.json({ authenticated: true, role: "admin", email: null });
+    }
+
+    const user = await resolveRequestUser(req);
+    if (!user) {
+      return res.json({ authenticated: false, role: null, email: null });
+    }
+    return res.json({ authenticated: true, role: user.role, email: user.email });
   });
 
   app.post("/api/auth/logout", (_req, res) => {
