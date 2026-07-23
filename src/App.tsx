@@ -8,9 +8,8 @@ import {
   sortEventsByDate
 } from './utils/events';
 import { isWorkerPresentNow } from './utils/shifts';
-
-const ADMIN_PROFILE_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDC_NElRUlTxk860ETAyeeMiDTpE8tBnFJ74xyp5-NRSBtYQsm_svmfkP7nLHyou6LwqDDzexrIJOSrwP7u_TJAsGXcL7Y7g9_wRVSysXuccSJczUOeU1Bp6zRYPh5YwIZdeopltCYPGmjijbfp53H5q9azOxk2jsIoMeiBHgkbClhgty1nM1cLQjldyegOMlpM9A-qZ7MXP5bNiJBBYY8N3lOwZSmVbaUMtpcoeH5313BXoiLxOrNHhn_4x9ffMlsS6O5nGHBVhA4';
-
+import { getStaffAvatarColor, getStaffAvatarTextColor } from './utils/staffAvatar';
+import { getSessionUserInitials } from './utils/sessionUser';
 
 import {
   subscribeToEvents,
@@ -44,6 +43,12 @@ const isDatabaseManagerEnabled =
 type SessionRole = 'admin' | 'operator' | 'viewer';
 type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'event-staff' | 'scanner' | 'profile' | 'shifts' | 'kpis' | 'users';
 
+const SESSION_ROLE_LABELS: Record<SessionRole, string> = {
+  admin: 'Admin',
+  operator: 'Operador',
+  viewer: 'Lectura',
+};
+
 function selectDefaultActiveEvent(events: LiveEvent[]): string {
   const ordered = sortEventsByDate(events);
   const today = ordered.find((event) => getEventTemporalState(event) === 'today');
@@ -56,6 +61,7 @@ export default function App() {
   // Authentication & Security Policy State (Option B)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null);
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(() => sessionStorage.getItem('ml_auth') === 'true');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -116,10 +122,12 @@ export default function App() {
           if (payload?.authenticated) {
             setIsAuthenticated(true);
             setSessionRole(payload.role as SessionRole);
+            setSessionEmail(typeof payload.email === 'string' && payload.email ? payload.email : null);
           } else {
             sessionStorage.removeItem('ml_auth');
             setIsAuthenticated(false);
             setSessionRole(null);
+            setSessionEmail(null);
           }
         }
       } catch {
@@ -127,6 +135,7 @@ export default function App() {
           sessionStorage.removeItem('ml_auth');
           setIsAuthenticated(false);
           setSessionRole(null);
+          setSessionEmail(null);
         }
       } finally {
         if (!cancelled) {
@@ -213,13 +222,15 @@ export default function App() {
         }),
       });
 
+      const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
         throw new Error(payload?.message || "Credenciales no validas o autenticacion no configurada.");
       }
 
       sessionStorage.setItem("ml_auth", "true");
       setIsAuthenticated(true);
+      setSessionRole(payload?.role as SessionRole || null);
+      setSessionEmail(typeof payload?.email === 'string' && payload.email ? payload.email : null);
       setLoginPassword("");
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : "No se pudo autenticar contra el servidor.");
@@ -248,6 +259,7 @@ export default function App() {
     sessionStorage.removeItem("ml_auth");
     setIsAuthenticated(false);
     setSessionRole(null);
+    setSessionEmail(null);
     setLoginPassword("");
 
     try {
@@ -696,25 +708,29 @@ export default function App() {
               </button>
             )}
 
-            {/* Profile trigger */}
-            <button
-              onClick={() => {
-                const javier = staff.find(w => w.id === 'usr_842') || staff[0];
-                setSelectedWorker(javier);
-                setActiveScreen('profile');
-              }}
-              className="w-full p-2.5 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-xl text-left flex items-center gap-2.5 cursor-pointer transition-all"
+            <div
+              data-testid="session-user-card"
+              className="w-full p-2.5 bg-indigo-500/15 border border-indigo-400/30 rounded-xl text-left flex items-center gap-2.5"
             >
-              <img
-                src={ADMIN_PROFILE_AVATAR}
-                className="w-7 h-7 rounded-lg object-cover border border-white/20 shrink-0"
-                alt=""
-              />
+              <span
+                className="w-7 h-7 rounded-lg border border-white/20 shrink-0 flex items-center justify-center text-[10px] font-black"
+                style={{
+                  backgroundColor: getStaffAvatarColor(sessionEmail || sessionRole || '?'),
+                  color: getStaffAvatarTextColor(getStaffAvatarColor(sessionEmail || sessionRole || '?')),
+                }}
+                aria-hidden="true"
+              >
+                {getSessionUserInitials(sessionEmail)}
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold text-white truncate">Javier R.</p>
-                <p className="text-[9px] font-mono text-indigo-300">Supervisor</p>
+                {sessionEmail && (
+                  <p className="text-[11px] font-bold text-white truncate">{sessionEmail}</p>
+                )}
+                {sessionRole && (
+                  <p className="text-[9px] font-mono text-indigo-300">{SESSION_ROLE_LABELS[sessionRole]}</p>
+                )}
               </div>
-            </button>
+            </div>
 
             {/* Change password trigger */}
             <button
@@ -789,22 +805,6 @@ export default function App() {
               <LogOut className="w-4 h-4" />
             </button>
 
-            {/* Right Clickable Crew Headshot (Click toggles Javier Rodriguez's Profile) */}
-            <button 
-              onClick={() => {
-                const javier = staff.find(w => w.id === 'usr_842') || staff[0];
-                setSelectedWorker(javier);
-                setActiveScreen('profile');
-              }}
-              className="w-10 h-10 rounded-full overflow-hidden bg-white/5 border border-white/25 cursor-pointer hover:border-[#818cf8] transition-colors"
-              title="Ver perfil de Javier Rodríguez"
-            >
-              <img 
-                alt="Avatar de perfil" 
-                className="w-full h-full object-cover" 
-                src={ADMIN_PROFILE_AVATAR}
-              />
-            </button>
           </div>
         </header>
 
