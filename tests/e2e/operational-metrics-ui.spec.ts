@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const madridParts = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Madrid',
@@ -83,6 +84,7 @@ const shifts = [
 ];
 
 async function mockMetricsData(page: Page, requests: Array<{ method: string; pathname: string }>) {
+  await seedOnboardingSeen(page, { role: 'admin' });
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => {
     requests.push({ method: route.request().method(), pathname: new URL(route.request().url()).pathname });

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const madridDateParts = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Madrid',
@@ -121,6 +122,7 @@ const shifts = [
 ];
 
 async function mockScannerData(page: Page, eventStaffRequests: Array<{ method: string; url: string }>) {
+  await seedOnboardingSeen(page, { role: 'admin' });
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({
     json: [currentEvent, openEvent, completeEvent],

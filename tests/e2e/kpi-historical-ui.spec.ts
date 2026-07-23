@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const historicalEvent = {
   id: 'event-kpi-history',
@@ -27,6 +28,7 @@ const completedShifts = [
 ];
 
 async function mockHistoricalData(page: Page) {
+  await seedOnboardingSeen(page, { role: 'admin' });
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({ json: [historicalEvent] }));

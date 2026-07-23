@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const now = new Date();
 const event = {
@@ -17,6 +18,7 @@ const assignedMember = {
 };
 
 test('saves, edits, applies and deletes a team template with exact method and route contracts', async ({ page }) => {
+  await seedOnboardingSeen(page, { role: 'admin' });
   let templates: Array<any> = [];
   const requests: Array<{ method: string; pathname: string; body: unknown }> = [];
 

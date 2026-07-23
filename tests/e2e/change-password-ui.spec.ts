@@ -1,8 +1,10 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 const passwordEndpoint = '/api/mysql/users/me/password';
 
 async function openAuthenticatedApp(page: Page) {
+  await seedOnboardingSeen(page, { role: 'viewer' });
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));
   await page.route('**/api/auth/session', (route) => route.fulfill({
     json: { authenticated: true, role: 'viewer' },

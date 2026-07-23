@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedOnboardingSeen } from './helpers/onboarding';
 
 type ApiResult = {
   status: number;
@@ -133,6 +134,7 @@ async function api(request: import('@playwright/test').APIRequestContext, path: 
 async function loginWithAdmin(page: import('@playwright/test').Page) {
   test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'PLAYWRIGHT_ADMIN_EMAIL and PLAYWRIGHT_ADMIN_PASSWORD are required for login UI tests.');
 
+  await seedOnboardingSeen(page, { email: ADMIN_EMAIL, role: 'admin' });
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
@@ -147,6 +149,7 @@ async function loginWithAdmin(page: import('@playwright/test').Page) {
 async function loginWithViewer(page: import('@playwright/test').Page) {
   test.skip(!VIEWER_EMAIL || !VIEWER_PASSWORD, 'PLAYWRIGHT_VIEWER_EMAIL and PLAYWRIGHT_VIEWER_PASSWORD are required for readonly login UI tests.');
 
+  await seedOnboardingSeen(page, { email: VIEWER_EMAIL, role: 'viewer' });
   await page.goto('/');
 
   const alreadyInside = await page.getByRole('button', { name: /Eventos \/ Control/i }).isVisible().catch(() => false);
