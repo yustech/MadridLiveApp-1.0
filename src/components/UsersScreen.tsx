@@ -14,6 +14,8 @@ import {
 
 interface User { id: string; email: string; role: UserRole; status: "active" | "inactive" }
 
+interface UsersScreenProps { currentUserEmail?: string | null }
+
 async function api(path: string, init?: RequestInit) {
   const response = await fetch(`/api/mysql${path}`, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...init });
   const payload = await response.json();
@@ -23,7 +25,7 @@ async function api(path: string, init?: RequestInit) {
 
 const COUNT_KEY: Record<string, keyof DatabaseCounts> = { staff: "staff", events: "events", shifts: "shifts", alerts: "alerts" };
 
-export default function UsersScreen() {
+export default function UsersScreen({ currentUserEmail = null }: UsersScreenProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,6 +45,17 @@ export default function UsersScreen() {
     setMessage("");
     try { await api(`/users/${encodeURIComponent(user.id)}`, { method: "PATCH", body: JSON.stringify(changes) }); await load(); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Error"); }
+  };
+
+  // --- Hard delete: irreversible, guarded server-side (never the last admin, never yourself) ---
+  const [pendingDelete, setPendingDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const remove = async (user: User) => {
+    setIsDeleting(true); setMessage("");
+    try { await api(`/users/${encodeURIComponent(user.id)}`, { method: "DELETE" }); await load(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Error"); }
+    finally { setIsDeleting(false); setPendingDelete(null); }
   };
 
   // --- Maintenance: selective database purge ---
@@ -97,8 +110,24 @@ export default function UsersScreen() {
         <span className="flex-1 font-mono text-sm text-white">{user.email}</span>
         <select aria-label={`Rol de ${user.email}`} value={user.role} onChange={(e) => void patch(user, { role: e.target.value as UserRole })} className="rounded-lg border border-white/10 bg-[#120f26] px-3 py-2 text-white"><option value="admin">Admin</option><option value="operator">Operador</option><option value="viewer">Lectura</option></select>
         <button onClick={() => void patch(user, { status: user.status === "active" ? "inactive" : "active" })} className={`rounded-lg border px-3 py-2 text-xs font-bold ${user.status === "active" ? "border-rose-400/20 text-rose-300" : "border-emerald-400/20 text-emerald-300"}`}>{user.status === "active" ? "Desactivar" : "Activar"}</button>
+        {user.email !== currentUserEmail && <button type="button" onClick={() => setPendingDelete(user)} aria-label={`Borrar ${user.email}`} data-testid={`user-delete-${user.id}`} className="flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-200 hover:bg-rose-500/20 transition-colors cursor-pointer"><Trash2 className="h-3.5 w-3.5" /> Borrar</button>}
       </div>)}
     </div>
+
+    {/* DELETE USER CONFIRMATION */}
+    {pendingDelete && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="user-delete-title" data-testid="user-delete-dialog">
+        <div className="w-full max-w-md rounded-3xl border border-rose-500/20 bg-[#120e2a] p-6 shadow-2xl">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300"><AlertTriangle className="h-6 w-6" /></div>
+          <h3 id="user-delete-title" className="text-lg font-display font-bold text-white">Borrar usuario</h3>
+          <p className="mt-2 text-sm text-white/60 leading-relaxed">Se borrará la cuenta <span className="font-mono font-bold text-white">{pendingDelete.email}</span> por completo y no se puede deshacer. Si solo quieres quitarle el acceso conservando la cuenta, usa <span className="font-bold text-white/80">Desactivar</span>.</p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button type="button" disabled={isDeleting} onClick={() => setPendingDelete(null)} className="flex-1 h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-mono font-bold text-white/70 hover:bg-white/10 disabled:opacity-50 cursor-pointer">Cancelar</button>
+            <button type="button" disabled={isDeleting} onClick={() => void remove(pendingDelete)} data-testid="user-delete-confirm" className="flex-1 h-11 rounded-xl bg-rose-500 text-xs font-mono font-bold text-white hover:bg-rose-400 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">{isDeleting ? "Borrando..." : "Borrar usuario"}</button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* MAINTENANCE / DANGER ZONE */}
     <div className="rounded-3xl border border-rose-500/20 bg-rose-500/[0.04] p-5" data-testid="maintenance-card">

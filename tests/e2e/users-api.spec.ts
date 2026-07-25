@@ -71,6 +71,63 @@ function eventPayload(stamp: number) {
   };
 }
 
+test("hard delete removes a user and refuses self-deletion", async ({ request }) => {
+  assertLocalMutationTarget();
+  test.skip(!ADMIN_API_TOKEN, "An admin API token is required for users integration coverage.");
+
+  const stamp = Date.now();
+  const viewerEmail = `delete.viewer.${stamp}@example.test`;
+  const adminEmail = `delete.admin.${stamp}@example.test`;
+  const adminPassword = `Admin-${stamp}!`;
+  let viewerId = "";
+  let adminId = "";
+
+  try {
+    const viewer = await api(request, "POST", "/api/mysql/users", {
+      email: viewerEmail, password: `Viewer-${stamp}!`, role: "viewer",
+    }, true);
+    expect(viewer.status, viewer.text).toBe(201);
+    viewerId = String(viewer.json?.user?.id || "");
+
+    // Anonymous callers cannot delete, and unknown ids are 404 (not a silent success).
+    expect((await api(request, "DELETE", `/api/mysql/users/${viewerId}`)).status).toBe(401);
+    expect((await api(request, "DELETE", "/api/mysql/users/user_does_not_exist", undefined, true)).status).toBe(404);
+
+    // A second admin exists alongside the seeded one, so deleting an admin is allowed...
+    const admin = await api(request, "POST", "/api/mysql/users", {
+      email: adminEmail, password: adminPassword, role: "admin",
+    }, true);
+    expect(admin.status, admin.text).toBe(201);
+    adminId = String(admin.json?.user?.id || "");
+
+    // ...but not by that admin on their own session.
+    expect((await api(request, "POST", "/api/auth/login", { email: adminEmail, password: adminPassword })).status).toBe(200);
+    const selfDelete = await api(request, "DELETE", `/api/mysql/users/${adminId}`);
+    expect(selfDelete.status, selfDelete.text).toBe(400);
+    expect((await api(request, "GET", `/api/mysql/users`)).json?.users?.some((user: { id: string }) => user.id === adminId)).toBe(true);
+
+    const deleted = await api(request, "DELETE", `/api/mysql/users/${viewerId}`, undefined, true);
+    expect(deleted.status, deleted.text).toBe(200);
+    expect(deleted.json?.email).toBe(viewerEmail);
+
+    const remaining = await api(request, "GET", "/api/mysql/users", undefined, true);
+    expect(remaining.status, remaining.text).toBe(200);
+    expect(remaining.json?.users?.some((user: { id: string }) => user.id === viewerId)).toBe(false);
+    viewerId = "";
+
+    // The self-check reads the session cookie, so it still wins while that admin is
+    // logged in even when x-admin-token is supplied. Log out first to delete the row.
+    expect((await api(request, "POST", "/api/auth/logout", {})).status).toBe(200);
+    const deletedAdmin = await api(request, "DELETE", `/api/mysql/users/${adminId}`, undefined, true);
+    expect(deletedAdmin.status, deletedAdmin.text).toBe(200);
+    adminId = "";
+  } finally {
+    await api(request, "POST", "/api/auth/logout", {});
+    if (viewerId) await api(request, "DELETE", `/api/mysql/users/${viewerId}`, undefined, true);
+    if (adminId) await api(request, "DELETE", `/api/mysql/users/${adminId}`, undefined, true);
+  }
+});
+
 test("real users enforce role permissions, password changes and session revocation", async ({ request }) => {
   assertLocalMutationTarget();
   test.skip(!ADMIN_API_TOKEN, "An admin API token is required for users integration coverage.");

@@ -933,7 +933,7 @@ export default function App() {
                 activeEventId={activeEventId}
               />
             )}
-            {activeScreen === 'users' && sessionRole === 'admin' && <UsersScreen />}
+            {activeScreen === 'users' && sessionRole === 'admin' && <UsersScreen currentUserEmail={sessionEmail} />}
           </Suspense>
         </main>
       </div>
