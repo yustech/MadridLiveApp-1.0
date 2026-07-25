@@ -2,8 +2,8 @@ import type express from "express";
 import { validateUserPatchPayload, validateUserPayload, MIN_USER_PASSWORD_LENGTH } from "../../../src/validators";
 import { hashPassword, verifyPassword } from "../users/passwordHash";
 import {
-  countActiveAdmins, createUser, findById, listUsers, setUserPassword, setUserStatus,
-  updateUserRole, wouldLockOutLastAdmin, type UserRecord,
+  countActiveAdmins, countAdmins, createUser, deleteUser, findById, listUsers, setUserPassword,
+  setUserStatus, updateUserRole, wouldDeleteLastAdmin, wouldLockOutLastAdmin, type UserRecord,
 } from "../users/usersRepository";
 import { getPool } from "../pool";
 import type { RouteGuard } from "./routeAuth";
@@ -70,6 +70,27 @@ export function registerUsersRoutes(app: express.Express, options: Options) {
       const updated = await findById(db, user.id);
       const { passwordHash: _passwordHash, ...publicUser } = updated!;
       return res.json({ success: true, user: publicUser });
+    } catch (error: unknown) {
+      return res.status(500).json({ success: false, message: error instanceof Error ? error.message : "Internal server error." });
+    }
+  });
+
+  app.delete(`${path}/:id`, async (req, res) => {
+    try {
+      if (!(await options.requireAdmin(req, res))) return;
+      const db = getPool();
+      const user = await findById(db, req.params.id);
+      if (!user) return res.status(404).json({ success: false, message: "User not found." });
+      // A service-token caller has no session, so resolveUser returns null and no self-check applies.
+      const requester = await options.resolveUser(req);
+      if (requester && requester.id === user.id) {
+        return res.status(400).json({ success: false, message: "No puedes borrar tu propia cuenta." });
+      }
+      if (wouldDeleteLastAdmin(user, await countAdmins(db))) {
+        return res.status(400).json({ success: false, message: "No se puede borrar al último administrador." });
+      }
+      await deleteUser(db, user.id);
+      return res.json({ success: true, id: user.id, email: user.email });
     } catch (error: unknown) {
       return res.status(500).json({ success: false, message: error instanceof Error ? error.message : "Internal server error." });
     }

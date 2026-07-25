@@ -83,7 +83,24 @@ export async function countActiveAdmins(db: UsersDb) {
   return Number(row?.count || 0);
 }
 
+export async function countAdmins(db: UsersDb) {
+  const [rows] = await db.query("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'");
+  const row = Array.isArray(rows) ? rows[0] as { count?: number | string } : undefined;
+  return Number(row?.count || 0);
+}
+
+export async function deleteUser(db: UsersDb, id: string) {
+  const [result] = await db.query("DELETE FROM users WHERE id = ?", [id]);
+  return Number((result as { affectedRows?: number } | undefined)?.affectedRows || 0) > 0;
+}
+
 export function wouldLockOutLastAdmin(user: Pick<UserRecord, "role" | "status">, patch: { role?: UserRole; status?: UserStatus }, activeAdminCount: number) {
   if (user.role !== "admin" || user.status !== "active" || activeAdminCount > 1) return false;
   return patch.role !== undefined && patch.role !== "admin" || patch.status !== undefined && patch.status !== "active";
+}
+
+// A delete is irreversible where deactivation is not, so it is guarded harder than a PATCH:
+// the last admin row cannot be removed at all, active or inactive.
+export function wouldDeleteLastAdmin(user: Pick<UserRecord, "role">, adminCount: number) {
+  return user.role === "admin" && adminCount <= 1;
 }

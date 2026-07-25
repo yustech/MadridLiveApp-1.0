@@ -182,7 +182,16 @@ mecanismo de cookie firmada, pero:
 - Endpoint propio `POST /api/mysql/users/me/password` para que cualquier
   usuario autenticado cambie su propia contraseña (exige la contraseña
   actual), también incrementa `token_version` propio.
-- `DELETE` no se expone en el MVP (se desactiva, no se borra — ver punto 1).
+- `DELETE /api/mysql/users/:id` (añadido 2026-07-25, a petición del owner para
+  limpiar cuentas de prueba): borrado real de la fila. Desactivar sigue siendo
+  la vía recomendada para quitar acceso conservando la cuenta; el borrado es
+  irreversible, así que va guardado más fuerte que el `PATCH`:
+  - nunca la **última fila con rol `admin`**, activa o inactiva (el guard del
+    `PATCH` solo protege al último admin *activo*);
+  - nunca **tu propia cuenta** (se resuelve por sesión; un llamante con
+    `x-admin-token` no tiene sesión y por tanto no aplica esta comprobación);
+  - `404` si el id no existe. La tabla `users` no tiene claves ajenas
+    apuntándola, así que el borrado no deja huérfanos.
 - Todos los endpoints de `/users` exigen rol `admin`.
 - Con ~4-5 cuentas previstas (confirmado por el owner) no hace falta alta en
   lote/CSV — el formulario de "crear usuario" uno a uno es suficiente para el
