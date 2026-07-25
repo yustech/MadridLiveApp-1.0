@@ -3,7 +3,6 @@ import {
   AlertCircle,
   Database,
   Plus,
-  RefreshCw,
   Search,
   X,
 } from 'lucide-react';
@@ -18,7 +17,6 @@ import {
   addStaff, updateStaff, deleteStaff,
   addShift, updateShift, deleteShift,
   addAlert, updateAlert, deleteAlert,
-  forceResetDatabase,
 } from '../dbService';
 import { AlertsTab } from './databaseManager/AlertsTab';
 import { collectionTabs, securitySubTabs, tabLabelMap } from './databaseManager/constants';
@@ -96,7 +94,6 @@ export default function DatabaseManagerScreen({
   const [connectionTestResult, setConnectionTestResult] = useState<ConnectionTestResult | null>(null);
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(null);
-  const [isResetting, setIsResetting] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -207,28 +204,6 @@ export default function DatabaseManagerScreen({
     } finally {
       setIsConfirming(false);
     }
-  };
-
-  const runHardReset = async () => {
-    setIsResetting(true);
-    try {
-      await forceResetDatabase();
-      showStatus('Base de datos restablecida correctamente a la configuración por defecto.');
-    } catch (err: any) {
-      showStatus(`Fallo de restablecimiento: ${err.message || err}`, true);
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  const handleHardReset = () => {
-    setConfirmAction({
-      title: 'Restablecer base de datos',
-      message: 'Se reemplazarán eventos, colaboradores, turnos y alertas por el dataset inicial. Esta acción requiere permisos admin y no debe ejecutarse durante una operación real.',
-      confirmLabel: 'Restablecer BD',
-      intent: 'warning',
-      onConfirm: runHardReset,
-    });
   };
 
   const runDelete = async (id: string, collection: CollectionTab) => {
@@ -445,14 +420,6 @@ export default function DatabaseManagerScreen({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleHardReset}
-              disabled={isResetting}
-              className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 disabled:text-rose-300/40 text-xs font-mono px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
-              {isResetting ? 'Restableciendo...' : 'Restablecer BD'}
-            </button>
             <button
               onClick={onClose}
               className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"

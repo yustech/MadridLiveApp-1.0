@@ -95,10 +95,6 @@ function createPollingSubscription<T>(
   return getPollingResource<T>(path, options).subscribe(callback);
 }
 
-async function resetWithApi() {
-  await apiJson('/reset-initial', { method: 'POST' });
-}
-
 // --- REAL-TIME-LIKE LISTENERS (polling) ---
 
 export function subscribeToEvents(callback: (events: LiveEvent[]) => void) {
@@ -124,27 +120,6 @@ export function subscribeToShifts(callback: (shifts: Shift[]) => void) {
 
 export function subscribeToAlerts(callback: (alerts: EquipmentAlert[]) => void) {
   return createPollingSubscription<EquipmentAlert>('/alerts', callback);
-}
-
-// --- SEED DATABASE IF EMPTY ---
-
-export async function seedDatabaseIfEmpty() {
-  try {
-    await apiJson('/init', { method: 'POST' });
-    const staff = await apiJson<StaffMember[]>('/staff');
-    if (staff.length === 0) {
-      await resetWithApi();
-      console.log('MySQL seeded with initial datasets.');
-    }
-  } catch (error) {
-    console.error('Error while seeding MySQL database:', error);
-  }
-}
-
-// --- SYSTEM RESET TOOL TO RESTORE DEFAULTS ---
-
-export async function forceResetDatabase() {
-  await resetWithApi();
 }
 
 // --- SELECTIVE DATABASE PURGE (admin "Vaciar base de datos" tool) ---
