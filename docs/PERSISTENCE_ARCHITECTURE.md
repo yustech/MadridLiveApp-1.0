@@ -21,7 +21,8 @@ Patron de acceso:
 - Escritura mediante endpoints Express en `mysqlApi.ts`.
 - Fichaje operativo mediante `POST /api/mysql/checkin` y `POST /api/mysql/checkout`.
 - Validacion y saneamiento de payloads en `src/validators.ts`.
-- Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL.
+- Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL. Es el fixture demo de local/CI; el frontend de produccion no lo expone (el DatabaseManager esta apagado en prod).
+- Vaciado selectivo mediante `POST /api/mysql/purge` (admin), body `{ collections: [...] }`. Borra solo las colecciones de negocio elegidas (staff/events/shifts/alerts/convocatorias/plantillas) en una transaccion; `users` y `schema_migrations` nunca son purgables (`server/mysql/purge.ts`). Disponible en produccion desde la tarjeta "Mantenimiento" de la pantalla Usuarios (solo admin), protegido en la UI con confirmacion escrita "VACIAR".
 
 Archivos clave:
 

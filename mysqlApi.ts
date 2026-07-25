@@ -8,6 +8,7 @@ import {
 } from "./src/validators";
 import { unauthorizedResponse } from "./server/mysql/auth";
 import { getPool, isMysqlConfigured } from "./server/mysql/pool";
+import { resolvePurgeTables, executePurge } from "./server/mysql/purge";
 import {
   ensureShiftNotLinkedToFutureEvent,
   ensureWorkerShiftTimeIntegrity,
@@ -342,6 +343,27 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions)
       return res.json({ success: true, message: "MySQL data reset to initial dataset." });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // Selective wipe for the admin "Vaciar base de datos" maintenance tool.
+  // Empties only the requested business collections; `users` and
+  // `schema_migrations` are never purgeable (see server/mysql/purge.ts).
+  app.post(`${MYSQL_PREFIX}/purge`, async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+
+    let tables: string[];
+    try {
+      tables = resolvePurgeTables(req.body?.collections);
+    } catch (error: any) {
+      return res.status(400).json({ success: false, message: error?.message || "Selección no válida." });
+    }
+
+    try {
+      const deleted = await executePurge(getPool(), tables);
+      return res.json({ success: true, deleted, tables, message: "Base de datos vaciada." });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || "No se pudo vaciar la base de datos." });
     }
   });
 
