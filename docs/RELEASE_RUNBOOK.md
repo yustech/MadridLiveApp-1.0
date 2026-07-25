@@ -8,7 +8,13 @@ Operational release flow for Madrid Live Access with full-proxy deploy validatio
 
 1. `main` is green in CI.
 2. Local build passes: `npm run build`.
-3. No unrelated local modifications in working tree.
+3. The built bundle is a production bundle: `npm run check:bundle`.
+   `npm run build` pins `NODE_ENV=production` precisely so this can't regress —
+   Vite otherwise copies `NODE_ENV` out of any local `.env` (this box's `.env`
+   carries `NODE_ENV=development` for the dev server and the e2e test DB), which
+   silently produced development bundles for every deploy made from this box
+   before 2026-07-25. `scripts/deploy-staging-first.sh` runs the check too.
+4. No unrelated local modifications in working tree.
 
 ## Release Steps
 

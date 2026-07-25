@@ -34,6 +34,8 @@ jobs:
 
       - name: Build
         run: npm run build
+      - name: Production bundle guard
+        run: npm run check:bundle
       - name: Bundle size guardrail (non-blocking)
         run: |
           node <<'EOF2'
