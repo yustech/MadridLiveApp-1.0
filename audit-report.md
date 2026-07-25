@@ -685,6 +685,18 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   propia, staging-first.
   ```
 
+- [ ] **31. Pantalla propia para crear/editar eventos (hoy solo se puede desde el EXPLORADOR BD).** *(añadida 2026-07-25, decisión del owner)*
+  **Contexto verificado en código**: `addEvent` (`src/dbService.ts:161`) tiene **un único caller en toda la app**: `DatabaseManagerScreen.tsx:352`. Es decir, crear un evento solo es posible desde el panel de CRUD en crudo del Gestor de BD. Los colaboradores sí tienen vía propia (formulario individual en `StaffScreen` vía `onAddWorker` → `addStaff`, más importación por lote con `addStaffBatch`), pero los eventos no. Esto salió a la luz al plantear apagar el Gestor en producción: el owner señaló que sin él la herramienta queda coja, y tenía razón para eventos.
+  **Decisión del owner**: el Gestor se queda (visible solo para admin, ver PR #123), y además se apunta esta tarea para que crear eventos no dependa de un panel técnico.
+  **Modelo/Effort**: medio. Diseño previo recomendado (qué campos son obligatorios, validación de fecha/hora, qué se puede editar después de que el evento tenga turnos registrados). Codex-implementa / Claude-revisa.
+  **Alcance**:
+  - Pantalla/modal "Crear evento" accesible para `admin` (¿desde Dashboard o desde la lista de eventos?), con validación real: `dateDay`/`dateMonth`/`dateYear` coherentes (reutilizar `src/utils/madridTime.ts` y los guards de #27, NO reimplementar fechas), `doorsOpen`, `requiredStaff`/`totalStaffNeeded`.
+  - Reutilizar `validateEventPayload` (`src/validators.ts`) — ya existe y está cubierto por tests unitarios; no duplicar reglas en el frontend.
+  - Editar evento: decidir en diseño qué campos siguen siendo editables cuando ya hay `shifts`/`event_staff` colgando (hay guards de integridad que pueden rechazar cambios).
+  - No tocar `loadInPercent` (retirado de vistas operativas en #23) ni el `scanRate` legacy (#22).
+  - Cuando exista, el Gestor deja de ser la única vía; **no** por ello hay que apagarlo (es la decisión del owner en #123).
+  **Prompt**: pendiente de redactar tras el diseño.
+
 ---
 
 ## Notas de estado (contexto para quien ejecute)

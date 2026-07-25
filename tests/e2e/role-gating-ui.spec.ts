@@ -42,7 +42,7 @@ const viewerWorker = {
   currentShiftMins: 0,
 };
 
-async function openAs(page: import("@playwright/test").Page, role: "operator" | "viewer") {
+async function openAs(page: import("@playwright/test").Page, role: "admin" | "operator" | "viewer") {
   await seedOnboardingSeen(page, { role });
   await page.addInitScript(() => sessionStorage.setItem("ml_auth", "true"));
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { authenticated: true, role } }));
@@ -65,6 +65,24 @@ test("operator cannot open admin mutation surfaces", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Editar plantilla" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Solo lectura" })).toBeDisabled();
   await expect(page.getByText("Usuarios", { exact: true })).toHaveCount(0);
+});
+
+// The database manager's visibility depends on the role alone (it used to also
+// depend on import.meta.env.DEV, which tied it to how the bundle was built).
+test("only admins see the database manager", async ({ page }) => {
+  await openAs(page, "operator");
+  await expect(page.getByRole("button", { name: /EXPLORADOR BD/i })).toHaveCount(0);
+
+  await openAs(page, "viewer");
+  await expect(page.getByRole("button", { name: /EXPLORADOR BD/i })).toHaveCount(0);
+});
+
+test("admin sees the database manager and can open it", async ({ page }) => {
+  await openAs(page, "admin");
+  const opener = page.getByRole("button", { name: /EXPLORADOR BD/i }).first();
+  await expect(opener).toBeVisible();
+  await opener.click();
+  await expect(page.getByRole("button", { name: "Cerrar gestor de base de datos" })).toBeVisible();
 });
 
 test("viewer cannot check in from scanner", async ({ page }) => {

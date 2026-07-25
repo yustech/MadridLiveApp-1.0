@@ -39,8 +39,11 @@ const ResetPasswordScreen = lazy(() => import('./components/ResetPasswordScreen'
 const ChangePasswordModal = lazy(() => import('./components/ChangePasswordModal'));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 
-const isDatabaseManagerEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DATABASE_MANAGER === 'true';
+// El Gestor de BD (EXPLORADOR BD) es una funcionalidad de admin, no una herramienta
+// de depuración: hoy es la única vía para crear eventos (`addEvent` solo se llama
+// desde DatabaseManagerScreen). Su visibilidad depende SOLO del rol — antes dependía
+// también de `import.meta.env.DEV`, lo que lo ataba al modo del build y lo habría
+// hecho desaparecer de producción al construir en modo producción.
 
 type SessionRole = 'admin' | 'operator' | 'viewer';
 type ActiveScreen = 'dashboard' | 'staff' | 'roster' | 'event-staff' | 'scanner' | 'profile' | 'shifts' | 'kpis' | 'users';
@@ -107,12 +110,6 @@ export default function App() {
     const defaultActiveEventId = selectDefaultActiveEvent(events);
     if (activeEventId !== defaultActiveEventId) setActiveEventId(defaultActiveEventId);
   }, [events, activeEventId]);
-
-  useEffect(() => {
-    if (!isDatabaseManagerEnabled && isDbOpen) {
-      setIsDbOpen(false);
-    }
-  }, [isDbOpen]);
 
   useEffect(() => {
     if (!isAuthenticated && !isCheckingSession) return;
@@ -268,6 +265,7 @@ export default function App() {
   // Logout handler
   const handleLogout = async () => {
     setIsChangePasswordOpen(false);
+    setIsDbOpen(false);
     sessionStorage.removeItem("ml_auth");
     setIsAuthenticated(false);
     setSessionRole(null);
@@ -722,7 +720,7 @@ export default function App() {
                 <Users className="w-[18px] h-[18px]" /><span>Usuarios</span>
               </button>
             )}
-            {isDatabaseManagerEnabled && sessionRole === 'admin' && (
+            {sessionRole === 'admin' && (
               <button
                 onClick={() => setIsDbOpen(true)}
                 className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-mono text-[11px] font-bold text-white/80 cursor-pointer transition-colors flex items-center justify-center gap-2"
@@ -810,7 +808,7 @@ export default function App() {
 
           {/* Header Right Actions */}
           <div className="flex items-center gap-2">
-            {isDatabaseManagerEnabled && sessionRole === 'admin' && (
+            {sessionRole === 'admin' && (
               <button
                 onClick={() => setIsDbOpen(true)}
                 className="md:hidden p-2 hover:bg-white/10 rounded-full cursor-pointer text-[#dbfcff] opacity-85 hover:opacity-100 transition-all flex items-center justify-center"
@@ -940,7 +938,7 @@ export default function App() {
 
       {/* RENDER DIRECT CORE MYSQL DATABASE MANAGER MODAL */}
       <Suspense fallback={null}>
-        {isDatabaseManagerEnabled && sessionRole === 'admin' && isDbOpen && (
+        {sessionRole === 'admin' && isDbOpen && (
           <DatabaseManagerScreen
             events={events}
             staff={staff}

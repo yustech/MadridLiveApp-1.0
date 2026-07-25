@@ -125,6 +125,9 @@ write_build_info() {
     exit 1
   fi
 
+  # Never promote a development bundle (see scripts/assert-production-bundle.mjs).
+  npm run --silent check:bundle
+
   cat > dist/build-info.json <<META
 {
   "commitSha": "${EXPECTED_COMMIT_SHA}",
