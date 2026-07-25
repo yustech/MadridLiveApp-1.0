@@ -122,7 +122,7 @@ test('shows canonical operational metrics without exposing technical load-in pro
   await databaseManager.getByRole('button', { name: 'Editar' }).first().click();
   await expect(databaseManager.getByText('Progreso %', { exact: true })).toBeVisible();
   await databaseManager.locator('.fixed.inset-0.z-50').getByRole('button').first().click();
-  await databaseManager.getByRole('button').nth(1).click();
+  await databaseManager.getByRole('button', { name: 'Cerrar gestor de base de datos' }).click();
 
   await page.getByRole('button', { name: 'Solo déficit' }).click();
   await expect(page.getByText('No hay conciertos con déficit de personal para el filtro activo.')).toBeVisible();

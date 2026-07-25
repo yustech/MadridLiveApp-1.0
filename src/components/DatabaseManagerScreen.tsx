@@ -422,6 +422,7 @@ export default function DatabaseManagerScreen({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
+              aria-label="Cerrar gestor de base de datos"
               className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
