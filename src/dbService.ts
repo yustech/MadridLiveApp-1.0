@@ -147,6 +147,40 @@ export async function forceResetDatabase() {
   await resetWithApi();
 }
 
+// --- SELECTIVE DATABASE PURGE (admin "Vaciar base de datos" tool) ---
+
+export interface DatabaseCounts {
+  staff: number;
+  events: number;
+  shifts: number;
+  alerts: number;
+}
+
+export async function fetchDatabaseCounts(): Promise<DatabaseCounts> {
+  const payload = await apiJson<{ counts?: Partial<DatabaseCounts> }>('/health-count');
+  const counts = payload.counts ?? {};
+  return {
+    staff: Number(counts.staff ?? 0),
+    events: Number(counts.events ?? 0),
+    shifts: Number(counts.shifts ?? 0),
+    alerts: Number(counts.alerts ?? 0),
+  };
+}
+
+export interface PurgeResult {
+  success: boolean;
+  deleted: Record<string, number>;
+  tables: string[];
+  message?: string;
+}
+
+export async function purgeDatabaseCollections(collections: string[]): Promise<PurgeResult> {
+  return apiJson<PurgeResult>('/purge', {
+    method: 'POST',
+    body: JSON.stringify({ collections }),
+  });
+}
+
 // --- CRUD FOR EVENTS ---
 
 export async function addEvent(event: Omit<LiveEvent, 'id'>) {
