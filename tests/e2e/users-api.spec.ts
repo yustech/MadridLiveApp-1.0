@@ -115,10 +115,14 @@ test("hard delete removes a user and refuses self-deletion", async ({ request })
     expect(remaining.json?.users?.some((user: { id: string }) => user.id === viewerId)).toBe(false);
     viewerId = "";
 
+    // The self-check reads the session cookie, so it still wins while that admin is
+    // logged in even when x-admin-token is supplied. Log out first to delete the row.
+    expect((await api(request, "POST", "/api/auth/logout", {})).status).toBe(200);
     const deletedAdmin = await api(request, "DELETE", `/api/mysql/users/${adminId}`, undefined, true);
     expect(deletedAdmin.status, deletedAdmin.text).toBe(200);
     adminId = "";
   } finally {
+    await api(request, "POST", "/api/auth/logout", {});
     if (viewerId) await api(request, "DELETE", `/api/mysql/users/${viewerId}`, undefined, true);
     if (adminId) await api(request, "DELETE", `/api/mysql/users/${adminId}`, undefined, true);
   }
