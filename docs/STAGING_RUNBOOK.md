@@ -44,6 +44,15 @@ El script:
 - Crea y arranca `madridlive-app-staging.service`.
 - Ejecuta `/api/mysql/reset-initial` contra staging para poblar datos iniciales.
 
+> **`reset-initial` esta desactivado por defecto.** Ese endpoint borra todo el
+> contenido de negocio y siembra la semilla demo de 6 trabajadores. Como staging
+> lleva el roster real (901), responde `403 DEMO_RESET_DISABLED` salvo que el
+> entorno tenga `ALLOW_DEMO_DATA_RESET=true` (ver `server/mysql/demoReset.ts`).
+> Solo CI lo habilita, porque su base de datos es efimera. Si de verdad quieres
+> resembrar staging: pon la variable en `/opt/madridlive-app-staging/.env`,
+> reinicia el servicio, lanza el script y **quitala despues**. En produccion no
+> se pone nunca.
+
 No borra ni modifica datos de produccion.
 
 ## Smoke

@@ -134,6 +134,10 @@ jobs:
       PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL || secrets.ADMIN_LOGIN_EMAIL }}
       PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD || secrets.ADMIN_LOGIN_PASSWORD }}
       REQUIRE_DELETE_STAFF_AUTH: ${{ vars.REQUIRE_DELETE_STAFF_AUTH || 'true' }}
+      # El fixture del gate e2e se siembra con POST /api/mysql/reset-initial,
+      # que está desactivado salvo opt-in explícito (server/mysql/demoReset.ts).
+      # La BD de CI es efímera, así que aquí sí se habilita.
+      ALLOW_DEMO_DATA_RESET: 'true'
       MYSQL_HOST: 127.0.0.1
       MYSQL_PORT: 3306
       MYSQL_DATABASE: madrid_live_ci

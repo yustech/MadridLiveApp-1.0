@@ -7,6 +7,7 @@ import {
   validateStaffPayload,
 } from "./src/validators";
 import { unauthorizedResponse } from "./server/mysql/auth";
+import { DEMO_RESET_DISABLED_RESPONSE, isDemoResetAllowed } from "./server/mysql/demoReset";
 import { getPool, isMysqlConfigured } from "./server/mysql/pool";
 import { resolvePurgeTables, executePurge } from "./server/mysql/purge";
 import {
@@ -336,7 +337,12 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions)
   });
 
   app.post(`${MYSQL_PREFIX}/reset-initial`, async (req, res) => {
+    // El orden importa: primero la auth, para que sin sesión se siga
+    // respondiendo 401 y no se filtre la configuración del entorno.
     if (!(await requireAdmin(req, res))) return;
+    if (!isDemoResetAllowed()) {
+      return res.status(403).json(DEMO_RESET_DISABLED_RESPONSE);
+    }
 
     try {
       await resetInitialData();
