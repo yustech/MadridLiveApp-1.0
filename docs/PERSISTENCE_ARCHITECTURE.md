@@ -21,7 +21,7 @@ Patron de acceso:
 - Escritura mediante endpoints Express en `mysqlApi.ts`.
 - Fichaje operativo mediante `POST /api/mysql/checkin` y `POST /api/mysql/checkout`.
 - Validacion y saneamiento de payloads en `src/validators.ts`.
-- Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL. Es el fixture demo de local/CI; el frontend de produccion no lo expone (el DatabaseManager esta apagado en prod).
+- Reset a datos iniciales mediante `POST /api/mysql/reset-initial`, protegido por auth admin y ejecutado en transaccion MySQL. Es el fixture demo de local/CI. **Ademas del rol admin exige `ALLOW_DEMO_DATA_RESET=true`** (`server/mysql/demoReset.ts`): sin esa variable responde `403 DEMO_RESET_DISABLED` sin tocar la base de datos. Solo CI la pone; produccion y staging no. El boton que lo lanzaba desde la interfaz se retiro en #121, pero el endpoint seguia alcanzable para cualquier sesion admin.
 - Vaciado selectivo mediante `POST /api/mysql/purge` (admin), body `{ collections: [...] }`. Borra solo las colecciones de negocio elegidas (staff/events/shifts/alerts/convocatorias/plantillas) en una transaccion; `users` y `schema_migrations` nunca son purgables (`server/mysql/purge.ts`). Disponible en produccion desde la tarjeta "Mantenimiento" de la pantalla Usuarios (solo admin), protegido en la UI con confirmacion escrita "VACIAR".
 
 Archivos clave:

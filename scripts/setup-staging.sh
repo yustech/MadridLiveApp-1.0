@@ -264,10 +264,19 @@ if [[ -z "$admin_token" ]]; then
   exit 1
 fi
 
-curl --connect-timeout 3 --max-time 20 -fsS \
+# OJO: esto RESIEMBRA la base con la semilla demo de 6 trabajadores. Staging
+# lleva el roster real, así que el endpoint está desactivado por defecto
+# (server/mysql/demoReset.ts) y esta llamada devolverá 403 salvo que se ponga
+# ALLOW_DEMO_DATA_RESET=true en el entorno de staging a propósito.
+if ! curl --connect-timeout 3 --max-time 20 -fsS \
   -X POST \
   -H "x-admin-token: $admin_token" \
-  "$STAGING_BASE_URL/api/mysql/reset-initial" >/dev/null
+  "$STAGING_BASE_URL/api/mysql/reset-initial" >/dev/null; then
+  echo "[staging] reset-initial rechazado. Si de verdad quieres BORRAR los datos de staging" >&2
+  echo "[staging] y volver a la semilla demo de 6 trabajadores, pon ALLOW_DEMO_DATA_RESET=true" >&2
+  echo "[staging] en $STAGING_ENV, reinicia el servicio y vuelve a lanzar." >&2
+  exit 1
+fi
 
 curl --connect-timeout 3 --max-time 10 -fsS \
   -H "x-admin-token: $admin_token" \
