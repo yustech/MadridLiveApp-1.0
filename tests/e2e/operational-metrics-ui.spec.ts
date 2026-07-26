@@ -120,7 +120,10 @@ test('shows canonical operational metrics without exposing technical load-in pro
   await expect(databaseManager).toContainText('Personal Requerido: 2 | Escaneos: 99 /min');
   await expect(databaseManager.getByText(/Montaje:/)).toHaveCount(0);
   await databaseManager.getByRole('button', { name: 'Editar' }).first().click();
-  await expect(databaseManager.getByText('Progreso %', { exact: true })).toBeVisible();
+  // Los campos legacy ya no se piden en el alta/edición del gestor.
+  await expect(databaseManager.getByText('Progreso %', { exact: true })).toHaveCount(0);
+  await expect(databaseManager.getByText('Personal Activo', { exact: true })).toHaveCount(0);
+  await expect(databaseManager.getByText('Vel. de Escaneo', { exact: true })).toHaveCount(0);
   // La fecha se mete con un selector, igual que en el Dashboard, y se precarga
   // desde el evento almacenado (aquí con el mes en formato numérico).
   await expect(databaseManager.getByLabel('Fecha')).toHaveValue(dateString);
