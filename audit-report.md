@@ -685,7 +685,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   propia, staging-first.
   ```
 
-- [ ] **31. Pantalla propia para crear/editar eventos (hoy solo se puede desde el EXPLORADOR BD).** *(añadida 2026-07-25, decisión del owner)*
+- [~] **31. Pantalla propia para crear/editar eventos (hoy solo se puede desde el EXPLORADOR BD).** *(añadida 2026-07-25, decisión del owner; **DISEÑADA Y APROBADA 2026-07-26** → `docs/EVENT_EDITOR_DESIGN.md`, pendiente de implementar)*
   **Contexto verificado en código**: `addEvent` (`src/dbService.ts:161`) tiene **un único caller en toda la app**: `DatabaseManagerScreen.tsx:352`. Es decir, crear un evento solo es posible desde el panel de CRUD en crudo del Gestor de BD. Los colaboradores sí tienen vía propia (formulario individual en `StaffScreen` vía `onAddWorker` → `addStaff`, más importación por lote con `addStaffBatch`), pero los eventos no. Esto salió a la luz al plantear apagar el Gestor en producción: el owner señaló que sin él la herramienta queda coja, y tenía razón para eventos.
   **Decisión del owner**: el Gestor se queda (visible solo para admin, ver PR #123), y además se apunta esta tarea para que crear eventos no dependa de un panel técnico.
   **Modelo/Effort**: medio. Diseño previo recomendado (qué campos son obligatorios, validación de fecha/hora, qué se puede editar después de que el evento tenga turnos registrados). Codex-implementa / Claude-revisa.
@@ -695,7 +695,8 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   - Editar evento: decidir en diseño qué campos siguen siendo editables cuando ya hay `shifts`/`event_staff` colgando (hay guards de integridad que pueden rechazar cambios).
   - No tocar `loadInPercent` (retirado de vistas operativas en #23) ni el `scanRate` legacy (#22).
   - Cuando exista, el Gestor deja de ser la única vía; **no** por ello hay que apagarlo (es la decisión del owner en #123).
-  **Prompt**: pendiente de redactar tras el diseño.
+  **DISEÑO CERRADO 2026-07-26** → **`docs/EVENT_EDITOR_DESIGN.md`** (inventario verificado en `256b70c`). Decisiones del owner: (1) **modal desde el Dashboard**, que ya *es* la lista de eventos — no pantalla nueva en el sidebar; (2) con fichajes registrados, **fecha y apertura de puertas se bloquean**, el resto sigue editable; (3) renombrar **propaga** el título a `shifts.event_title` (solo por `event_id`, nunca por el título antiguo); (4) se permite **borrar también eventos futuros** con confirmación por nombre exacto (patrón de #120). Hallazgos que salieron del inventario: `totalStaffNeeded` es solo el *fallback* de `requiredStaff` en los 6 sitios que lo leen → un único campo escribe ambas columnas; `POST /events` **no valida `location`** (la pasa cruda, el PATCH sí) → se corrige; `DELETE /events/:id` borra turnos por `event_id OR event_title` y puede llevarse los de un evento homónimo → se acota a `event_id = ? OR (event_id IS NULL AND event_title = ?)`. Sin migración, sin dependencias nuevas. Guard nuevo de servidor `409 EVENT_HAS_SHIFTS` **por cambio efectivo** (no por presencia del campo) para no romper la edición desde el EXPLORADOR BD, que manda el objeto completo en cada PATCH.
+  **Prompt**: pendiente de expandir desde `docs/EVENT_EDITOR_DESIGN.md` al pasarlo a Codex.
 
 ---
 
