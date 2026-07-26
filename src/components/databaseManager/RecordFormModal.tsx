@@ -93,28 +93,17 @@ export function RecordFormModal({
                   <input type="time" required aria-label="Apertura de puertas" value={eventData.doorsOpen} onChange={e => setEventData({ ...eventData, doorsOpen: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                 </div>
               </div>
+              {/* Personal Activo (#22), Vel. de Escaneo (#22) y Progreso % (#23)
+                  ya no los lee ninguna vista: se dejan de pedir aquí. En edición
+                  conservan su valor almacenado porque siguen en el estado. */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] text-white/50 block mb-1">Personal Requerido</label>
                   <input type="number" required value={eventData.requiredStaff} onChange={e => setEventData({ ...eventData, requiredStaff: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Personal Activo</label>
-                  <input type="number" required value={eventData.activeStaff} onChange={e => setEventData({ ...eventData, activeStaff: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
                   <label className="text-[10px] text-white/50 block mb-1">Objetivo Total</label>
                   <input type="number" required value={eventData.totalStaffNeeded} onChange={e => setEventData({ ...eventData, totalStaffNeeded: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Vel. de Escaneo</label>
-                  <input type="number" required value={eventData.scanRate} onChange={e => setEventData({ ...eventData, scanRate: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Progreso %</label>
-                  <input type="number" required min="0" max="100" value={eventData.loadInPercent} onChange={e => setEventData({ ...eventData, loadInPercent: Number(e.target.value) })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                 </div>
               </div>
             </div>
