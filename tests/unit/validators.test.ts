@@ -180,6 +180,15 @@ describe('validateEventPayload', () => {
     const { title, ...noTitle } = base;
     expect(validateEventPayload(noTitle).valid).toBe(false);
   });
+
+  it('accepts, sanitizes and limits the optional location', () => {
+    expect(validateEventPayload({ ...base, location: '  IFEMA  ' })).toMatchObject({
+      valid: true,
+      sanitized: { location: 'IFEMA' },
+    });
+    expect(validateEventPayload({ ...base, location: 'x'.repeat(300) }).valid).toBe(false);
+    expect(validateEventPayload(base).valid).toBe(true);
+  });
 });
 
 describe('validateStaffPatchPayload rating', () => {

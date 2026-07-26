@@ -35,6 +35,8 @@ import {
   getStaffingCoverage,
   hasEventStaffDeficit,
 } from '../utils/operationalMetrics';
+import EventFormModal from './events/EventFormModal';
+import { canConfirmEventDelete, getEventFormLocks } from './events/eventFormUtils';
 
 interface DashboardScreenProps {
   events: LiveEvent[];
@@ -45,7 +47,9 @@ interface DashboardScreenProps {
   setActiveEventId: (id: string) => void;
   onLaunchScanner: () => void;
   onManageEventStaff: (event: LiveEvent) => void;
-  onDeletePastEvent: (eventId: string) => Promise<void>;
+  onCreateEvent: (event: Omit<LiveEvent, 'id' | 'assignedStaffCount'>) => Promise<void>;
+  onUpdateEvent: (eventId: string, payload: Partial<LiveEvent>) => Promise<void>;
+  onDeleteEvent: (eventId: string) => Promise<void>;
   canManage: boolean;
 }
 
@@ -58,7 +62,9 @@ export default function DashboardScreen({
   setActiveEventId,
   onLaunchScanner,
   onManageEventStaff,
-  onDeletePastEvent,
+  onCreateEvent,
+  onUpdateEvent,
+  onDeleteEvent,
   canManage,
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
@@ -66,6 +72,9 @@ export default function DashboardScreen({
   const [eventListTab, setEventListTab] = useState<'upcoming' | 'past'>('upcoming');
   const [deleteTargetEvent, setDeleteTargetEvent] = useState<LiveEvent | null>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [eventFormOpen, setEventFormOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<LiveEvent | null>(null);
 
   // Focus card follows the selected event. Yesterday remains operational until
   // 23:59 the next day; future events stay in planning mode.
@@ -239,17 +248,23 @@ export default function DashboardScreen({
     ? getRecentCheckinRate(shifts, [selectedDetailEvent.id])
     : { count: 0, ratePerMinute: 0 };
 
-  const handleConfirmDeletePastEvent = async () => {
-    if (!deleteTargetEvent) return;
+  const handleConfirmDeleteEvent = async () => {
+    if (!deleteTargetEvent || !canConfirmEventDelete(deleteConfirmation, deleteTargetEvent)) return;
 
     setIsDeletingEvent(true);
     try {
-      await onDeletePastEvent(deleteTargetEvent.id);
+      await onDeleteEvent(deleteTargetEvent.id);
       setSelectedDetailEvent((current) => current?.id === deleteTargetEvent.id ? null : current);
       setDeleteTargetEvent(null);
+      setDeleteConfirmation('');
     } finally {
       setIsDeletingEvent(false);
     }
+  };
+
+  const openDeleteDialog = (event: LiveEvent) => {
+    setDeleteConfirmation('');
+    setDeleteTargetEvent(event);
   };
 
   const getScannerActionLabel = (event: LiveEvent) => {
@@ -472,6 +487,18 @@ export default function DashboardScreen({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEvent(null);
+                  setEventFormOpen(true);
+                }}
+                className="h-8 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-100 hover:bg-indigo-500/25"
+              >
+                + Nuevo evento
+              </button>
+            )}
             {eventListTab === 'upcoming' ? (
               <>
                 <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">
@@ -544,7 +571,7 @@ export default function DashboardScreen({
                     type="button"
                     onClick={(evt) => {
                       evt.stopPropagation();
-                      setDeleteTargetEvent(event);
+                      openDeleteDialog(event);
                     }}
                     className="h-9 w-9 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 transition-colors flex items-center justify-center"
                     aria-label={`Borrar evento ${event.title}`}
@@ -563,23 +590,45 @@ export default function DashboardScreen({
 
       {deleteTargetEvent && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
-          <div className="bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-hud-glow">
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-event-title" className="bg-[#120f26]/95 border border-white/20 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-hud-glow">
             <div className="flex items-center gap-3 text-left">
               <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-300">
                 <History className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-rose-300">Eliminar concierto pasado</p>
-                <h3 className="text-lg font-display font-black text-white mt-1">{deleteTargetEvent.title}</h3>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-rose-300">Eliminar evento</p>
+                <h3 id="delete-event-title" className="text-lg font-display font-black text-white mt-1">{deleteTargetEvent.title}</h3>
               </div>
             </div>
             <p className="text-xs text-white/60">
-              Se borrará el concierto y todos los registros horarios asociados a ese evento. Esta acción no se puede deshacer.
+              {formatEventDate(deleteTargetEvent)}. Se borrarán el evento y sus datos asociados. Esta acción no se puede deshacer.
             </p>
+            <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <strong className="block text-lg text-white">{deleteTargetEvent.assignedStaffCount ?? 0}</strong>
+                <span className="text-white/50">convocados</span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <strong className="block text-lg text-white">{getEventFormLocks(deleteTargetEvent, shifts).shiftCount}</strong>
+                <span className="text-white/50">fichajes</span>
+              </div>
+            </div>
+            <label className="block text-xs text-white/70">
+              Escribe <strong className="text-white">{deleteTargetEvent.title}</strong> para confirmar
+              <input
+                type="text"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-white outline-none focus:border-rose-400/50"
+              />
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setDeleteTargetEvent(null)}
+                onClick={() => {
+                  setDeleteTargetEvent(null);
+                  setDeleteConfirmation('');
+                }}
                 disabled={isDeletingEvent}
                 className="h-11 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition-colors text-xs font-mono"
               >
@@ -587,11 +636,11 @@ export default function DashboardScreen({
               </button>
               <button
                 type="button"
-                onClick={() => void handleConfirmDeletePastEvent()}
-                disabled={isDeletingEvent}
+                onClick={() => void handleConfirmDeleteEvent()}
+                disabled={isDeletingEvent || !canConfirmEventDelete(deleteConfirmation, deleteTargetEvent)}
                 className="h-11 rounded-xl border border-rose-500/20 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 transition-colors text-xs font-mono font-bold"
               >
-                {isDeletingEvent ? 'Borrando...' : 'Borrar todo'}
+                {isDeletingEvent ? 'Borrando...' : 'Borrar evento'}
               </button>
             </div>
           </div>
@@ -689,6 +738,33 @@ export default function DashboardScreen({
                 <span>{getFocusActionLabel(selectedDetailEvent)}</span>
               </button>
 
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingEvent(selectedDetailEvent);
+                    setEventFormOpen(true);
+                    setSelectedDetailEvent(null);
+                  }}
+                  className="w-full h-11 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/25 text-indigo-100 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors"
+                >
+                  Editar evento
+                </button>
+              )}
+
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    openDeleteDialog(selectedDetailEvent);
+                    setSelectedDetailEvent(null);
+                  }}
+                  className="w-full h-11 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-400/25 text-rose-200 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors"
+                >
+                  Borrar evento
+                </button>
+              )}
+
               <button
                 onClick={() => setSelectedDetailEvent(null)}
                 className="text-xs font-mono text-white/50 hover:text-white underline py-1 text-center cursor-pointer"
@@ -698,6 +774,18 @@ export default function DashboardScreen({
             </div>
           </div>
         </div>
+      )}
+      {eventFormOpen && (
+        <EventFormModal
+          event={editingEvent}
+          locks={getEventFormLocks(editingEvent, shifts)}
+          onClose={() => {
+            setEventFormOpen(false);
+            setEditingEvent(null);
+          }}
+          onCreate={onCreateEvent}
+          onUpdate={onUpdateEvent}
+        />
       )}
     </div>
   );
