@@ -2,6 +2,9 @@
 
 > Auditoría de optimización generada el **2026-07-12**. Estado del código base: rama `main` @ `c37f0ed`.
 > App: control de acceso QR de personal para eventos (React 19 + Vite + Express + MySQL/MariaDB), desplegada en `madridliveapp.top` (prod) y `staging.madridliveapp.top` (staging) vía systemd + nginx (HestiaCP).
+>
+> **Estado al 2026-07-26 (casillas reconciliadas contra el código, no contra la memoria): 35 tareas hechas, 0 pendientes, 2 descartadas por el owner (#1 y #2).**
+> El backlog está vacío: si retomas con el prompt de continuación de abajo no encontrará ninguna `[ ]`. Antes de añadir tareas nuevas, comprueba el estado real en el código — varias tareas estuvieron marcadas como pendientes mucho después de estar hechas y desplegadas (#18 y #22–#26).
 
 ---
 
@@ -273,7 +276,17 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   para aprobación antes de tocar la BD de producción.
   ```
 
-- [ ] **18. Multi-usuario real: cuentas con email/password y roles.** *(añadida 2026-07-15, decisión del owner)*
+- [x] **HECHA (implementada por fases entre el 2026-07-19 y el 2026-07-25, desplegada prod+staging; casilla reconciliada el 2026-07-26 tras verificar el código, no la memoria.)** **18. Multi-usuario real: cuentas con email/password y roles.** *(añadida 2026-07-15, decisión del owner)*
+  **Qué se implementó realmente** (diseño aprobado en `docs/MULTIUSER_DESIGN.md`):
+  - **PR #108** — sesiones por rol (`#18A`): migración versionada **`0005_create_users.ts`** (tabla `users` con `email`, `password_hash`, `role`, `status`, `token_version`), hash con `scrypt` de Node (sin dependencia nueva), y los 3 roles del diseño en `src/validators.ts::USER_ROLES`: `admin`, `operator`, `viewer`. `server/mysql/routes/routeAuth.ts::CHECKIN_ROLES` limita `checkin`/`checkout` a `admin` y `operator`.
+  - **PR #111** — endurecimiento: login en tiempo constante, `403` para el test de BD desde rol no admin.
+  - **PR #109** — recuperación de contraseña por email: `POST /api/auth/forgot-password` y `/api/auth/reset-password`. Las variables `MAIL_SMTP_*` y `MAIL_FROM` están puestas en los `.env` de prod y staging.
+  - **PR #112** — cambio de contraseña autoservicio (`POST /api/mysql/users/me/password`, `ChangePasswordModal`).
+  - **PR #118** — el usuario de la sesión real en la barra lateral.
+  - **PR #122** — borrado de usuario (`DELETE /api/mysql/users/:id`) con guards de último admin y cuenta propia.
+  - **PR #123** — la visibilidad del EXPLORADOR BD pasa a depender solo del rol `admin`.
+  **Lista de seguridad del diseño, verificada contra el código el 2026-07-26**: ningún endpoint de usuarios sin guard de rol (`usersRoutes.ts`: `GET`/`POST`/`PATCH :id`/`DELETE :id` + `me/password`); `token_version` se comprueba al resolver la sesión (`server/mysql/auth/roleResolver.ts`), así que desactivar o cambiar la contraseña invalida las cookies ya emitidas; `forgot-password` devuelve la **misma** respuesta exista o no el email (`forgotPasswordResponse` en las dos ramas de `server.ts`), así que no permite enumerar cuentas.
+  **Nota**: esta tarea estuvo marcada como pendiente mucho después de estar hecha. Al retomar, comprobar el código antes de fiarse de estas casillas.
   **Contexto**: hoy la app tiene una única sesión de admin (login → cookie de sesión / `x-admin-token`). El panel visual de "Cuentas de Supervisor Autorizadas" de DatabaseManagerScreen era una maqueta sin backend (se elimina en #12g) — esta tarea es la funcionalidad real. Probablemente post-lanzamiento inicial.
   **Modelo/Effort**: Opus 4.8 · high. **Diseño-primero como #14**: doc de diseño aprobado por el owner antes de tocar código o BD.
   **Por qué**: el owner necesitará dar acceso a más personas sin compartir la contraseña de admin. Toca superficie de seguridad completa (almacenamiento de credenciales, sesiones, autorización de todos los endpoints protegidos), así que merece diseño dedicado y no improvisación.
@@ -685,7 +698,7 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   propia, staging-first.
   ```
 
-- [~] **31. Pantalla propia para crear/editar eventos (hoy solo se puede desde el EXPLORADOR BD).** *(añadida 2026-07-25, decisión del owner; **DISEÑADA Y APROBADA 2026-07-26** → `docs/EVENT_EDITOR_DESIGN.md`, pendiente de implementar)*
+- [x] **HECHA (diseño PR #124 `4e99a94` → `docs/EVENT_EDITOR_DESIGN.md`; implementación PR #125 `5a15ab8`, desplegada prod+staging 2026-07-26.)** **31. Pantalla propia para crear/editar eventos (hoy solo se puede desde el EXPLORADOR BD).** *(añadida 2026-07-25, decisión del owner)*
   **Contexto verificado en código**: `addEvent` (`src/dbService.ts:161`) tiene **un único caller en toda la app**: `DatabaseManagerScreen.tsx:352`. Es decir, crear un evento solo es posible desde el panel de CRUD en crudo del Gestor de BD. Los colaboradores sí tienen vía propia (formulario individual en `StaffScreen` vía `onAddWorker` → `addStaff`, más importación por lote con `addStaffBatch`), pero los eventos no. Esto salió a la luz al plantear apagar el Gestor en producción: el owner señaló que sin él la herramienta queda coja, y tenía razón para eventos.
   **Decisión del owner**: el Gestor se queda (visible solo para admin, ver PR #123), y además se apunta esta tarea para que crear eventos no dependa de un panel técnico.
   **Modelo/Effort**: medio. Diseño previo recomendado (qué campos son obligatorios, validación de fecha/hora, qué se puede editar después de que el evento tenga turnos registrados). Codex-implementa / Claude-revisa.
@@ -696,7 +709,8 @@ Referencia de seguridad transversal: **el repo es público**. Nunca vuelques IP 
   - No tocar `loadInPercent` (retirado de vistas operativas en #23) ni el `scanRate` legacy (#22).
   - Cuando exista, el Gestor deja de ser la única vía; **no** por ello hay que apagarlo (es la decisión del owner en #123).
   **DISEÑO CERRADO 2026-07-26** → **`docs/EVENT_EDITOR_DESIGN.md`** (inventario verificado en `256b70c`). Decisiones del owner: (1) **modal desde el Dashboard**, que ya *es* la lista de eventos — no pantalla nueva en el sidebar; (2) con fichajes registrados, **fecha y apertura de puertas se bloquean**, el resto sigue editable; (3) renombrar **propaga** el título a `shifts.event_title` (solo por `event_id`, nunca por el título antiguo); (4) se permite **borrar también eventos futuros** con confirmación por nombre exacto (patrón de #120). Hallazgos que salieron del inventario: `totalStaffNeeded` es solo el *fallback* de `requiredStaff` en los 6 sitios que lo leen → un único campo escribe ambas columnas; `POST /events` **no valida `location`** (la pasa cruda, el PATCH sí) → se corrige; `DELETE /events/:id` borra turnos por `event_id OR event_title` y puede llevarse los de un evento homónimo → se acota a `event_id = ? OR (event_id IS NULL AND event_title = ?)`. Sin migración, sin dependencias nuevas. Guard nuevo de servidor `409 EVENT_HAS_SHIFTS` **por cambio efectivo** (no por presencia del campo) para no romper la edición desde el EXPLORADOR BD, que manda el objeto completo en cada PATCH.
-  **Prompt**: pendiente de expandir desde `docs/EVENT_EDITOR_DESIGN.md` al pasarlo a Codex.
+  **IMPLEMENTADA (PR #125 `5a15ab8`, Codex implementa / Claude revisa, desplegada prod+staging 2026-07-26)**: modal `src/components/events/{EventFormModal.tsx,eventFormUtils.ts}` enganchado al Dashboard (`+ Nuevo evento` en la cabecera de la lista, `Editar evento` y `Borrar evento` en el modal de detalle, los tres solo para `admin`), helpers puros de fecha en `src/utils/events.ts` con tokens de mes en español, y los 4 cambios de servidor previstos. **Tres hallazgos de la revisión, corregidos antes del merge**: (1) el guard `EVENT_HAS_SHIFTS` comparaba cadenas en crudo, pero `validateEventPatchPayload` normaliza el día (`'08'` → `'8'`) mientras que `scripts/reset-mysql-to-initial.ts` siembra el valor literal — reenviar el mismo valor desde el EXPLORADOR BD daba un 409 falso; la comparación vive ahora en `server/mysql/events/eventDateFields.ts` (día y año como números, mes por índice, `doorsOpen` sin espacios) con tests propios; (2) el gateo por rol usaba el atributo `hidden` en vez de renderizado condicional; (3) guardar sin cambios mandaba un `PATCH {}` y pintaba el 400 del servidor en crudo.
+  **Seguimiento (2026-07-26, PRs #126 `5af3b87` y #128 `897e472`)**: el formulario de eventos del EXPLORADOR BD se alineó con este — mismo selector de fecha y hora (se escribe con números y se sigue guardando el token de mes, porque `DashboardScreen.tsx` pinta `dateMonth` en crudo en las tarjetas) y deja de pedir los campos legacy `activeStaff`, `scanRate` y `loadInPercent`.
 
 ---
 
