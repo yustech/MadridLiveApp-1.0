@@ -5,6 +5,7 @@ import {
   DEFAULT_FEMALE_AVATAR,
   DEFAULT_MALE_AVATAR,
 } from '../../utils/avatarUpload';
+import { eventDatePartsFromIsoDate, isoDateFromEvent } from '../../utils/events';
 import { sectorTranslationMap, tabLabelMap } from './constants';
 import { CollectionTab } from './types';
 import StaffAvatar from '../StaffAvatar';
@@ -70,22 +71,26 @@ export function RecordFormModal({
                 <label className="text-[10px] text-white/50 block mb-1">Ubicación</label>
                 <input type="text" required value={eventData.location} onChange={e => setEventData({ ...eventData, location: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Día (Número)</label>
-                  <input type="text" required value={eventData.dateDay} onChange={e => setEventData({ ...eventData, dateDay: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. 12" />
+                  <label className="text-[10px] text-white/50 block mb-1">Fecha</label>
+                  {/* Mismo control que el formulario de eventos del Dashboard: se
+                      escribe con números y se guarda el token de mes de siempre. */}
+                  <input
+                    type="date"
+                    required
+                    aria-label="Fecha"
+                    value={isoDateFromEvent(eventData) ?? ''}
+                    onChange={e => setEventData({
+                      ...eventData,
+                      ...(eventDatePartsFromIsoDate(e.target.value) ?? { dateDay: '', dateMonth: '', dateYear: '' }),
+                    })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white"
+                  />
                 </div>
                 <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Mes (Letras)</label>
-                  <input type="text" required value={eventData.dateMonth} onChange={e => setEventData({ ...eventData, dateMonth: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. OCT" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Año</label>
-                  <input type="number" required min="1900" max="2200" value={eventData.dateYear} onChange={e => setEventData({ ...eventData, dateYear: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. 2026" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/50 block mb-1">Apertura</label>
-                  <input type="text" required value={eventData.doorsOpen} onChange={e => setEventData({ ...eventData, doorsOpen: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="ej. 19:00" />
+                  <label className="text-[10px] text-white/50 block mb-1">Apertura de puertas</label>
+                  <input type="time" required aria-label="Apertura de puertas" value={eventData.doorsOpen} onChange={e => setEventData({ ...eventData, doorsOpen: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">

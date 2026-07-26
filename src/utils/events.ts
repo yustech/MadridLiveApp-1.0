@@ -91,7 +91,7 @@ export function eventDatePartsFromIsoDate(iso: string):
   };
 }
 
-export function isoDateFromEvent(event: LiveEvent): string | null {
+export function isoDateFromEvent(event: Pick<LiveEvent, 'dateDay' | 'dateMonth' | 'dateYear'>): string | null {
   if (!event) return null;
   const year = Number(String(event.dateYear ?? '').trim());
   const month = parseEventMonth(String(event.dateMonth ?? ''));
