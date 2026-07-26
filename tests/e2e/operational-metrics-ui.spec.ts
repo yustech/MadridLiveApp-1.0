@@ -121,6 +121,10 @@ test('shows canonical operational metrics without exposing technical load-in pro
   await expect(databaseManager.getByText(/Montaje:/)).toHaveCount(0);
   await databaseManager.getByRole('button', { name: 'Editar' }).first().click();
   await expect(databaseManager.getByText('Progreso %', { exact: true })).toBeVisible();
+  // La fecha se mete con un selector, igual que en el Dashboard, y se precarga
+  // desde el evento almacenado (aquí con el mes en formato numérico).
+  await expect(databaseManager.getByLabel('Fecha')).toHaveValue(dateString);
+  await expect(databaseManager.getByLabel('Apertura de puertas')).toHaveValue(activeEvent.doorsOpen);
   await databaseManager.locator('.fixed.inset-0.z-50').getByRole('button').first().click();
   await databaseManager.getByRole('button', { name: 'Cerrar gestor de base de datos' }).click();
 
