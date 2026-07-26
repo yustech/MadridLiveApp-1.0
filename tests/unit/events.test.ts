@@ -7,6 +7,8 @@ import {
   isRegistrableEvent,
   requiresPastEventWarning,
   getEventStatusLabel,
+  eventDatePartsFromIsoDate,
+  isoDateFromEvent,
 } from '../../src/utils/events';
 import type { LiveEvent } from '../../src/types';
 
@@ -74,6 +76,29 @@ describe('getEventTemporalState', () => {
     expect(getEventTemporalState(ev({ dateDay: '18', dateMonth: 'JUL', dateYear: '2026' }), now)).toBe('past');
     expect(getEventTemporalState(ev({ dateDay: '19', dateMonth: 'JUL', dateYear: '2026' }), now)).toBe('today');
     expect(getEventTemporalState(ev({ dateDay: '20', dateMonth: 'JUL', dateYear: '2026' }), now)).toBe('future');
+  });
+});
+
+describe('event editor date conversion', () => {
+  const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+  it('round-trips all twelve months with Spanish tokens', () => {
+    months.forEach((month, index) => {
+      const iso = `2026-${String(index + 1).padStart(2, '0')}-08`;
+      const parts = eventDatePartsFromIsoDate(iso);
+      expect(parts).toEqual({ dateDay: '08', dateMonth: month, dateYear: '2026' });
+      expect(isoDateFromEvent(ev(parts ?? {}))).toBe(iso);
+    });
+  });
+
+  it('accepts a leap day and rejects invalid civil dates and malformed input', () => {
+    expect(eventDatePartsFromIsoDate('2028-02-29')).toEqual({
+      dateDay: '29', dateMonth: 'FEB', dateYear: '2028',
+    });
+    expect(eventDatePartsFromIsoDate('2027-02-29')).toBeNull();
+    expect(eventDatePartsFromIsoDate('2026-13-01')).toBeNull();
+    expect(eventDatePartsFromIsoDate('not-a-date')).toBeNull();
+    expect(isoDateFromEvent(ev({ dateDay: '31', dateMonth: 'FEB' }))).toBeNull();
   });
 });
 

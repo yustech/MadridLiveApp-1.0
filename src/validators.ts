@@ -1130,6 +1130,16 @@ export function validateEventPayload(body: unknown): ValidationResult<any> {
     sanitized.title = titleRes.sanitized;
   }
 
+  // location (optional, same rule as PATCH)
+  if (b.location !== undefined) {
+    const locationRes = validateStringField(b.location, "location", 255, { allowEmpty: true });
+    if (!locationRes.valid) {
+      errors.push(...locationRes.errors);
+    } else {
+      sanitized.location = locationRes.sanitized;
+    }
+  }
+
   // eventTitle (optional, defaults to title)
   if (b.eventTitle !== undefined && b.eventTitle !== null && String(b.eventTitle).trim() !== "") {
     const eventTitleRes = sanitizeString(b.eventTitle, "eventTitle", 255);

@@ -101,6 +101,10 @@ export function subscribeToEvents(callback: (events: LiveEvent[]) => void) {
   return createPollingSubscription<LiveEvent>('/events', callback);
 }
 
+export function refreshEvents() {
+  getPollingResource<LiveEvent>('/events').refresh();
+}
+
 export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
   return createPollingSubscription<StaffMember>(
     '/staff',

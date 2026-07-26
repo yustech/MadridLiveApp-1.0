@@ -20,7 +20,10 @@ import {
   checkInWorker,
   checkOutWorker,
   addStaff,
+  addEvent,
+  updateEvent,
   deleteEvent,
+  refreshEvents,
   MysqlApiError,
 } from './dbService';
 
@@ -355,15 +358,26 @@ export default function App() {
     }
   };
 
-  const handleDeletePastEvent = async (eventId: string) => {
+  const handleCreateEvent = async (event: Omit<LiveEvent, 'id' | 'assignedStaffCount'>) => {
+    await addEvent(event);
+    refreshEvents();
+  };
+
+  const handleUpdateEvent = async (eventId: string, payload: Partial<LiveEvent>) => {
+    await updateEvent(eventId, payload);
+    refreshEvents();
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
     try {
       await deleteEvent(eventId);
+      refreshEvents();
       setActiveEventId((prev) => {
         if (prev !== eventId) return prev;
         return selectDefaultActiveEvent(events.filter((event) => event.id !== eventId));
       });
     } catch (err) {
-      console.error('Failed to delete past event and related shifts: ', err);
+      console.error('Failed to delete event and related shifts: ', err);
       throw err;
     }
   };
@@ -858,7 +872,9 @@ export default function App() {
                   setManagedEventId(event.id);
                   setActiveScreen('event-staff');
                 }}
-                onDeletePastEvent={handleDeletePastEvent}
+                onCreateEvent={handleCreateEvent}
+                onUpdateEvent={handleUpdateEvent}
+                onDeleteEvent={handleDeleteEvent}
                 canManage={sessionRole === 'admin'}
               />
             )}

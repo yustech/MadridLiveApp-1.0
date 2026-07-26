@@ -52,7 +52,12 @@ const MONTH_NAME: Record<string, string> = {
   DEC: 'Diciembre',
 };
 
-function parseEventMonth(rawMonth: string): number | null {
+const SPANISH_MONTH_TOKENS = [
+  'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+  'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
+] as const;
+
+export function parseEventMonth(rawMonth: string): number | null {
   const normalized = rawMonth.trim().toUpperCase();
   const numericMonth = Number(normalized);
 
@@ -61,6 +66,40 @@ function parseEventMonth(rawMonth: string): number | null {
   }
 
   return MONTH_INDEX[normalized] ?? null;
+}
+
+export function eventDatePartsFromIsoDate(iso: string):
+  { dateDay: string; dateMonth: string; dateYear: string } | null {
+  if (typeof iso !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1900 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  // Validate the civil date using numeric components; never parse the ISO
+  // string as UTC, which can shift the displayed day in Madrid.
+  const probe = new Date(year, month - 1, day);
+  if (probe.getFullYear() !== year || probe.getMonth() !== month - 1 || probe.getDate() !== day) return null;
+
+  return {
+    dateDay: String(day).padStart(2, '0'),
+    dateMonth: SPANISH_MONTH_TOKENS[month - 1],
+    dateYear: String(year),
+  };
+}
+
+export function isoDateFromEvent(event: LiveEvent): string | null {
+  if (!event) return null;
+  const year = Number(String(event.dateYear ?? '').trim());
+  const month = parseEventMonth(String(event.dateMonth ?? ''));
+  const day = Number(String(event.dateDay ?? '').trim());
+  if (!Number.isInteger(year) || year < 1900 || year > 2200 || month === null || !Number.isInteger(day)) return null;
+
+  const iso = `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return eventDatePartsFromIsoDate(iso) ? iso : null;
 }
 
 function parseEventYear(rawYear: string | undefined, now: Date): number {

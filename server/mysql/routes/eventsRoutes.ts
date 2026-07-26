@@ -4,6 +4,7 @@ import { makeId } from "../ids";
 import { getPool } from "../pool";
 import { buildEventUpdatePayload, insertEventRecord } from "../repositories/eventsRepository";
 import { buildUpdateClause } from "../updateClause";
+import { changesLockedEventDateField } from "../events/eventDateFields";
 import { getMadridCivilDateParts } from "../../../src/utils/madridTime";
 
 interface EventsRoutesOptions {
@@ -67,7 +68,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
       const sanitized = validation.sanitized!;
       const id = makeId("ev");
       const db = getPool();
-      await insertEventRecord(db, id, sanitized, body.location);
+      await insertEventRecord(db, id, sanitized, sanitized.location);
       return res.status(201).json({ id });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -111,13 +112,67 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
 
     try {
       const db = getPool();
-      const dbPayload = await buildEventUpdatePayload(db, validation.sanitized || {});
+      const [currentRows] = await db.query(
+        `SELECT id, title, dateDay, dateMonth, dateYear, doorsOpen FROM events WHERE id = ? LIMIT 1`,
+        [req.params.id]
+      );
+      const current = (currentRows as Array<{
+        id: string;
+        title: string;
+        dateDay: string;
+        dateMonth: string;
+        dateYear: string | null;
+        doorsOpen: string;
+      }>)[0];
+      if (!current) return res.status(404).json({ message: "Event not found" });
+
+      const sanitized = validation.sanitized || {};
+      if (changesLockedEventDateField(sanitized, current as unknown as Record<string, unknown>)) {
+        const [shiftRows] = await db.query(
+          `SELECT COUNT(*) AS shiftCount
+           FROM shifts
+           WHERE event_id = ? OR (event_id IS NULL AND event_title = ?)`,
+          [req.params.id, current.title]
+        );
+        const shiftCount = Number((shiftRows as Array<{ shiftCount: number }>)[0]?.shiftCount ?? 0);
+        if (shiftCount > 0) {
+          return res.status(409).json({
+            success: false,
+            code: "EVENT_HAS_SHIFTS",
+            message: "La fecha y hora no se pueden cambiar porque el evento tiene fichajes.",
+          });
+        }
+      }
+
+      const dbPayload = await buildEventUpdatePayload(db, sanitized);
       const { clause, values } = buildUpdateClause(dbPayload, allowed);
       if (!clause) {
         return res.status(400).json({ message: "No valid fields to update." });
       }
 
-      await db.execute(`UPDATE events SET ${clause} WHERE id = ?`, [...values, req.params.id]);
+      const titleChanged = sanitized.title !== undefined && sanitized.title !== current.title;
+      if (!titleChanged) {
+        await db.execute(`UPDATE events SET ${clause} WHERE id = ?`, [...values, req.params.id]);
+        return res.json({ success: true });
+      }
+
+      const connection = await db.getConnection();
+      try {
+        await connection.beginTransaction();
+        await connection.execute(`UPDATE events SET ${clause} WHERE id = ?`, [...values, req.params.id]);
+        // Legacy shifts without event_id keep their old title deliberately:
+        // matching by a non-unique title could alter another homonymous event.
+        await connection.execute(`UPDATE shifts SET event_title = ? WHERE event_id = ?`, [
+          sanitized.title,
+          req.params.id,
+        ]);
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
       return res.json({ success: true });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -141,7 +196,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
       const eventTitle = eventRows[0].title;
       await db.execute(`DELETE FROM event_staff WHERE event_id = ?`, [req.params.id]);
       await db.execute(
-        `DELETE FROM shifts WHERE event_id = ? OR event_title = ?`,
+        `DELETE FROM shifts WHERE event_id = ? OR (event_id IS NULL AND event_title = ?)`,
         [req.params.id, eventTitle]
       );
       await db.execute("DELETE FROM events WHERE id = ?", [req.params.id]);
