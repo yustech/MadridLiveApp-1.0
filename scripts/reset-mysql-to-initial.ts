@@ -1,10 +1,26 @@
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
 import { INITIAL_EVENTS, INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_ALERTS } from '../src/data';
+import { DEMO_RESET_FLAG, isDemoResetAllowed } from '../server/mysql/demoReset';
 
 dotenv.config({ path: '/opt/madridlive-app/.env' });
 
 async function main() {
+  // Este script BORRA todo el contenido de negocio y siembra la semilla demo
+  // de 6 trabajadores, y por la línea de arriba apunta al .env de PRODUCCIÓN
+  // por defecto. Mismo gate que el endpoint POST /api/mysql/reset-initial
+  // (server/mysql/demoReset.ts): sin opt-in explícito no se ejecuta.
+  if (!isDemoResetAllowed()) {
+    console.error(
+      `[reset] Cancelado: este script borra TODOS los datos de ` +
+      `${process.env.MYSQL_DATABASE || '(base sin definir)'} y siembra la semilla demo de 6 trabajadores.`
+    );
+    console.error(`[reset] Si es lo que quieres, ejecútalo con ${DEMO_RESET_FLAG}=true.`);
+    process.exit(1);
+  }
+
+  console.log(`[reset] Sembrando la semilla demo en ${process.env.MYSQL_DATABASE}.`);
+
   const db = await mysql.createConnection({
     host: process.env.MYSQL_HOST,
     port: Number(process.env.MYSQL_PORT || 3306),
