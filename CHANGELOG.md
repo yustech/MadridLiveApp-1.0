@@ -1,5 +1,36 @@
 # Changelog
 
+## [release] - 2026-07-29 (eventos, convocatorias, avatares y salidas)
+
+### 👤 Avatares de iniciales al editar trabajadores
+- La foto de perfil deja de ser obligatoria en el editor de registros.
+- Guardar un avatar vacío conserva el dato vacío y permite que `StaffAvatar`
+  renderice el fondo determinista con las iniciales.
+
+### 🎟️ Operadores: creación de eventos y gestión de convocatorias
+- `operator` puede crear eventos desde **Eventos / Control**.
+- `operator` puede añadir o retirar trabajadores y modificar su rol asignado
+  en la convocatoria.
+- Editar/borrar eventos, plantilla global, usuarios y explorador BD siguen
+  siendo exclusivos de `admin`.
+- Los permisos se aplican en frontend y en los guards del backend.
+
+### 📝 Editor de eventos: foco estable
+- El título recibe foco solo al abrir el modal y ya no roba el cursor cuando
+  el Dashboard refresca datos en segundo plano.
+
+### 🚪 Salida individual y salida conjunta
+- Una salida individual abre WhatsApp con concierto y horas de entrada/salida.
+- **Dar salida a todos** cierra transaccionalmente solo los turnos activos del
+  concierto y ofrece después un WhatsApp individual por trabajador.
+- La preparación para Meta WhatsApp Business API está documentada en
+  `docs/WHATSAPP_BUSINESS_MIGRATION.md`.
+
+### 🚀 Despliegue
+- Staging y producción promovidos y verificados en `aed5fa0`.
+- Smokes correctos y roster de 901 trabajadores conservado.
+- Detalle en `docs/RELEASE_NOTE_2026-07-29.md`.
+
 ## [ops] - 2026-07-13 (systemd restart strategy, audit #6)
 
 ### 🔁 Deploys now restart services via systemd, not process signals
