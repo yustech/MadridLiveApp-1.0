@@ -91,12 +91,55 @@ test('admin creates, edits a locked event and deletes with exact request contrac
   ]);
 });
 
-for (const role of ['operator', 'viewer'] as const) {
-  test(`${role} cannot see event mutation actions`, async ({ page }) => {
-    await openMockApp(page, role, []);
-    await expect(page.getByRole('button', { name: '+ Nuevo evento' })).toHaveCount(0);
-    await page.getByText(lockedEvent.title, { exact: true }).first().click();
-    await expect(page.getByRole('button', { name: 'Editar evento' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Borrar evento' })).toHaveCount(0);
+test('new event form keeps focus in the field being edited while background data refreshes', async ({ page }) => {
+  await openMockApp(page, 'admin', []);
+
+  await page.getByRole('button', { name: '+ Nuevo evento' }).click();
+  await page.getByRole('textbox', { name: 'Título' }).fill('Evento sin salto de foco');
+  const location = page.getByRole('textbox', { name: 'Sitio' });
+  await location.fill('Metropolitano');
+  await expect(location).toBeFocused();
+
+  // Los pollers actualizan el Dashboard cada 3 s y recrean su callback onClose.
+  // El autofocus inicial no debe volver a ejecutarse por ese rerender del padre.
+  await page.waitForTimeout(3_200);
+  await expect(location).toBeFocused();
+  await location.pressSequentially(' Madrid');
+  await expect(location).toHaveValue('Metropolitano Madrid');
+
+  const requiredStaff = page.getByLabel('Personal requerido');
+  await requiredStaff.fill('25');
+  await expect(requiredStaff).toBeFocused();
+});
+
+test('operator can create events but cannot edit or delete them', async ({ page }) => {
+  const requests: Array<Record<string, unknown>> = [];
+  await openMockApp(page, 'operator', requests);
+
+  await page.getByRole('button', { name: '+ Nuevo evento' }).click();
+  await page.getByRole('textbox', { name: 'Título' }).fill('Evento Operador');
+  await page.getByRole('textbox', { name: 'Sitio' }).fill('IFEMA');
+  await page.getByLabel('Fecha').fill('2027-08-08');
+  await page.getByLabel('Apertura de puertas').fill('20:30');
+  await page.getByLabel('Personal requerido').fill('12');
+  await page.getByRole('button', { name: 'Guardar evento' }).click();
+
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({
+    method: 'POST',
+    pathname: '/api/mysql/events',
+    body: { title: 'Evento Operador', location: 'IFEMA' },
   });
-}
+
+  await page.getByText(lockedEvent.title, { exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Editar evento' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Borrar evento' })).toHaveCount(0);
+});
+
+test('viewer cannot see event mutation actions', async ({ page }) => {
+  await openMockApp(page, 'viewer', []);
+  await expect(page.getByRole('button', { name: '+ Nuevo evento' })).toHaveCount(0);
+  await page.getByText(lockedEvent.title, { exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Editar evento' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Borrar evento' })).toHaveCount(0);
+});

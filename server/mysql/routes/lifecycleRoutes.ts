@@ -76,4 +76,56 @@ export function registerLifecycleRoutes(app: express.Express, options: Lifecycle
       }
     }
   });
+
+  app.post(`${prefix}/events/:eventId/checkout-all`, async (req, res) => {
+    if (!(await requireCheckin(req, res))) return;
+
+    let conn: any = null;
+    try {
+      const db = getPool();
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+
+      const [eventRows] = await conn.query(
+        `SELECT id FROM events WHERE id = ? LIMIT 1`,
+        [req.params.eventId]
+      );
+      if (!Array.isArray(eventRows) || !eventRows[0]) {
+        const error = new Error("Event not found.") as Error & { statusCode?: number };
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const [activeRows] = await conn.query(
+        `SELECT worker_id AS workerId
+         FROM shifts
+         WHERE event_id = ?
+           AND status = 'Active'
+         ORDER BY started_at ASC, id ASC`,
+        [req.params.eventId]
+      );
+
+      const results = [];
+      for (const row of activeRows as Array<{ workerId: string }>) {
+        results.push(await performWorkerCheckOut(conn, { workerId: row.workerId }));
+      }
+
+      await conn.commit();
+      return res.json({ success: true, results });
+    } catch (error: any) {
+      if (conn) {
+        try {
+          await conn.rollback();
+        } catch {
+          // Keep the original bulk check-out failure.
+        }
+      }
+      return res.status(error?.statusCode || 500).json({
+        success: false,
+        message: error?.message || "Bulk check-out failed.",
+      });
+    } finally {
+      if (conn) conn.release();
+    }
+  });
 }

@@ -140,13 +140,13 @@ export function RecordFormModal({
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] text-white/50 block mb-1">Foto de Perfil *</label>
+                <label className="text-[10px] text-white/50 block mb-1">Foto de Perfil (opcional)</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setStaffData({ ...staffData, avatar: DEFAULT_FEMALE_AVATAR })} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto mujer por defecto</button>
                   <button type="button" onClick={() => setStaffData({ ...staffData, avatar: DEFAULT_MALE_AVATAR })} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white/80 hover:bg-white/10">Foto hombre por defecto</button>
                 </div>
                 <input type="file" accept="image/*" onChange={e => void onStaffAvatarFileChange(e.target.files?.[0] || null)} className="w-full rounded-xl border border-white/10 bg-white/5 p-2.5 text-xs text-white file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500/20 file:px-3 file:py-2 file:text-xs file:font-bold file:text-indigo-200" />
-                <input type="text" required value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="Pega una URL o usa una foto subida desde este dispositivo" />
+                <input type="text" value={staffData.avatar} onChange={e => setStaffData({ ...staffData, avatar: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white" placeholder="Déjalo vacío para usar el avatar de iniciales" />
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
                 <StaffAvatar
@@ -156,7 +156,7 @@ export function RecordFormModal({
                 />
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Vista previa avatar</p>
-                  <p className="text-xs text-white/70">Puedes subir una imagen del dispositivo o elegir un avatar por defecto de hombre o mujer.</p>
+                  <p className="text-xs text-white/70">Si no añades una foto o URL, se mostrará el avatar de color con sus iniciales.</p>
                 </div>
               </div>
               <div>

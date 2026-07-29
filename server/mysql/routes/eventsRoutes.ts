@@ -11,10 +11,11 @@ interface EventsRoutesOptions {
   prefix: string;
   requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
   requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireEventCreate: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
 export function registerEventsRoutes(app: express.Express, options: EventsRoutesOptions) {
-  const { prefix, requireAdmin, requireAuthorizedRead } = options;
+  const { prefix, requireAdmin, requireAuthorizedRead, requireEventCreate } = options;
 
   app.get(`${prefix}/events`, async (req, res) => {
     if (!(await requireAuthorizedRead(req, res))) return;
@@ -50,7 +51,7 @@ export function registerEventsRoutes(app: express.Express, options: EventsRoutes
   });
 
   app.post(`${prefix}/events`, async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireEventCreate(req, res))) return;
 
     try {
       const body = req.body || {};

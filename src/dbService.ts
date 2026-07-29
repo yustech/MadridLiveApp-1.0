@@ -224,6 +224,12 @@ export async function checkOutWorker(workerId: string) {
   });
 }
 
+export async function checkOutEvent(eventId: string) {
+  return apiJson<{ results: ShiftToggleResult[] }>(`/events/${eventId}/checkout-all`, {
+    method: 'POST',
+  });
+}
+
 // --- CRUD FOR SHIFTS ---
 
 export async function addShift(shift: Omit<Shift, 'id'>) {

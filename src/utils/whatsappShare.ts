@@ -23,3 +23,33 @@ export function buildWhatsAppShareUrl(
 
   return `https://api.whatsapp.com/send?phone=${normalizedPhone}&text=${encodeURIComponent(text)}`;
 }
+
+function formatMadridClock(value: string | null | undefined): string {
+  if (!value) return 'No disponible';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'Europe/Madrid',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+export function buildCheckoutWhatsAppText(input: {
+  workerName: string;
+  eventTitle: string;
+  startedAt?: string;
+  endedAt?: string;
+}): string {
+  return [
+    '🎸 *MADRID LIVE · REGISTRO DE SALIDA* 🎸',
+    '',
+    `Hola, *${input.workerName}*.`,
+    `Tu turno en *${input.eventTitle || 'Madrid Live'}* ha finalizado.`,
+    '',
+    `🟢 *ENTRADA*: ${formatMadridClock(input.startedAt)}`,
+    `🔴 *SALIDA*: ${formatMadridClock(input.endedAt)}`,
+    '',
+    'Gracias por tu trabajo.',
+  ].join('\n');
+}

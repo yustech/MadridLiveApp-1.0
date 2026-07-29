@@ -31,6 +31,9 @@ export default function EventFormModal({ event, locks, onClose, onCreate, onUpda
 
   useEffect(() => {
     titleRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const onEscape = (keyboardEvent: globalThis.KeyboardEvent) => {
       if (keyboardEvent.key === 'Escape' && !isSubmitting) onClose();
     };

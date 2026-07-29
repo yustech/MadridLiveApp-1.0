@@ -117,18 +117,20 @@ sentido "asignarle un rol" — es un secreto de servicio, no una cuenta.
 Tres roles para el MVP, dejando el sistema abierto a añadir más sin migración
 adicional (el rol es una columna `VARCHAR`, no un enum de BD):
 
-| Rol | Lectura (`staff`/`events`/`shifts`/`alerts`/`staff-templates`/`status`/`schema-check`) | `checkin`/`checkout` | Resto de mutaciones (crear/editar/borrar staff, eventos, alertas, plantillas, convocatoria) | Gestión de usuarios / `DatabaseManagerScreen` / `schema-migrate`/`init`/`reset-initial` |
+| Rol | Lectura | Operación de turnos | Eventos y convocatoria | Resto de mutaciones / administración |
 |---|---|---|---|---|
-| `admin` | sí | sí | sí | sí |
-| `operator` | **sí — igual que admin** (confirmado por el owner: ve todo, no solo lo mínimo del escáner) | sí | no | no |
+| `admin` | sí | entrada, salida y salida conjunta | crear, editar, borrar y gestionar convocatoria | sí |
+| `operator` | sí — igual que admin | entrada, salida y salida conjunta | crear y gestionar convocatoria; no editar/borrar | no |
 | `viewer` (solo lectura) | sí — igual que admin | no | no | no |
 
 Confirmado por el owner: `operator` ve exactamente lo mismo que `admin` (roster
 completo con teléfonos/ratings, eventos, turnos, alertas, plantillas), la
-única diferencia frente a `admin` es que no puede mutar nada salvo
-`checkin`/`checkout`. `viewer` es igual que `operator` en visibilidad pero sin
-ni siquiera poder escanear — un rol de "solo consulta" para quien necesite
-ver el estado sin operar.
+El alcance operativo de `operator` se amplió por decisión del owner el
+2026-07-29: además de entrada/salida, puede crear eventos, gestionar sus
+convocatorias y cerrar conjuntamente los turnos activos de un concierto.
+Sigue sin editar/borrar eventos ni administrar plantilla global, usuarios,
+alertas, plantillas reutilizables, esquema o base de datos. `viewer` mantiene
+el rol de solo consulta.
 
 Esto simplifica el frontend: **las tres pantallas de negocio
 (Dashboard/Roster/Staff/Shifts/KPI/Scanner) se muestran igual a los tres
@@ -141,9 +143,9 @@ Cada endpoint protegido pasa de `isAuthorized(req)` (booleano) a
 `getRequestRole(req)` (`'admin' | 'operator' | 'viewer' | null`). La lectura
 (`requireAuthorizedRead`) pasa a aceptar los tres roles (hoy solo hay un nivel
 "admin", así que esto no reduce el acceso de nadie existente). Las mutaciones
-existentes bajo `isAuthorized` se dividen en dos grupos: `checkin`/`checkout`
-(admin + operator) y todo el resto (solo admin) — matriz 1:1 con el
-inventario de la sección "Estado actual".
+usan guards de capacidades explícitos: turnos, creación de eventos y
+convocatoria aceptan `admin + operator`; el resto continúa limitado a
+`admin`.
 
 ### 4. Sesión y revocación
 
