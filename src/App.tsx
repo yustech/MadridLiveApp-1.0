@@ -11,6 +11,7 @@ import { isWorkerPresentNow } from './utils/shifts';
 import { getStaffAvatarColor, getStaffAvatarTextColor } from './utils/staffAvatar';
 import { getSessionUserInitials } from './utils/sessionUser';
 import { getOnboardingStorageKey, shouldShowOnboarding } from './utils/onboarding';
+import { buildCheckoutWhatsAppText, buildWhatsAppShareUrl } from './utils/whatsappShare';
 
 import {
   subscribeToEvents,
@@ -19,6 +20,7 @@ import {
   subscribeToAlerts,
   checkInWorker,
   checkOutWorker,
+  checkOutEvent,
   addStaff,
   addEvent,
   updateEvent,
@@ -307,6 +309,9 @@ export default function App() {
 
     const isCurrentlyIn = worker.status === 'IN';
     const activeEvent = events.find(e => e.id === activeEventId) || null;
+    const pendingWhatsAppWindow = isCurrentlyIn && buildWhatsAppShareUrl(worker.phone, '')
+      ? window.open('', '_blank')
+      : null;
 
     try {
       if (isCurrentlyIn) {
@@ -320,6 +325,21 @@ export default function App() {
         setSelectedWorker((prev) => (
           prev?.id === workerId ? result.staff : prev
         ));
+
+        const whatsappUrl = buildWhatsAppShareUrl(
+          worker.phone,
+          buildCheckoutWhatsAppText({
+            workerName: worker.name,
+            eventTitle: result.shift.eventTitle,
+            startedAt: result.shift.startedAt,
+            endedAt: result.shift.endedAt,
+          }),
+        );
+        if (pendingWhatsAppWindow && whatsappUrl) {
+          pendingWhatsAppWindow.location.href = whatsappUrl;
+        } else if (whatsappUrl) {
+          window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+        }
 
         return { success: true };
       }
@@ -340,6 +360,7 @@ export default function App() {
 
       return { success: true };
     } catch (err) {
+      pendingWhatsAppWindow?.close();
       console.error('Failed to alter staff status: ', err);
       return {
         success: false,
@@ -347,6 +368,16 @@ export default function App() {
         errorMessage: err instanceof Error ? err.message : 'No se pudo registrar el turno.',
       };
     }
+  };
+
+  const handleCheckoutEvent = async (eventId: string) => {
+    const response = await checkOutEvent(eventId);
+    const staffById = new Map(response.results.map((result) => [result.staff.id, result.staff]));
+    const shiftsById = new Map(response.results.map((result) => [result.shift.id, result.shift]));
+    setStaff((current) => current.map((member) => staffById.get(member.id) || member));
+    setShifts((current) => current.map((shift) => shiftsById.get(shift.id) || shift));
+    setSelectedWorker((current) => current ? staffById.get(current.id) || current : current);
+    return response.results;
   };
 
   const handleAddNewCrewMember = async (newCrewData: Omit<StaffMember, 'id'>) => {
@@ -875,7 +906,9 @@ export default function App() {
                 onCreateEvent={handleCreateEvent}
                 onUpdateEvent={handleUpdateEvent}
                 onDeleteEvent={handleDeleteEvent}
+                onCheckoutEvent={handleCheckoutEvent}
                 canCreateEvent={sessionRole === 'admin' || sessionRole === 'operator'}
+                canCheckout={sessionRole !== 'viewer'}
                 canManage={sessionRole === 'admin'}
               />
             )}

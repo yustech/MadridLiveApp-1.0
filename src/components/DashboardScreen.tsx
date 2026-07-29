@@ -10,7 +10,9 @@ import {
   CheckCircle2, 
   Clock,
   Trash2,
-  History
+  History,
+  LogOut,
+  MessageCircle
 } from 'lucide-react';
 import { LiveEvent, EquipmentAlert, StaffMember, Shift } from '../types';
 import {
@@ -37,6 +39,7 @@ import {
 } from '../utils/operationalMetrics';
 import EventFormModal from './events/EventFormModal';
 import { canConfirmEventDelete, getEventFormLocks } from './events/eventFormUtils';
+import { buildCheckoutWhatsAppText, buildWhatsAppShareUrl } from '../utils/whatsappShare';
 
 interface DashboardScreenProps {
   events: LiveEvent[];
@@ -50,7 +53,9 @@ interface DashboardScreenProps {
   onCreateEvent: (event: Omit<LiveEvent, 'id' | 'assignedStaffCount'>) => Promise<void>;
   onUpdateEvent: (eventId: string, payload: Partial<LiveEvent>) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  onCheckoutEvent: (eventId: string) => Promise<Array<{ staff: StaffMember; shift: Shift }>>;
   canCreateEvent: boolean;
+  canCheckout: boolean;
   canManage: boolean;
 }
 
@@ -66,7 +71,9 @@ export default function DashboardScreen({
   onCreateEvent,
   onUpdateEvent,
   onDeleteEvent,
+  onCheckoutEvent,
   canCreateEvent,
+  canCheckout,
   canManage,
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
@@ -77,6 +84,10 @@ export default function DashboardScreen({
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<LiveEvent | null>(null);
+  const [checkoutTargetEvent, setCheckoutTargetEvent] = useState<LiveEvent | null>(null);
+  const [isCheckingOutEvent, setIsCheckingOutEvent] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutResults, setCheckoutResults] = useState<Array<{ staff: StaffMember; shift: Shift }> | null>(null);
 
   // Focus card follows the selected event. Yesterday remains operational until
   // 23:59 the next day; future events stay in planning mode.
@@ -113,6 +124,25 @@ export default function DashboardScreen({
       ? shifts.filter((shift) => isShiftLinkedToEvent(shift, liveEvent))
       : []
   ), [shifts, liveEvent?.id, liveEvent?.title]);
+
+  const getActiveEventShifts = (event: LiveEvent) => shifts.filter(
+    (shift) => shift.status === 'Active' && isShiftLinkedToEvent(shift, event)
+  );
+
+  const handleCheckoutAll = async () => {
+    if (!checkoutTargetEvent) return;
+    setIsCheckingOutEvent(true);
+    setCheckoutError('');
+    try {
+      const results = await onCheckoutEvent(checkoutTargetEvent.id);
+      setCheckoutResults(results);
+      setCheckoutTargetEvent(null);
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'No se pudo registrar la salida del concierto.');
+    } finally {
+      setIsCheckingOutEvent(false);
+    }
+  };
 
   const presentStaff = useMemo(() => (
     getPresentStaffForEvent(staff, shifts, isOperationalFocus ? liveEvent : null)
@@ -740,6 +770,21 @@ export default function DashboardScreen({
                 <span>{getFocusActionLabel(selectedDetailEvent)}</span>
               </button>
 
+              {canCheckout && getActiveEventShifts(selectedDetailEvent).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutTargetEvent(selectedDetailEvent);
+                    setCheckoutError('');
+                    setSelectedDetailEvent(null);
+                  }}
+                  className="w-full h-11 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/25 text-amber-100 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Dar salida a todos · {getActiveEventShifts(selectedDetailEvent).length}
+                </button>
+              )}
+
               {canManage && (
                 <button
                   type="button"
@@ -788,6 +833,107 @@ export default function DashboardScreen({
           onCreate={onCreateEvent}
           onUpdate={onUpdateEvent}
         />
+      )}
+
+      {checkoutTargetEvent && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
+          <div role="dialog" aria-modal="true" aria-labelledby="checkout-all-title" className="bg-[#120f26]/95 border border-amber-400/20 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-hud-glow">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-400/20 flex items-center justify-center text-amber-200">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-amber-300">Salida conjunta</p>
+                <h3 id="checkout-all-title" className="text-lg font-display font-black text-white">{checkoutTargetEvent.title}</h3>
+              </div>
+            </div>
+            <p className="text-sm text-white/70">
+              Se cerrarán {getActiveEventShifts(checkoutTargetEvent).length} turnos activos de este concierto. Los turnos de otros eventos no se modificarán.
+            </p>
+            {checkoutError && (
+              <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-xs text-rose-200">{checkoutError}</p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCheckoutTargetEvent(null)}
+                disabled={isCheckingOutEvent}
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-xs font-mono text-white/70 hover:bg-white/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCheckoutAll()}
+                disabled={isCheckingOutEvent}
+                className="h-11 rounded-xl border border-amber-400/20 bg-amber-500/15 text-xs font-mono font-bold text-amber-100 hover:bg-amber-500/25"
+              >
+                {isCheckingOutEvent ? 'Registrando...' : 'Confirmar salidas'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutResults && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md">
+          <div role="dialog" aria-modal="true" aria-labelledby="checkout-results-title" className="bg-[#120f26]/95 border border-emerald-400/20 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-hud-glow">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-300">Salidas registradas</p>
+              <h3 id="checkout-results-title" className="text-lg font-display font-black text-white mt-1">
+                {checkoutResults.length} trabajadores actualizados
+              </h3>
+              <p className="text-xs text-white/60 mt-2">Envía cada justificante individualmente por WhatsApp.</p>
+            </div>
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {checkoutResults.map(({ staff: member, shift }) => {
+                const whatsappUrl = buildWhatsAppShareUrl(
+                  member.phone,
+                  buildCheckoutWhatsAppText({
+                    workerName: member.name,
+                    eventTitle: shift.eventTitle,
+                    startedAt: shift.startedAt,
+                    endedAt: shift.endedAt,
+                  }),
+                );
+                return (
+                  <div key={shift.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{member.name}</p>
+                      <p className="text-[10px] font-mono text-white/45">{shift.timespan}</p>
+                    </div>
+                    {whatsappUrl ? (
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/15 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-500/25"
+                        aria-label={`Enviar salida por WhatsApp a ${member.name}`}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        WhatsApp
+                      </a>
+                    ) : (
+                      <span className="text-[10px] font-mono text-white/35">Sin teléfono</span>
+                    )}
+                  </div>
+                );
+              })}
+              {checkoutResults.length === 0 && (
+                <p className="rounded-xl border border-white/10 bg-white/5 p-4 text-center text-xs text-white/60">
+                  Ya no había turnos activos en este concierto.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCheckoutResults(null)}
+              className="h-11 w-full rounded-xl border border-white/10 bg-white/5 text-xs font-mono font-bold text-white hover:bg-white/10"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
