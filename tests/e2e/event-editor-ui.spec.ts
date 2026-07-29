@@ -91,6 +91,27 @@ test('admin creates, edits a locked event and deletes with exact request contrac
   ]);
 });
 
+test('new event form keeps focus in the field being edited while background data refreshes', async ({ page }) => {
+  await openMockApp(page, 'admin', []);
+
+  await page.getByRole('button', { name: '+ Nuevo evento' }).click();
+  await page.getByRole('textbox', { name: 'Título' }).fill('Evento sin salto de foco');
+  const location = page.getByRole('textbox', { name: 'Sitio' });
+  await location.fill('Metropolitano');
+  await expect(location).toBeFocused();
+
+  // Los pollers actualizan el Dashboard cada 3 s y recrean su callback onClose.
+  // El autofocus inicial no debe volver a ejecutarse por ese rerender del padre.
+  await page.waitForTimeout(3_200);
+  await expect(location).toBeFocused();
+  await location.pressSequentially(' Madrid');
+  await expect(location).toHaveValue('Metropolitano Madrid');
+
+  const requiredStaff = page.getByLabel('Personal requerido');
+  await requiredStaff.fill('25');
+  await expect(requiredStaff).toBeFocused();
+});
+
 test('operator can create events but cannot edit or delete them', async ({ page }) => {
   const requests: Array<Record<string, unknown>> = [];
   await openMockApp(page, 'operator', requests);
