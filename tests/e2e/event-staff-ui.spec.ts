@@ -43,14 +43,27 @@ const availableWorker = {
   email: 'monica@example.com',
 };
 
-async function mockBaseData(page: Page) {
-  await seedOnboardingSeen(page, { role: 'admin' });
-  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role: 'admin' } }));
+async function mockBaseData(page: Page, role: 'admin' | 'operator' = 'admin') {
+  await seedOnboardingSeen(page, { role });
+  await page.route('**/api/auth/session', (route) => route.fulfill({ json: { authenticated: true, role } }));
   await page.route('**/api/mysql/events', (route) => route.fulfill({ json: [event] }));
   await page.route('**/api/mysql/staff', (route) => route.fulfill({ json: [baseWorker, availableWorker] }));
   await page.route(/\/api\/mysql\/(shifts|alerts)$/, (route) => route.fulfill({ json: [] }));
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));
 }
+
+test('operator can open and manage the event call-up', async ({ page }) => {
+  await mockBaseData(page, 'operator');
+  await page.route(`**/api/mysql/events/${event.id}/staff`, (route) => route.fulfill({ json: [] }));
+
+  await page.goto('/');
+  await page.getByText(event.title, { exact: true }).first().click();
+  const manageButton = page.getByRole('button', { name: 'Gestionar equipo · 1/2' });
+  await expect(manageButton).toBeEnabled();
+  await manageButton.click();
+  await expect(page.getByRole('heading', { name: event.title })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plantilla disponible' })).toBeVisible();
+});
 
 test('manages event staff with the expected GET, POST, PATCH and DELETE routes', async ({ page }) => {
   let assigned = [{

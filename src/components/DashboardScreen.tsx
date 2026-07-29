@@ -56,6 +56,7 @@ interface DashboardScreenProps {
   onCheckoutEvent: (eventId: string) => Promise<Array<{ staff: StaffMember; shift: Shift }>>;
   canCreateEvent: boolean;
   canCheckout: boolean;
+  canManageEventStaff: boolean;
   canManage: boolean;
 }
 
@@ -74,6 +75,7 @@ export default function DashboardScreen({
   onCheckoutEvent,
   canCreateEvent,
   canCheckout,
+  canManageEventStaff,
   canManage,
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
@@ -736,14 +738,14 @@ export default function DashboardScreen({
               <button
                 type="button"
                 onClick={() => {
-                  if (canManage) onManageEventStaff(selectedDetailEvent);
+                  if (canManageEventStaff) onManageEventStaff(selectedDetailEvent);
                   setSelectedDetailEvent(null);
                 }}
-                disabled={!canManage}
+                disabled={!canManageEventStaff}
                 className="w-full h-11 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/25 text-cyan-100 font-mono text-xs font-bold uppercase rounded-xl tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Users className="w-4 h-4" />
-                <span>{canManage ? 'Gestionar equipo' : 'Equipo en solo lectura'} · {selectedDetailEvent.assignedStaffCount ?? 0}/{selectedDetailEvent.requiredStaff}</span>
+                <span>{canManageEventStaff ? 'Gestionar equipo' : 'Equipo en solo lectura'} · {selectedDetailEvent.assignedStaffCount ?? 0}/{selectedDetailEvent.requiredStaff}</span>
               </button>
 
               <button

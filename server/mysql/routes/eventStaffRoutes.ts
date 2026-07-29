@@ -11,7 +11,7 @@ import {
 
 interface EventStaffRoutesOptions {
   prefix: string;
-  requireAdmin: (req: express.Request, res: express.Response) => Promise<boolean>;
+  requireEventStaff: (req: express.Request, res: express.Response) => Promise<boolean>;
   requireAuthorizedRead: (req: express.Request, res: express.Response) => Promise<boolean>;
 }
 
@@ -20,7 +20,7 @@ interface MutationResult {
 }
 
 export function registerEventStaffRoutes(app: express.Express, options: EventStaffRoutesOptions) {
-  const { prefix, requireAdmin, requireAuthorizedRead } = options;
+  const { prefix, requireEventStaff, requireAuthorizedRead } = options;
 
   app.get(`${prefix}/events/:eventId/staff`, async (req, res) => {
     if (!(await requireAuthorizedRead(req, res))) return;
@@ -58,7 +58,7 @@ export function registerEventStaffRoutes(app: express.Express, options: EventSta
   });
 
   app.post(`${prefix}/events/:eventId/staff`, async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireEventStaff(req, res))) return;
 
     const validation = validateStaffIdsPayload(req.body);
     if ("error" in validation) {
@@ -80,7 +80,7 @@ export function registerEventStaffRoutes(app: express.Express, options: EventSta
   });
 
   app.delete(`${prefix}/events/:eventId/staff/:staffId`, async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireEventStaff(req, res))) return;
 
     try {
       const db = getPool();
@@ -98,7 +98,7 @@ export function registerEventStaffRoutes(app: express.Express, options: EventSta
   });
 
   app.patch(`${prefix}/events/:eventId/staff/:staffId`, async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireEventStaff(req, res))) return;
 
     const validation = validateAssignedRolePayload(req.body);
     if ("error" in validation) {

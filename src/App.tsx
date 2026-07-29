@@ -909,6 +909,7 @@ export default function App() {
                 onCheckoutEvent={handleCheckoutEvent}
                 canCreateEvent={sessionRole === 'admin' || sessionRole === 'operator'}
                 canCheckout={sessionRole !== 'viewer'}
+                canManageEventStaff={sessionRole === 'admin' || sessionRole === 'operator'}
                 canManage={sessionRole === 'admin'}
               />
             )}
@@ -928,7 +929,7 @@ export default function App() {
               <RosterScreen onBack={() => setActiveScreen('staff')} />
             )}
 
-            {activeScreen === 'event-staff' && sessionRole === 'admin' && events.some((event) => event.id === managedEventId) && (
+            {activeScreen === 'event-staff' && (sessionRole === 'admin' || sessionRole === 'operator') && events.some((event) => event.id === managedEventId) && (
               <EventStaffScreen
                 event={events.find((event) => event.id === managedEventId)!}
                 staff={staff}
