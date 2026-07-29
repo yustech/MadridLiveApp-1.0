@@ -875,6 +875,7 @@ export default function App() {
                 onCreateEvent={handleCreateEvent}
                 onUpdateEvent={handleUpdateEvent}
                 onDeleteEvent={handleDeleteEvent}
+                canCreateEvent={sessionRole === 'admin' || sessionRole === 'operator'}
                 canManage={sessionRole === 'admin'}
               />
             )}

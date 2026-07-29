@@ -50,6 +50,7 @@ interface DashboardScreenProps {
   onCreateEvent: (event: Omit<LiveEvent, 'id' | 'assignedStaffCount'>) => Promise<void>;
   onUpdateEvent: (eventId: string, payload: Partial<LiveEvent>) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  canCreateEvent: boolean;
   canManage: boolean;
 }
 
@@ -65,6 +66,7 @@ export default function DashboardScreen({
   onCreateEvent,
   onUpdateEvent,
   onDeleteEvent,
+  canCreateEvent,
   canManage,
 }: DashboardScreenProps) {
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveEvent | null>(null);
@@ -487,7 +489,7 @@ export default function DashboardScreen({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {canManage && (
+            {canCreateEvent && (
               <button
                 type="button"
                 onClick={() => {

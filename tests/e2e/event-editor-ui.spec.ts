@@ -91,12 +91,34 @@ test('admin creates, edits a locked event and deletes with exact request contrac
   ]);
 });
 
-for (const role of ['operator', 'viewer'] as const) {
-  test(`${role} cannot see event mutation actions`, async ({ page }) => {
-    await openMockApp(page, role, []);
-    await expect(page.getByRole('button', { name: '+ Nuevo evento' })).toHaveCount(0);
-    await page.getByText(lockedEvent.title, { exact: true }).first().click();
-    await expect(page.getByRole('button', { name: 'Editar evento' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Borrar evento' })).toHaveCount(0);
+test('operator can create events but cannot edit or delete them', async ({ page }) => {
+  const requests: Array<Record<string, unknown>> = [];
+  await openMockApp(page, 'operator', requests);
+
+  await page.getByRole('button', { name: '+ Nuevo evento' }).click();
+  await page.getByRole('textbox', { name: 'Título' }).fill('Evento Operador');
+  await page.getByRole('textbox', { name: 'Sitio' }).fill('IFEMA');
+  await page.getByLabel('Fecha').fill('2027-08-08');
+  await page.getByLabel('Apertura de puertas').fill('20:30');
+  await page.getByLabel('Personal requerido').fill('12');
+  await page.getByRole('button', { name: 'Guardar evento' }).click();
+
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({
+    method: 'POST',
+    pathname: '/api/mysql/events',
+    body: { title: 'Evento Operador', location: 'IFEMA' },
   });
-}
+
+  await page.getByText(lockedEvent.title, { exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Editar evento' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Borrar evento' })).toHaveCount(0);
+});
+
+test('viewer cannot see event mutation actions', async ({ page }) => {
+  await openMockApp(page, 'viewer', []);
+  await expect(page.getByRole('button', { name: '+ Nuevo evento' })).toHaveCount(0);
+  await page.getByText(lockedEvent.title, { exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Editar evento' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Borrar evento' })).toHaveCount(0);
+});

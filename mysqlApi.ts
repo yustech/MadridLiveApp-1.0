@@ -26,7 +26,7 @@ import { registerShiftsRoutes } from "./server/mysql/routes/shiftsRoutes";
 import { registerStaffRoutes } from "./server/mysql/routes/staffRoutes";
 import { registerStaffTemplatesRoutes } from "./server/mysql/routes/staffTemplatesRoutes";
 import { registerUsersRoutes } from "./server/mysql/routes/usersRoutes";
-import { ADMIN_ONLY, CHECKIN_ROLES, forbiddenResponse } from "./server/mysql/routes/routeAuth";
+import { ADMIN_ONLY, CHECKIN_ROLES, EVENT_CREATE_ROLES, forbiddenResponse } from "./server/mysql/routes/routeAuth";
 import type { UserRecord, UserRole } from "./server/mysql/users/usersRepository";
 import { MIGRATIONS } from "./server/mysql/migrations";
 import { runVersionedMigrations } from "./server/mysql/migrations/runner";
@@ -216,6 +216,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions)
   const requireAuthorizedRead = (req: express.Request, res: express.Response) => requireRole(req, res, ["admin", "operator", "viewer"]);
   const requireAdmin = (req: express.Request, res: express.Response) => requireRole(req, res, ADMIN_ONLY);
   const requireCheckin = (req: express.Request, res: express.Response) => requireRole(req, res, CHECKIN_ROLES);
+  const requireEventCreate = (req: express.Request, res: express.Response) => requireRole(req, res, EVENT_CREATE_ROLES);
 
   app.get(`${MYSQL_PREFIX}/health-count`, async (_req, res) => {
     if (!isMysqlConfigured()) {
@@ -375,7 +376,7 @@ export function registerMysqlApi(app: express.Express, options: MysqlApiOptions)
 
   registerLifecycleRoutes(app, { prefix: MYSQL_PREFIX, requireCheckin });
   registerStaffRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
-  registerEventsRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
+  registerEventsRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead, requireEventCreate });
   registerEventStaffRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
   registerStaffTemplatesRoutes(app, { prefix: MYSQL_PREFIX, requireAdmin, requireAuthorizedRead });
   registerShiftsRoutes(app, {
