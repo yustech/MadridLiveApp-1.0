@@ -85,6 +85,10 @@ Checklist operativa ligera para MadridLive App (equipo pequeño).
 - El sync a Drive **excluye siempre** ficheros de env (`.env*`, `*.env.bak*`; los
   snapshots deliberados `env-*.tar.gz` solo suben con `SYNC_ENV_SNAPSHOTS=true`).
   Las copias ad-hoc de `.env` van en `<app>/env-backups/` (fuera del dir sincronizado).
+- El `.env` sí sube **cifrado** (#32): `backup-mysql.sh` genera `env-<app>-<ts>.age` con la
+  clave pública de `~/.config/madridlive/env-backup.age-recipients`. Si falta `age` o la
+  clave, el dump se hace igual y `cron.log` muestra `WARNING encrypted env copy skipped`.
+  Verificar con `scripts/verify-env-backup.sh` (ver `docs/DR_RESTORE_RUNBOOK.md`).
 - Verificación rápida: `rclone ls gdrive:Backups/MadridLiveApp-1.0-staging | tail`
   y `tail /opt/madridlive-app-staging/backups/cron.log`.
 

@@ -17,8 +17,10 @@ pasos 3 y 4). Mantener este documento al día si cambia la cadena de backup.
 - Retención local: `KEEP_DAILY=14` (rotación en el propio script).
 - Retención en Drive: **ilimitada a propósito** (`rclone copy` no borra el remoto) — da
   más histórico offsite; cada dump ocupa ~40 KB.
-- Los `.env` están **excluidos** del sync a Drive desde 2026-07-13 (PR #35) por contener
-  secretos en claro.
+- Los `.env` **en claro** están **excluidos** del sync a Drive desde 2026-07-13 (PR #35).
+  Desde #32 sube en su lugar una copia **cifrada con age** (`env-<app>-<ts>.age`, la
+  genera `backup-mysql.sh` junto al dump; retención local `KEEP_DAILY`). Ver
+  "Recuperación completa de la caja".
 
 ## Procedimiento de restauración (validado en el drill)
 
@@ -115,11 +117,33 @@ hace falta además:
 
 1. **Repo**: `git clone` de `yustech/MadridLiveApp-1.0` (GitHub es el origen; nada que
    restaurar).
-2. **`.env` de prod y staging**: ⚠️ **NO tienen copia offsite** (excluidos del sync por
-   secretos). Deben poder reconstruirse desde el gestor de contraseñas del owner:
-   credenciales MySQL, `ADMIN_API_TOKEN`, `ADMIN_LOGIN_EMAIL`/`_PASSWORD`,
-   `ADMIN_SESSION_SECRET`, bloque `MAIL_*` (buzón `hola@`), `WATCHDOG_MIN_STAFF_COUNT`,
-   `EXPECTED_STAFF_COUNT`. Mantener el gestor al día con cualquier cambio de `.env`.
+2. **`.env` de prod y staging**: copia offsite **cifrada** en Drive desde #32
+   (`env-madridlive-app-<ts>.age` en `gdrive:Backups/MadridLiveApp-1.0/`,
+   `env-madridlive-app-staging-<ts>.age` en `…-staging/`). Cifrado **asimétrico** con
+   `age`: la caja solo tiene la clave **pública**
+   (`~/.config/madridlive/env-backup.age-recipients`, puede cifrar pero no descifrar);
+   la **clave privada** (`AGE-SECRET-KEY-1…`) vive **solo** en el gestor de contraseñas
+   del owner (entrada "MadridLive · clave age backups .env"). Para descifrar en la caja
+   nueva (con `age` y `rclone` instalados):
+
+   ```bash
+   umask 077
+   # pegar la clave privada desde el gestor; vive en RAM (tmpfs), no en disco
+   nano /dev/shm/madridlive-env.key
+   rclone lsf --include 'env-*.age' gdrive:Backups/MadridLiveApp-1.0 | sort | tail -n 1
+   rclone copyto gdrive:Backups/MadridLiveApp-1.0/<fichero>.age /dev/shm/env.age
+   age -d -i /dev/shm/madridlive-env.key -o /opt/madridlive-app/.env /dev/shm/env.age
+   chmod 600 /opt/madridlive-app/.env
+   shred -u /dev/shm/madridlive-env.key /dev/shm/env.age
+   ```
+
+   Comprobar que la copia sigue al día (en la caja viva, p. ej. en cada drill):
+   `IDENTITY_FILE=/dev/shm/madridlive-env.key scripts/verify-env-backup.sh` → descarga el
+   último `.age`, lo descifra en `/dev/shm` y lo compara byte a byte con el `.env` vivo
+   (nunca imprime contenido; `ENV_FILE`/`REMOTE_PATH` para staging). Borrar la clave
+   después con `shred -u`.
+   ⚠️ Si se pierde la clave privada del gestor, las copias cifradas son irrecuperables:
+   el gestor sigue siendo el respaldo último de los secretos.
 3. **Infra**: Hestia (dominios web + mail + certs LE), systemd units
    (`madridlive-app`, `madridlive-app-staging`, `madridlive-watchdog`), sudoers rule de
    restart, node_modules (`npm ci`), crons de backup (este documento, tabla de arriba).
@@ -132,7 +156,6 @@ hace falta además:
 - ⚠️ **Snapshots `env-*.tar.gz` antiguos en Drive** (previos a la exclusión de PR #35),
   con secretos en claro de julio de 2026 → **borrarlos de Drive** y, si se quiere
   defensa extra, rotar los secretos que contenían. (Acción registrada el mismo día.)
-- ⚠️ **`.env` sin copia offsite**: mitigado solo si el gestor de contraseñas del owner
-  está completo y al día (ver sección anterior). Alternativa futura: snapshot cifrado
-  (age/gpg) antes del sync.
+- ✅ **`.env` con copia offsite cifrada** (#32, 2026-10-09): `age` asimétrico, clave
+  privada solo en el gestor del owner (ver sección anterior).
 - ℹ️ Drive acumula dumps sin límite (retención extra deliberada; ~40 KB/día).

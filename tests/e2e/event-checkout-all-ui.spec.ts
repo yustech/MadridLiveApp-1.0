@@ -44,6 +44,9 @@ const activeShift = {
 };
 
 test('operator confirms event checkout and gets one directed WhatsApp link per worker', async ({ page }) => {
+  // Pin "now" to the event night (20:30 Madrid): the checkout-all button only
+  // shows for an ongoing event, so a real clock turns this into a past event.
+  await page.clock.setFixedTime(new Date('2026-07-29T18:30:00.000Z'));
   await seedOnboardingSeen(page, { role: 'operator' });
   await page.addInitScript(() => sessionStorage.setItem('ml_auth', 'true'));
   await page.route('**/api/auth/session', (route) => route.fulfill({
