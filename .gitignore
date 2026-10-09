@@ -12,3 +12,6 @@ secrets/
 
 playwright-report/
 test-results/
+
+# Borradores locales de prompts para Codex (no se publican)
+docs/CODEX_PROMPT_*.md
