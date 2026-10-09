@@ -6,7 +6,7 @@
 > **Estado al 2026-10-09: 36 tareas hechas, 0 pendientes, 2 descartadas por el owner (#1 y #2).** La última, #32 (copia offsite cifrada de los `.env`), quedó hecha y verificada de punta a punta el 2026-10-09.
 > Antes de añadir tareas nuevas, comprueba el estado real en el código — varias estuvieron marcadas como pendientes mucho después de estar hechas y desplegadas (#18 y #22–#26).
 >
-> **Lo siguiente no es código**: registrar los resultados del **ensayo general** en la tabla final de `docs/ENSAYO_GENERAL.md` y preparar el primer concierto real.
+> **Lo siguiente no es código**: hacer el **ensayo general** (`docs/ENSAYO_GENERAL.md`) con personas y teléfonos reales — **aún sin hacer a 2026-10-09** — y apuntar los resultados en su tabla final antes del primer concierto real. (#32 se adelantó al ensayo: no toca la app, solo los backups.)
 
 ---
 
